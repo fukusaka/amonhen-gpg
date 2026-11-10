@@ -16,8 +16,8 @@ use crate::{Error, Result};
 /// 使う gpg と鍵の置き場所。
 #[derive(Clone, Debug)]
 pub struct Gpg {
-    program: PathBuf,
-    homedir: Option<PathBuf>,
+    pub(crate) program: PathBuf,
+    pub(crate) homedir: Option<PathBuf>,
 }
 
 impl Default for Gpg {
@@ -30,19 +30,19 @@ impl Default for Gpg {
 }
 
 /// gpg を 1 回動かした結果。
-struct Run {
-    code: Option<i32>,
-    stdout: Vec<u8>,
-    status: Vec<Status>,
-    messages: String,
+pub(crate) struct Run {
+    pub(crate) code: Option<i32>,
+    pub(crate) stdout: Vec<u8>,
+    pub(crate) status: Vec<Status>,
+    pub(crate) messages: String,
 }
 
 impl Run {
-    fn success(&self) -> bool {
+    pub(crate) fn success(&self) -> bool {
         self.code == Some(0)
     }
 
-    fn into_error(self) -> Error {
+    pub(crate) fn into_error(self) -> Error {
         Error::Gpg {
             code: self.code,
             failures: Failure::from_status(&self.status),
@@ -129,7 +129,12 @@ impl Gpg {
     ///
     /// 一部の鍵だけ取り込めなかったとき、gpg は失敗の終了コードを返すが、結果（`ImportResult::not_imported`）を返す。
     pub fn import(&self, data: &[u8]) -> Result<ImportResult> {
-        let out = self.run_raw(&["--import"], Some(data))?;
+        self.run_import(&["--import"], Some(data))
+    }
+
+    /// 取り込みを伴う操作（`--import`・`--recv-keys` など）を動かし、`IMPORT_RES` から結果を作る。
+    pub(crate) fn run_import(&self, args: &[&str], input: Option<&[u8]>) -> Result<ImportResult> {
+        let out = self.run_raw(args, input)?;
         let Some(result) = parse_import(&out.status) else {
             return Err(out.into_error());
         };
@@ -226,7 +231,7 @@ impl Gpg {
     }
 
     /// gpg と同じ場所の gpgconf（gpg をパスで指していなければ `PATH` で探す）。
-    fn gpgconf_program(&self) -> PathBuf {
+    pub(crate) fn gpgconf_program(&self) -> PathBuf {
         let name = format!("gpgconf{}", std::env::consts::EXE_SUFFIX);
         match self.program.parent().filter(|p| p != &Path::new("")) {
             Some(dir) => dir.join(name),
@@ -268,7 +273,7 @@ impl Gpg {
         cmd
     }
 
-    fn run(&self, args: &[&str], input: Option<&[u8]>) -> Result<Run> {
+    pub(crate) fn run(&self, args: &[&str], input: Option<&[u8]>) -> Result<Run> {
         let out = self.run_raw(args, input)?;
         if out.success() {
             Ok(out)
@@ -278,7 +283,7 @@ impl Gpg {
     }
 
     /// 終了コードを見ずに結果を返す。`input` は標準入力に渡す（なければ閉じる）。
-    fn run_raw<S: AsRef<OsStr>>(&self, args: &[S], input: Option<&[u8]>) -> Result<Run> {
+    pub(crate) fn run_raw<S: AsRef<OsStr>>(&self, args: &[S], input: Option<&[u8]>) -> Result<Run> {
         let spawn_error = |source| Error::Spawn {
             program: self.program.display().to_string(),
             source,
@@ -378,7 +383,7 @@ fn percent_decode(s: &str) -> String {
 
 /// 鍵はフィンガープリント（v4 は 40 桁、v5・v6 は 64 桁の 16 進）でだけ指す。短い鍵 ID や名前で指すと、
 /// 別の鍵に当たることがある。
-fn check_fingerprint(fingerprint: &str) -> Result<&str> {
+pub(crate) fn check_fingerprint(fingerprint: &str) -> Result<&str> {
     let ok =
         matches!(fingerprint.len(), 40 | 64) && fingerprint.bytes().all(|b| b.is_ascii_hexdigit());
     if ok {

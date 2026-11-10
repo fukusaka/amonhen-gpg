@@ -3,6 +3,7 @@
 
 #![deny(unsafe_code)]
 
+mod card;
 pub mod colons;
 mod error;
 mod gpg;
@@ -10,8 +11,10 @@ mod keylist;
 mod model;
 mod ownership;
 pub mod process;
+mod staging;
 pub mod status;
 
+pub use card::Card;
 pub use error::{Error, Result};
 pub use gpg::{Gpg, Version};
 pub use keylist::parse_keylist;

@@ -26,6 +26,11 @@ pub enum Error {
     InvalidArgument { name: &'static str, message: String },
     /// 指した鍵がない。
     NotFound,
+    /// ファイルの操作に失敗した（一時保管の鍵束を作る・消すなど）。
+    Io {
+        path: std::path::PathBuf,
+        source: std::io::Error,
+    },
 }
 
 impl fmt::Display for Error {
@@ -45,6 +50,7 @@ impl fmt::Display for Error {
             }
             Error::InvalidArgument { name, message } => write!(f, "invalid {name}: {message}"),
             Error::NotFound => write!(f, "key not found"),
+            Error::Io { path, source } => write!(f, "{}: {source}", path.display()),
         }
     }
 }
@@ -52,7 +58,7 @@ impl fmt::Display for Error {
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Error::Spawn { source, .. } => Some(source),
+            Error::Spawn { source, .. } | Error::Io { source, .. } => Some(source),
             _ => None,
         }
     }

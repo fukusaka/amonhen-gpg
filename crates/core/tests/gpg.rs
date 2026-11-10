@@ -56,12 +56,17 @@ impl Home {
 }
 
 impl Drop for Home {
+    /// テストが途中で失敗しても、gpg-agent・dirmngr を残さない（一時保管の鍵束も含めて）。
     fn drop(&mut self) {
-        let _ = command("gpgconf")
-            .arg("--homedir")
-            .arg(self.path())
-            .args(["--kill", "all"])
-            .status();
+        for dir in [self.path().to_owned(), self.path().join("staging")] {
+            if dir.exists() {
+                let _ = command("gpgconf")
+                    .arg("--homedir")
+                    .arg(&dir)
+                    .args(["--kill", "all"])
+                    .status();
+            }
+        }
     }
 }
 
@@ -240,4 +245,96 @@ fn missing_program_is_a_spawn_error() {
         .list_keys()
         .unwrap_err();
     assert!(matches!(err, Error::Spawn { .. }));
+}
+
+#[test]
+fn staging_keeps_fetched_keys_apart() {
+    let (Some(remote), Some(home)) = (Home::new(), Home::new()) else {
+        eprintln!("gpg not found; skipped");
+        return;
+    };
+    // 相手の鍵（別の鍵束で作る）
+    let bob = Gpg::new().with_homedir(remote.path());
+    let mut request = alice();
+    request.user_id = "Bob <bob@example.org>".into();
+    let fpr = bob.generate_key(&request).unwrap();
+    let data = bob.export_public_keys(&[&fpr], false).unwrap();
+
+    let main = Gpg::new().with_homedir(home.path());
+    let dir = home.path().join("staging");
+    let staging = main.staging(&dir).unwrap();
+    let r = staging.import(&data).unwrap();
+    assert_eq!(r.imported, 1);
+    assert!(
+        main.list_keys().unwrap().is_empty(),
+        "staging must stay apart"
+    );
+    // 作り直しても同じ一時保管を開く
+    assert_eq!(main.staging(&dir).unwrap().list_keys().unwrap().len(), 1);
+
+    let r = staging.copy_public_keys_to(&main, &[&fpr]).unwrap();
+    assert_eq!(r.imported, 1);
+    let keys = main.list_keys().unwrap();
+    assert_eq!(keys[0].fingerprint, fpr);
+    assert!(!keys[0].is_mine());
+
+    staging.discard_staging().unwrap();
+    assert!(!dir.exists());
+    // 一時保管ではない鍵束は消さない
+    assert!(matches!(
+        main.clone().discard_staging(),
+        Err(Error::InvalidArgument { .. })
+    ));
+    assert!(matches!(
+        Gpg::new().discard_staging(),
+        Err(Error::InvalidArgument { .. })
+    ));
+    assert!(home.path().join("pubring.kbx").exists());
+    // 中身のあるディレクトリは一時保管にしない
+    assert!(matches!(
+        main.staging(home.path()),
+        Err(Error::InvalidArgument { .. })
+    ));
+}
+
+#[test]
+fn card_status_without_a_card() {
+    let Some(home) = Home::new() else {
+        eprintln!("gpg not found; skipped");
+        return;
+    };
+    let gpg = Gpg::new().with_homedir(home.path());
+    // カードが挿さっている機械では、カードの情報が返る
+    match gpg.card_status().unwrap() {
+        None => {}
+        Some(card) => assert!(!card.aid.is_empty()),
+    }
+}
+
+/// ネットワークを使う（`cargo test -- --ignored`）。
+#[test]
+#[ignore]
+fn locate_external_key_through_wkd() {
+    let Some(home) = Home::new() else {
+        eprintln!("gpg not found; skipped");
+        return;
+    };
+    let staging = Gpg::new()
+        .with_homedir(home.path())
+        .staging(home.path().join("staging"))
+        .unwrap();
+    let r = staging.locate_external_key("torvalds@kernel.org").unwrap();
+    assert!(r.considered >= 1);
+    let keys = staging.list_keys().unwrap();
+    assert!(keys.iter().any(|k| {
+        k.user_ids
+            .iter()
+            .any(|u| u.text.contains("torvalds@kernel.org"))
+    }));
+    let fpr = keys[0].fingerprint.clone();
+    let r = staging
+        .receive_keys(&[&fpr], Some("hkps://keys.openpgp.org"))
+        .unwrap();
+    assert!(r.considered >= 1);
+    staging.discard_staging().unwrap();
 }
