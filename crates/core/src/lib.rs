@@ -9,8 +9,12 @@ mod gpg;
 mod keylist;
 mod model;
 pub mod process;
+pub mod status;
 
 pub use error::{Error, Result};
 pub use gpg::{Gpg, Version};
 pub use keylist::parse_keylist;
-pub use model::{Capabilities, Key, SecretState, Subkey, UserId, Validity};
+pub use model::{
+    Capabilities, Expiry, GenerateKey, ImportResult, ImportedKey, Key, SecretState, Subkey, UserId,
+    Validity,
+};

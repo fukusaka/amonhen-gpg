@@ -2,6 +2,8 @@
 
 use std::fmt;
 
+use crate::status::Failure;
+
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug)]
@@ -11,10 +13,19 @@ pub enum Error {
         program: String,
         source: std::io::Error,
     },
-    /// gpg が失敗した。`code` は終了コード（シグナルで止まったときは `None`）、`stderr` は gpg の出力そのまま。
-    Gpg { code: Option<i32>, stderr: String },
+    /// gpg が失敗した。`code` は終了コード（シグナルで止まったときは `None`）、`failures` は gpg が status で
+    /// 報告した失敗（取り消し・パスフレーズの誤りなどは `Failure::kind` で分かる）、`stderr` は人間向けのメッセージ。
+    Gpg {
+        code: Option<i32>,
+        failures: Vec<Failure>,
+        stderr: String,
+    },
     /// gpg の出力を解釈できなかった。`line` は 1 始まり（出力全体の問題で、行を決められないときは 0）。
     Parse { line: usize, message: String },
+    /// 引数が正しくない（gpg を起動する前に止めた）。
+    InvalidArgument { name: &'static str, message: String },
+    /// 指した鍵がない。
+    NotFound,
 }
 
 impl fmt::Display for Error {
@@ -24,11 +35,16 @@ impl fmt::Display for Error {
             Error::Gpg {
                 code: Some(c),
                 stderr,
+                ..
             } => write!(f, "gpg exited with {c}: {}", stderr.trim()),
-            Error::Gpg { code: None, stderr } => write!(f, "gpg was terminated: {}", stderr.trim()),
+            Error::Gpg {
+                code: None, stderr, ..
+            } => write!(f, "gpg was terminated: {}", stderr.trim()),
             Error::Parse { line, message } => {
                 write!(f, "unexpected gpg output at line {line}: {message}")
             }
+            Error::InvalidArgument { name, message } => write!(f, "invalid {name}: {message}"),
+            Error::NotFound => write!(f, "key not found"),
         }
     }
 }

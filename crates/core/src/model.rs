@@ -133,6 +133,76 @@ impl Capabilities {
         }
         caps
     }
+
+    /// `--quick-gen-key`・`--quick-add-key` の用途の引数（`cert,sign` など）。何もなければ `None`。
+    pub fn usage(&self) -> Option<String> {
+        let names = [
+            (self.certify, "cert"),
+            (self.sign, "sign"),
+            (self.encrypt, "encr"),
+            (self.authenticate, "auth"),
+        ];
+        let usage: Vec<_> = names
+            .iter()
+            .filter(|(on, _)| *on)
+            .map(|(_, n)| *n)
+            .collect();
+        (!usage.is_empty()).then(|| usage.join(","))
+    }
+}
+
+/// 鍵を作るときの指定。
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GenerateKey {
+    /// `Name <email>` の形。
+    pub user_id: String,
+    /// `ed25519`・`rsa4096` など。`None` なら gpg の既定。
+    pub algorithm: Option<String>,
+    /// 主鍵の用途。`None` なら gpg の既定（既定のアルゴリズムでは暗号化用のサブ鍵も作る）。
+    pub capabilities: Option<Capabilities>,
+    pub expires: Expiry,
+}
+
+/// 有効期限の指定。
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Expiry {
+    Never,
+    /// 今日から何日後か。
+    Days(u32),
+}
+
+/// 取り込みの結果（`IMPORT_RES` と `IMPORT_OK`）。
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ImportResult {
+    /// 読んだ鍵の数。
+    pub considered: u32,
+    pub no_user_id: u32,
+    /// 新しく加えた鍵。
+    pub imported: u32,
+    /// すでにあって、変わらなかった鍵。
+    pub unchanged: u32,
+    pub new_user_ids: u32,
+    pub new_subkeys: u32,
+    pub new_signatures: u32,
+    pub new_revocations: u32,
+    pub secret_read: u32,
+    pub secret_imported: u32,
+    pub secret_unchanged: u32,
+    /// 取り込めなかった鍵。
+    pub not_imported: u32,
+    pub keys: Vec<ImportedKey>,
+}
+
+/// 取り込んだ（または変わらなかった）1 つの鍵。
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ImportedKey {
+    pub fingerprint: String,
+    pub new_key: bool,
+    pub new_user_ids: bool,
+    pub new_signatures: bool,
+    pub new_subkeys: bool,
+    /// 秘密鍵を含んでいた。
+    pub secret: bool,
 }
 
 /// 秘密鍵がどこにあるか（`--with-secret` のときの Field 15）。
