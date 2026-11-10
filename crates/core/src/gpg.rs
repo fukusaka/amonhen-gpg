@@ -4,7 +4,7 @@
 
 use std::ffi::OsStr;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use crate::keylist::parse_keylist;
@@ -166,6 +166,74 @@ impl Gpg {
         Ok(())
     }
 
+    /// 鍵のデータを、鍵束に取り込まずに読む（受け取った鍵を確かめる・一時保管の中身を見る）。
+    ///
+    /// `Key::secret` は、データが秘密鍵を含むか（`SecretState::None` 以外）だけを表す。gpg は、データの秘密鍵が
+    /// gpg-agent にないと `#`（スタブ）と書くので、`Available` と `Stub` の違いには意味がない。
+    pub fn show_keys(&self, data: &[u8]) -> Result<Vec<Key>> {
+        let out = self.run(
+            &[
+                "--with-colons",
+                "--fixed-list-mode",
+                "--with-subkey-fingerprint",
+                "--show-keys",
+            ],
+            Some(data),
+        )?;
+        let keys = parse_keylist(&String::from_utf8_lossy(&out.stdout))?;
+        if keys.is_empty() {
+            return Err(Error::NotFound);
+        }
+        Ok(keys)
+    }
+
+    /// 鍵の置き場所。`--homedir` で決めていなければ gpgconf に聞く（`GNUPGHOME`・Windows のレジストリも反映される）。
+    pub fn homedir(&self) -> Result<PathBuf> {
+        if let Some(home) = &self.homedir {
+            return Ok(home.clone());
+        }
+        let program = self.gpgconf_program();
+        let out = command(&program)
+            .args(["--list-dirs", "homedir"])
+            .env("LC_ALL", "C")
+            .stdin(Stdio::null())
+            .output()
+            .map_err(|source| Error::Spawn {
+                program: program.display().to_string(),
+                source,
+            })?;
+        if !out.status.success() {
+            return Err(Error::Gpg {
+                code: out.status.code(),
+                failures: Vec::new(),
+                stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
+            });
+        }
+        let line = String::from_utf8_lossy(&out.stdout);
+        Ok(PathBuf::from(percent_decode(
+            line.trim_end_matches(['\r', '\n']),
+        )))
+    }
+
+    /// 失効証明書があるか。gpg は鍵を作るときに `openpgp-revocs.d/<フィンガープリント>.rev` を作る。
+    /// 消したり別の場所に移したりしていれば `false`（手元にないことを知らせる）。
+    pub fn has_revocation_certificate(&self, fingerprint: &str) -> Result<bool> {
+        let fingerprint = check_fingerprint(fingerprint)?;
+        let dir = self.homedir()?.join("openpgp-revocs.d");
+        Ok(dir
+            .join(format!("{}.rev", fingerprint.to_ascii_uppercase()))
+            .is_file())
+    }
+
+    /// gpg と同じ場所の gpgconf（gpg をパスで指していなければ `PATH` で探す）。
+    fn gpgconf_program(&self) -> PathBuf {
+        let name = format!("gpgconf{}", std::env::consts::EXE_SUFFIX);
+        match self.program.parent().filter(|p| p != &Path::new("")) {
+            Some(dir) => dir.join(name),
+            None => name.into(),
+        }
+    }
+
     fn export(&self, command: &str, fingerprints: &[&str], armor: bool) -> Result<Vec<u8>> {
         if fingerprints.is_empty() {
             return Err(Error::InvalidArgument {
@@ -284,6 +352,30 @@ fn parse_import(status: &[Status]) -> Option<ImportResult> {
     })
 }
 
+/// gpgconf はパスの中の `:` などを `%3a` の形で書く。
+fn percent_decode(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        let hex = bytes
+            .get(i + 1..i + 3)
+            .and_then(|h| std::str::from_utf8(h).ok())
+            .and_then(|h| u8::from_str_radix(h, 16).ok());
+        match (bytes[i], hex) {
+            (b'%', Some(b)) => {
+                out.push(b);
+                i += 3;
+            }
+            (b, _) => {
+                out.push(b);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
 /// 鍵はフィンガープリント（v4 は 40 桁、v5・v6 は 64 桁の 16 進）でだけ指す。短い鍵 ID や名前で指すと、
 /// 別の鍵に当たることがある。
 fn check_fingerprint(fingerprint: &str) -> Result<&str> {
@@ -373,6 +465,32 @@ mod tests {
         assert_eq!((v.major, v.minor, v.patch), (2, 4, 0));
         assert!(Version::parse("gpg (GnuPG)").is_none());
         assert!(Version::parse("").is_none());
+    }
+
+    #[test]
+    fn gpgconf_paths_are_decoded() {
+        assert_eq!(
+            percent_decode(r"C%3a\Users\a\AppData\Roaming\gnupg"),
+            r"C:\Users\a\AppData\Roaming\gnupg"
+        );
+        assert_eq!(percent_decode("/home/a/.gnupg"), "/home/a/.gnupg");
+        assert_eq!(percent_decode("50%"), "50%");
+        assert_eq!(percent_decode("%zz"), "%zz");
+    }
+
+    #[test]
+    fn gpgconf_sits_next_to_gpg() {
+        let exe = std::env::consts::EXE_SUFFIX;
+        assert_eq!(
+            Gpg::new().gpgconf_program(),
+            PathBuf::from(format!("gpgconf{exe}"))
+        );
+        assert_eq!(
+            Gpg::new()
+                .with_program("/opt/gnupg/bin/gpg")
+                .gpgconf_program(),
+            PathBuf::from(format!("/opt/gnupg/bin/gpgconf{exe}"))
+        );
     }
 
     #[test]

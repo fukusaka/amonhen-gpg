@@ -8,6 +8,7 @@ mod error;
 mod gpg;
 mod keylist;
 mod model;
+mod ownership;
 pub mod process;
 pub mod status;
 
@@ -18,3 +19,4 @@ pub use model::{
     Capabilities, Expiry, GenerateKey, ImportResult, ImportedKey, Key, SecretState, Subkey, UserId,
     Validity,
 };
+pub use ownership::{Availability, KeyStatus, Tier};

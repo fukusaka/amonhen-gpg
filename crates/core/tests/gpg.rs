@@ -184,6 +184,56 @@ fn bad_requests_are_rejected() {
 }
 
 #[test]
+fn own_keys_show_keys_and_revocation_certificates() {
+    use amonhen_core::{Availability, Tier};
+
+    let Some(home) = Home::new() else {
+        eprintln!("gpg not found; skipped");
+        return;
+    };
+    let gpg = Gpg::new().with_homedir(home.path());
+    let fpr = gpg.generate_key(&alice()).unwrap();
+    home.gpg(&["--quick-add-key", &fpr, "cv25519", "encr", "1y"]);
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
+    let key = &gpg.list_keys().unwrap()[0];
+    assert!(key.is_mine());
+    let status = key.status(now);
+    assert_eq!(status.tier, Tier::Usable);
+    assert_eq!(status.sign, Availability::ThisDevice);
+    assert_eq!(status.decrypt, Availability::ThisDevice);
+    assert_eq!(status.authenticate, Availability::None);
+
+    // gpg は鍵を作るときに失効証明書を残す
+    assert!(gpg.has_revocation_certificate(&fpr).unwrap());
+    assert!(
+        !gpg.has_revocation_certificate("0123456789ABCDEF0123456789ABCDEF01234567")
+            .unwrap()
+    );
+
+    // 取り込まずに中身を見る。秘密鍵を含むデータは `sec` として読める
+    let public = gpg.export_public_keys(&[&fpr], true).unwrap();
+    let secret = gpg.export_secret_key(&fpr, false).unwrap();
+    gpg.delete_secret_and_public_key(&fpr).unwrap();
+    let shown = gpg.show_keys(&public).unwrap();
+    assert_eq!(shown.len(), 1);
+    assert_eq!(shown[0].fingerprint, fpr);
+    assert_eq!(shown[0].secret, SecretState::None);
+    assert_eq!(shown[0].user_ids[0].text, "Alice <alice@example.com>");
+    let shown = gpg.show_keys(&secret).unwrap();
+    assert_ne!(shown[0].secret, SecretState::None);
+    assert_eq!(shown[0].subkeys.len(), 1);
+    assert!(
+        gpg.list_keys().unwrap().is_empty(),
+        "show_keys must not import"
+    );
+    assert!(gpg.show_keys(b"not a key").is_err());
+}
+
+#[test]
 fn missing_program_is_a_spawn_error() {
     let err = Gpg::new()
         .with_program("amonhen-no-such-gpg")

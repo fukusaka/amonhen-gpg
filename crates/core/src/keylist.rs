@@ -1,6 +1,7 @@
-//! 鍵一覧（`gpg --list-keys --with-colons --with-secret`）の出力を `Key` にまとめる。
+//! 鍵一覧（`gpg --list-keys --with-colons --with-secret`・`--show-keys`）の出力を `Key` にまとめる。
 //!
 //! `pub` が鍵の始まりで、続く `fpr`・`grp` は直前の `pub`／`sub` のもの、`uid`・`uat`・`sub` はその鍵のもの。
+//! 秘密鍵を含むデータを `--show-keys` で見ると、`pub`・`sub` の代わりに `sec`・`ssb` になる。
 //! `tru`（trustdb の情報）や知らない種類は読み飛ばす。
 
 use crate::colons::{Record, unescape};
@@ -19,11 +20,11 @@ pub fn parse_keylist(output: &str) -> Result<Vec<Key>> {
         }
         let r = Record::parse(line);
         match r.kind() {
-            "pub" => {
+            "pub" | "sec" => {
                 keys.push(primary(&r));
                 in_subkey = false;
             }
-            "sub" => {
+            "sub" | "ssb" => {
                 current(&mut keys, &r, line_no)?.subkeys.push(subkey(&r));
                 in_subkey = true;
             }
@@ -84,7 +85,7 @@ fn primary(r: &Record) -> Key {
         capabilities: Capabilities::from_flags(flags, false),
         usable: Capabilities::from_flags(flags, true),
         disabled: flags.is_some_and(|f| f.contains('D')),
-        secret: SecretState::from_field(r.field(15)),
+        secret: secret(r),
         subkeys: Vec::new(),
         user_ids: Vec::new(),
     }
@@ -102,7 +103,16 @@ fn subkey(r: &Record) -> Subkey {
         created: timestamp(r.field(6)),
         expires: timestamp(r.field(7)),
         capabilities: Capabilities::from_flags(r.field(12), false),
-        secret: SecretState::from_field(r.field(15)),
+        secret: secret(r),
+    }
+}
+
+/// `pub`・`sub` では `--with-secret` の印（`+`・`#`・カードのシリアル番号）。`sec`・`ssb` は秘密鍵そのものの
+/// レコードなので、印がなければ秘密鍵がある。
+fn secret(r: &Record) -> SecretState {
+    match (r.kind(), r.field(15)) {
+        ("sec" | "ssb", None) => SecretState::Available,
+        (_, field) => SecretState::from_field(field),
     }
 }
 
@@ -200,6 +210,25 @@ uid:f::::1500000000::HASH3::Bob <bob@example.org>::::::::::0:
         assert_eq!(bob.expires, None);
         assert_eq!(bob.secret, SecretState::None);
         assert!(bob.subkeys.is_empty());
+    }
+
+    #[test]
+    fn secret_records_from_show_keys() {
+        let listing = "\
+sec:-:255:22:1111222233334444:1700000000:::-:::scSC:::::ed25519:::0:
+fpr:::::::::AAAABBBBCCCCDDDDEEEEFFFF1111222233334444:
+uid:-::::1700000000::HASH1::Alice <alice@example.com>::::::::::0:
+ssb:-:255:18:5555666677778888:1700000000::::::e:::#::cv25519::
+fpr:::::::::99990000AAAABBBBCCCCDDDD5555666677778888:
+";
+        let keys = parse_keylist(listing).unwrap();
+        assert_eq!(keys.len(), 1);
+        assert_eq!(keys[0].secret, SecretState::Available);
+        assert_eq!(keys[0].subkeys[0].secret, SecretState::Stub);
+        assert_eq!(
+            keys[0].subkeys[0].fingerprint,
+            "99990000AAAABBBBCCCCDDDD5555666677778888"
+        );
     }
 
     #[test]
