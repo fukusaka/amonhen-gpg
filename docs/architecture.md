@@ -121,7 +121,7 @@ apps/
 | 所有者信頼の設定 | `--quick-set-ownertrust`（2.5 で確認。古い gpg にはない） |
 | 失効（鍵全体・サブ鍵） | `--edit-key` を `--command-fd` で駆動し `revkey`（`--gen-revoke` はバッチで動かない）。答え方がずれても気づけるよう、終わったあとに鍵一覧で失効を確かめる。手元の失効証明書（`openpgp-revocs.d`）は、秘密鍵を失ったときのためのもの |
 | 削除 | `--delete-secret-and-public-key`（フィンガープリント指定） |
-| 鍵サーバー / WKD | `--receive-keys` / `--send-keys` / `--locate-keys` |
+| 鍵サーバー / WKD | `--receive-keys` / `--send-keys` / `--locate-external-keys`。送ったものは取り消せないので、FE が送る鍵と送り先を確かめる |
 | パスフレーズ変更 | `--passwd`（入力は pinentry） |
 
 ### SSH 鍵（gpg-agent 経由）

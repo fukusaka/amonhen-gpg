@@ -1,4 +1,4 @@
-//! 一時保管の鍵束と、鍵サーバー・WKD からの取得。画面の方針は `docs/ui.md` の「一時保管」。
+//! 一時保管の鍵束と、鍵サーバー・WKD とのやり取り（取得と公開）。画面の方針は `docs/ui.md` の「一時保管」。
 //!
 //! gpg には「一時的な鍵」がないので、アプリが管理する別の `--homedir` を一時保管にする。取ってきた鍵は
 //! まずそこに入れ、利用者が確かめてから本来の鍵束に公開鍵だけを移す。本来の鍵束は散らからない。
@@ -89,6 +89,28 @@ impl Gpg {
             args.push(check_fingerprint(f)?);
         }
         self.run_import(&args, None)
+    }
+
+    /// 鍵の公開鍵を鍵サーバーに送る（失効させた自分の鍵を知らせる、署名した他者の鍵を返すなど）。秘密鍵は送らない。
+    /// **送ったものは取り消せない**（鍵サーバーは公開鍵を消さないものが多い）ので、FE は送る鍵と送り先を確かめる。
+    /// keys.openpgp.org は、UID のメールアドレスを持ち主が確かめるまで UID を公開しない。
+    pub fn send_keys(&self, fingerprints: &[&str], keyserver: Option<&str>) -> Result<()> {
+        if fingerprints.is_empty() {
+            return Err(Error::InvalidArgument {
+                name: "fingerprints",
+                message: "no key selected".into(),
+            });
+        }
+        let mut args = Vec::new();
+        if let Some(server) = keyserver {
+            args.extend(["--keyserver", check_keyserver(server)?]);
+        }
+        args.extend(["--send-keys", "--"]);
+        for f in fingerprints {
+            args.push(check_fingerprint(f)?);
+        }
+        self.run(&args, None)?;
+        Ok(())
     }
 
     /// メールアドレスで鍵を探して取ってくる。WKD（そのドメインが自分で公開している鍵）を先に、なければ鍵サーバー。

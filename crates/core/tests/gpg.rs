@@ -482,3 +482,27 @@ fn sign_others_key() {
         Err(Error::InvalidArgument { .. })
     ));
 }
+
+#[test]
+fn send_keys_to_a_keyserver() {
+    let Some(home) = Home::new() else {
+        eprintln!("gpg not found; skipped");
+        return;
+    };
+    let gpg = Gpg::new().with_homedir(home.path());
+    let me = gpg.generate_key(&alice()).unwrap();
+
+    // 本物の鍵サーバーには送らない（届かない宛先で失敗を確かめる）
+    assert!(matches!(
+        gpg.send_keys(&[], None),
+        Err(Error::InvalidArgument { .. })
+    ));
+    assert!(matches!(
+        gpg.send_keys(&[&me], Some("keys.openpgp.org")),
+        Err(Error::InvalidArgument { .. })
+    ));
+    assert!(matches!(
+        gpg.send_keys(&[&me], Some("hkp://127.0.0.1:1")),
+        Err(Error::Gpg { .. })
+    ));
+}
