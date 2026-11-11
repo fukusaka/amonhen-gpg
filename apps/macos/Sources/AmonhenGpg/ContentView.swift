@@ -48,8 +48,9 @@ struct ContentView: View {
                     switch place {
                     case .mine:
                         OwnKeysView(
-                            model: model, showsHistory: showsHistory, backUp: backUp, create: { creating = true },
-                            importKeys: importKeys)
+                            model: model, showsHistory: showsHistory,
+                            actions: OwnKeyActions(backUp: backUp, createRevocationCertificate: createRevocationCertificate),
+                            create: { creating = true }, importKeys: importKeys)
                     case .others: OthersView(keys: model.keyring.others, importKeys: importKeys)
                     case .staging:
                         ContentUnavailableView(
@@ -137,6 +138,23 @@ struct ContentView: View {
             }
         }
     }
+
+    /// 失効証明書を作り、gpg が置く場所（`openpgp-revocs.d`）に置く。パスフレーズは gpg が聞く。
+    private func createRevocationCertificate(_ own: OwnKey) {
+        let fingerprint = own.key.fingerprint
+        Task {
+            switch await model.perform({ try $0.saveRevocationCertificate(fingerprint: fingerprint) }) {
+            case let .success(path):
+                notice = Notice(
+                    title: L("Revocation certificate created"),
+                    message: L("Saved it to %@. Keep a copy with the secret key backup, somewhere other than this Mac.", path))
+            case let .failure(error) where isCanceled(error):
+                break
+            case let .failure(error):
+                notice = Notice(title: L("Cannot create a revocation certificate"), message: describe(error))
+            }
+        }
+    }
 }
 
 // MARK: - 自分の鍵
@@ -145,6 +163,7 @@ struct ContentView: View {
 struct OwnKeyActions {
     var extendExpiry: (OwnKey) -> Void = { _ in }
     var backUp: (OwnKey) -> Void = { _ in }
+    var createRevocationCertificate: (OwnKey) -> Void = { _ in }
 }
 
 /// 操作の結果を知らせる（成功も失敗も）。
@@ -177,7 +196,8 @@ extension Notice {
 struct OwnKeysView: View {
     let model: KeyringModel
     @State var showsHistory = false
-    var backUp: (OwnKey) -> Void = { _ in }
+    /// 行の操作（期限の延長は、ここでシートを出す）。
+    var actions = OwnKeyActions()
     var create: () -> Void = {}
     var importKeys: () -> Void = {}
     @State private var extending: OwnKey?
@@ -187,8 +207,10 @@ struct OwnKeysView: View {
             .sheet(item: $extending) { ExtendExpirySheet(model: model, own: $0) }
     }
 
-    private var actions: OwnKeyActions {
-        OwnKeyActions(extendExpiry: { extending = $0 }, backUp: backUp)
+    private var rowActions: OwnKeyActions {
+        var actions = actions
+        actions.extendExpiry = { extending = $0 }
+        return actions
     }
 
     @ViewBuilder private var list: some View {
@@ -209,18 +231,18 @@ struct OwnKeysView: View {
             List {
                 if !keyring.usable.isEmpty {
                     Section(L("Usable")) {
-                        ForEach(keyring.usable) { OwnKeyRow(own: $0, now: now, actions: actions) }
+                        ForEach(keyring.usable) { OwnKeyRow(own: $0, now: now, actions: rowActions) }
                     }
                 }
                 if !keyring.notOnThisDevice.isEmpty {
                     Section(L("Not usable on this Mac")) {
-                        ForEach(keyring.notOnThisDevice) { OwnKeyRow(own: $0, now: now, actions: actions) }
+                        ForEach(keyring.notOnThisDevice) { OwnKeyRow(own: $0, now: now, actions: rowActions) }
                     }
                 }
                 if !keyring.history.isEmpty {
                     Section {
                         DisclosureGroup(isExpanded: $showsHistory) {
-                            ForEach(keyring.history) { OwnKeyRow(own: $0, now: now, actions: actions) }
+                            ForEach(keyring.history) { OwnKeyRow(own: $0, now: now, actions: rowActions) }
                         } label: {
                             Text(L("Used before (%ld)", keyring.history.count))
                         }
@@ -262,6 +284,12 @@ struct OwnKeyRow: View {
                 case .history:
                     Text(historyNote).foregroundStyle(.secondary)
                 }
+                if own.needsRevocationCertificate {
+                    Warning(text: L("No revocation certificate"), action: L("Create…")) {
+                        actions.createRevocationCertificate(own)
+                    }
+                    .help(L("Without it, you cannot revoke this key if you lose the secret key or forget the passphrase."))
+                }
                 Text(Fingerprint.grouped(own.key.fingerprint))
                     .font(.caption.monospaced())
                     .foregroundStyle(.tertiary)
@@ -300,6 +328,8 @@ struct OwnKeyRow: View {
             .disabled(!own.canExtendExpiry)
         Button(L("Back Up Secret Key…")) { actions.backUp(own) }
             .disabled(!own.canBackUp)
+        Button(L("Create Revocation Certificate…")) { actions.createRevocationCertificate(own) }
+            .disabled(!own.needsRevocationCertificate)
     }
 
     private var symbol: String {
@@ -321,6 +351,23 @@ struct OwnKeyRow: View {
         guard let expires = own.key.expires else { return L("Expired") }
         let date = Date(timeIntervalSince1970: TimeInterval(expires))
         return L("Expired on %@", date.formatted(date: .abbreviated, time: .omitted))
+    }
+}
+
+/// 自分の鍵の警告ひとつと、それを解消する操作。
+struct Warning: View {
+    let text: String
+    let action: String
+    let perform: () -> Void
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Label(text, systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+            Button(action, action: perform)
+                .controlSize(.small)
+        }
+        .font(.callout)
     }
 }
 

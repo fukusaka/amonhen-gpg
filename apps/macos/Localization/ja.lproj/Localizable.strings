@@ -47,6 +47,13 @@
 "Backed up" = "バックアップしました";
 "Saved the secret key to %@." = "秘密鍵を %@ に保存しました。";
 "Cannot back up the secret key" = "秘密鍵をバックアップできません";
+"No revocation certificate" = "失効証明書がありません";
+"Create…" = "作成…";
+"Without it, you cannot revoke this key if you lose the secret key or forget the passphrase." = "失効証明書がないと、秘密鍵をなくしたりパスフレーズを忘れたりしたときに、この鍵を失効させられません。";
+"Create Revocation Certificate…" = "失効証明書を作成…";
+"Revocation certificate created" = "失効証明書を作成しました";
+"Saved it to %@. Keep a copy with the secret key backup, somewhere other than this Mac." = "%@ に保存しました。秘密鍵のバックアップと一緒に、この Mac 以外の場所にも写しを置いてください。";
+"Cannot create a revocation certificate" = "失効証明書を作成できません";
 
 /* 鍵の作成 */
 "New Key…" = "新しい鍵…";

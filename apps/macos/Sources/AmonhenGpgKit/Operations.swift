@@ -12,6 +12,14 @@ extension OwnKey {
     }
 }
 
+extension OwnKey {
+    /// 失効証明書がなく、作れるか。秘密鍵を失ったときに鍵を失効させるのに要る。
+    /// 作るには主鍵の秘密鍵で署名するので、期限の延長と同じ条件（失効していない、主鍵の秘密鍵がこの PC かカードにある）。
+    public var needsRevocationCertificate: Bool {
+        !hasRevocationCertificate && canExtendExpiry
+    }
+}
+
 extension Gpg {
     /// 鍵の期限を延ばす。主鍵と、期限のある失効していないサブ鍵を同じ期限にする
     /// （主鍵だけ延ばしても、サブ鍵が切れれば署名や復号に使えないので）。

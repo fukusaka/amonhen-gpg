@@ -181,6 +181,40 @@ func backsUpSecretKeyToPrivateFile() throws {
 }
 
 @Test(.enabled(if: gpgAvailable()))
+func recreatesMissingRevocationCertificate() throws {
+    let home = try TemporaryKeyring()
+    let fpr = try home.gpg.generateKey(
+        request: GenerateKey(userId: "Alice <alice@example.com>", algorithm: nil, capabilities: nil, expires: .never))
+    let gpg = home.gpg
+    func own() throws -> OwnKey {
+        let ring = Keyring(
+            keys: try gpg.listKeys(), sshKeys: [], now: UInt64(Date().timeIntervalSince1970),
+            hasRevocationCertificate: { (try? gpg.hasRevocationCertificate(fingerprint: $0)) ?? true })
+        return try #require(ring.usable.first)
+    }
+    // gpg は鍵を作るときに失効証明書を残す
+    #expect(try !own().needsRevocationCertificate)
+
+    let path = home.dir.appendingPathComponent("openpgp-revocs.d/\(fpr).rev")
+    try FileManager.default.removeItem(at: path)
+    #expect(try own().needsRevocationCertificate)
+    #expect(try gpg.saveRevocationCertificate(fingerprint: fpr) == path.path)
+    #expect(try !own().needsRevocationCertificate)
+    // 作っただけでは失効しない
+    #expect(try own().key.validity != .revoked)
+
+    // 秘密鍵が別の PC にある自分の鍵には作れないので、促さない
+    let other = try TemporaryKeyring()
+    _ = try other.gpg.import(data: try gpg.exportPublicKeys(fingerprints: [fpr], armor: true))
+    try other.gpg.setOwnerTrust(fingerprint: fpr, trust: .ultimate)
+    let ring = Keyring(
+        keys: try other.gpg.listKeys(), sshKeys: [], now: UInt64(Date().timeIntervalSince1970),
+        hasRevocationCertificate: { _ in false })
+    let elsewhere = try #require(ring.notOnThisDevice.first)
+    #expect(!elsewhere.needsRevocationCertificate)
+}
+
+@Test(.enabled(if: gpgAvailable()))
 func importsFilesAndSummarizes() throws {
     let other = try TemporaryKeyring()
     let bob = try other.gpg.generateKey(
