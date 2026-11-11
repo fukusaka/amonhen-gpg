@@ -56,12 +56,19 @@ final class KeyringModel {
     }
 }
 
+/// 利用者がパスフレーズの入力を取り消したか。取り消しは失敗として知らせない。
+func isCanceled(_ error: Error) -> Bool {
+    if case GpgError.Canceled = error { true } else { false }
+}
+
 /// エラーを画面の文にする。
 func describe(_ error: Error) -> String {
     guard let error = error as? GpgError else { return error.localizedDescription }
     switch error {
     case let .Spawn(program, message): return L("Cannot start %@: %@", program, message)
     case let .Gpg(_, _, stderr): return L("gpg failed: %@", stderr.trimmingCharacters(in: .whitespacesAndNewlines))
+    case .Canceled: return L("The passphrase entry was canceled.")
+    case .BadPassphrase: return L("The passphrase was wrong.")
     case let .Agent(_, message): return L("gpg-agent refused: %@", message)
     case let .Parse(_, message): return L("Unexpected output from gpg: %@", message)
     case let .InvalidArgument(name, message): return L("Invalid %@: %@", name, message)

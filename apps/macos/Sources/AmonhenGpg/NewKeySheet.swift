@@ -69,6 +69,8 @@ struct NewKeySheet: View {
             case let .success(fingerprint):
                 dismiss()
                 onCreated(fingerprint)
+            case let .failure(error) where isCanceled(error):
+                break
             case let .failure(error):
                 failure = describe(error)
             }

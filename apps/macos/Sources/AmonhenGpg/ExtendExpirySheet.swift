@@ -103,6 +103,7 @@ struct ExtendExpirySheet: View {
             working = false
             switch result {
             case .success: dismiss()
+            case let .failure(error) where isCanceled(error): break
             case let .failure(error): failure = describe(error)
             }
         }

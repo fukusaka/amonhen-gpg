@@ -19,6 +19,37 @@ final class TemporaryKeyring {
         gpg = Gpg(program: nil, homedir: dir.path)
     }
 
+    /// パスフレーズを本物と同じ道（gpg-agent が pinentry を起動する）で聞く鍵束。pinentry は
+    /// `scripts/fake-pinentry` で、`answer` を答える（nil なら取り消す）。
+    init(pinentry answer: String?) throws {
+        dir = FileManager.default.temporaryDirectory.appendingPathComponent("amonhen-gpg-\(UUID().uuidString.prefix(8))")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        let source = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("../../scripts/fake-pinentry").standardized
+        let pinentry = dir.appendingPathComponent("pinentry")
+        try FileManager.default.copyItem(at: source, to: pinentry)
+        try "pinentry-program \(pinentry.path)\n"
+            .write(to: dir.appendingPathComponent("gpg-agent.conf"), atomically: true, encoding: .utf8)
+        gpg = Gpg(program: nil, homedir: dir.path)
+        try self.answer(answer)
+    }
+
+    /// pinentry の答えを変え、gpg-agent が覚えたパスフレーズを忘れさせる。
+    func answer(_ answer: String?) throws {
+        let file = dir.appendingPathComponent("pinentry-answer")
+        if let answer {
+            try Data(answer.utf8).write(to: file)
+        } else {
+            try? FileManager.default.removeItem(at: file)
+        }
+        let reload = Process()
+        reload.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        reload.arguments = ["gpgconf", "--homedir", dir.path, "--reload", "gpg-agent"]
+        try reload.run()
+        reload.waitUntilExit()
+    }
+
     deinit {
         let kill = Process()
         kill.executableURL = URL(fileURLWithPath: "/usr/bin/env")
@@ -181,4 +212,35 @@ func importsFilesAndSummarizes() throws {
     try certificate.replacingOccurrences(of: ":-----BEGIN", with: "-----BEGIN").write(to: revocation, atomically: true, encoding: .utf8)
     let third = home.gpg.importFiles([revocation])
     #expect(third.revocations == 1)
+}
+
+@Test(.enabled(if: gpgAvailable()))
+func passphrasesThroughPinentry() throws {
+    let passphrase = "correct horse battery staple"
+    let home = try TemporaryKeyring(pinentry: passphrase)
+    let fpr = try home.gpg.generateKey(
+        request: GenerateKey(userId: "Alice <alice@example.com>", algorithm: nil, capabilities: nil, expires: .days(10)))
+    let key = try #require(try home.gpg.listKeys().first)
+
+    try home.answer(nil)
+    #expect {
+        try home.gpg.extendExpiry(of: key, to: .days(365))
+    } throws: { if case GpgError.Canceled = $0 { true } else { false } }
+    try home.answer("wrong")
+    #expect {
+        try home.gpg.extendExpiry(of: key, to: .days(365))
+    } throws: { if case GpgError.BadPassphrase = $0 { true } else { false } }
+
+    // 取り消したバックアップは、ファイルを残さない
+    try home.answer(nil)
+    let file = home.dir.appendingPathComponent("backup.asc")
+    #expect {
+        try home.gpg.backUpSecretKey(fpr, to: file)
+    } throws: { if case GpgError.Canceled = $0 { true } else { false } }
+    #expect(!FileManager.default.fileExists(atPath: file.path))
+
+    try home.answer(passphrase)
+    try home.gpg.extendExpiry(of: key, to: .days(365))
+    try home.gpg.backUpSecretKey(fpr, to: file)
+    #expect(FileManager.default.fileExists(atPath: file.path))
 }

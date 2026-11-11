@@ -93,6 +93,8 @@
 "Cannot read the keyring" = "鍵束を読めません";
 "Cannot start %@: %@" = "%@ を起動できません: %@";
 "gpg failed: %@" = "gpg が失敗しました: %@";
+"The passphrase entry was canceled." = "パスフレーズの入力が取り消されました。";
+"The passphrase was wrong." = "パスフレーズが違います。";
 "gpg-agent refused: %@" = "gpg-agent が要求を断りました: %@";
 "Unexpected output from gpg: %@" = "gpg の出力を解釈できません: %@";
 "Invalid %@: %@" = "%@ が正しくありません: %@";

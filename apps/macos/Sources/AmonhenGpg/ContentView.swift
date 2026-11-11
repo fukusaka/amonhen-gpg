@@ -130,6 +130,8 @@ struct ContentView: View {
             switch await model.perform({ try $0.backUpSecretKey(fingerprint, to: url) }) {
             case .success:
                 notice = Notice(title: L("Backed up"), message: L("Saved the secret key to %@.", url.path))
+            case let .failure(error) where isCanceled(error):
+                break
             case let .failure(error):
                 notice = Notice(title: L("Cannot back up the secret key"), message: describe(error))
             }
