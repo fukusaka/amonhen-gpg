@@ -80,27 +80,28 @@ gpg 本体には JSON / XML 出力がなく、GnuPG プロジェクトは `--wit
   - colon / status パーサーは単体テストとファズテスト。
   - 一時ディレクトリの `GNUPGHOME` と loopback pinentry を使い、実際の gpg に対する結合テスト。
 
-### モジュール構成（案）
+### モジュール構成
 
 ```
 crates/
-  amonhen-core/
-    src/
-      model/        Key, Subkey, UserId, Validity, Capability, SshKey ...
-      gpg/          プロセス実行, colon パーサー, status パーサー
-      agent/        gpg-agent との Assuan 通信 (SSH 鍵, keygrip)
-      usecase/      list, generate, import, export, ... (UI に公開する API)
-      error.rs      構造化エラー
-  amonhen-ffi/      UniFFI 定義 (Swift / C# 向け)
+  core/     amonhen-core   ドメインモデルと gpg・gpgconf・gpg-connect-agent の起動・解析（UI も FFI も知らない）
+  ffi/      amonhen-ffi    UniFFI の窓口（Swift・C# 向け）。uniffi-bindgen もここ（feature `bindgen`）
 apps/
-  macos/            SwiftUI
-  gtk/              GTK4 (gtk4-rs)
-  windows/          WinUI 3 (C#)
+  macos/    SwiftPM のパッケージ
+              CAmonhenGpg     UniFFI が生成する C のヘッダー（systemLibrary）
+              AmonhenGpgKit   生成した Swift のバインディングと、画面に依らない Swift の処理（自分の鍵の段分けなど）
+              AmonhenGpg      SwiftUI のアプリ
+  gtk/      GTK4 (gtk4-rs)   まだ
+  windows/  WinUI 3 (C#)     まだ
 ```
 
 ### バインディング
 
-- Swift: UniFFI（公式で対応）。
+- Swift: UniFFI（`crates/ffi`）。
+  - コアは UniFFI を知らない。コアの型は `amonhen-ffi` で `#[uniffi::remote]` として形を書き写す（コアの型を変えると、合わせるまでコンパイルが通らない）。パス（`PathBuf`）は文字列で渡す。
+  - エラーは OS のエラーなど FFI に載らないものを持つので、`GpgError` に移す（種類と材料だけ。文言は FE）。
+  - gpg を待つ呼び出し（pinentry を含む）は同期のまま出し、FE が裏のスレッドから呼ぶ。
+  - `scripts/build-core.sh` が静的ライブラリをビルドし、Swift のバインディングを `apps/macos` に生成する。生成物はコミットしない。
 - C#: UniFFI のサードパーティ生成器 `uniffi-bindgen-cs`。成熟度に不安があれば、cbindgen による C ABI と P/Invoke に切り替える。
 - GTK4: Rust（gtk4-rs）で書けば FFI 不要。
 

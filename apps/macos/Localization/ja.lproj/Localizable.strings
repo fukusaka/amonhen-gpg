@@ -1,0 +1,43 @@
+/* 画面の文字の日本語訳。鍵はコードに書いた英語。 */
+
+/* 場所 */
+"My Keys" = "自分の鍵";
+"Others' Keys" = "他者の鍵";
+"Staging" = "一時保管";
+"Reload" = "再読み込み";
+
+/* 自分の鍵 */
+"No keys of your own" = "自分の鍵はありません";
+"Create a key, or import one you use on another computer." = "鍵を作るか、別のコンピューターで使っている鍵を取り込んでください。";
+"Usable" = "使える";
+"Not usable on this Mac" = "この Mac では使えない";
+"Used before (%ld)" = "使えた鍵（%ld）";
+"Sign" = "署名";
+"Decrypt" = "復号";
+"This Mac" = "この Mac";
+"Card %@" = "カード %@";
+"Elsewhere" = "ほかの場所";
+"The secret key is not on this Mac." = "秘密鍵はこの Mac にありません。";
+"Expires in %ld days" = "あと %ld 日で期限切れ";
+"Revoked" = "失効";
+"Expired" = "期限切れ";
+"Expired on %@" = "%@に期限切れ";
+
+/* 他者の鍵 */
+"No keys from others" = "他者の鍵はありません";
+"Import keys of people you exchange encrypted or signed messages with." = "暗号化や署名でやり取りする相手の鍵を取り込んでください。";
+"Verified" = "確認済み";
+"Partly verified" = "一部確認済み";
+"Not verified" = "未確認";
+
+/* 一時保管 */
+"Keys found on keyservers or through WKD will be kept here until you import them." = "鍵サーバーや WKD で見つけた鍵は、取り込むまでここに置きます。";
+
+/* エラー */
+"Cannot read the keyring" = "鍵束を読めません";
+"Cannot start %@: %@" = "%@ を起動できません: %@";
+"gpg failed: %@" = "gpg が失敗しました: %@";
+"gpg-agent refused: %@" = "gpg-agent が要求を断りました: %@";
+"Unexpected output from gpg: %@" = "gpg の出力を解釈できません: %@";
+"Invalid %@: %@" = "%@ が正しくありません: %@";
+"The key was not found." = "鍵が見つかりません。";

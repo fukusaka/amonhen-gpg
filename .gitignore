@@ -2,3 +2,7 @@
 .build/
 .swiftpm/
 /dist
+# scripts/build-core.sh が生成する
+/apps/macos/Sources/CAmonhenGpg/CAmonhenGpg.h
+/apps/macos/Sources/CAmonhenGpg/module.modulemap
+/apps/macos/Sources/AmonhenGpgKit/Generated/

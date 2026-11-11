@@ -1,0 +1,70 @@
+import Foundation
+import Testing
+
+@testable import AmonhenGpgKit
+
+/// 一時ディレクトリを鍵束にした gpg。テストではパスフレーズを空にして pinentry を出さない。
+/// 利用者の鍵束（`~/.gnupg`）には触らない。
+final class TemporaryKeyring {
+    let dir: URL
+    let gpg: Gpg
+
+    init() throws {
+        dir = FileManager.default.temporaryDirectory.appendingPathComponent("amonhen-gpg-\(UUID().uuidString.prefix(8))")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        let empty = dir.appendingPathComponent("empty-passphrase")
+        try Data().write(to: empty)
+        try "pinentry-mode loopback\npassphrase-file \(empty.path)\n"
+            .write(to: dir.appendingPathComponent("gpg.conf"), atomically: true, encoding: .utf8)
+        gpg = Gpg(program: nil, homedir: dir.path)
+    }
+
+    deinit {
+        let kill = Process()
+        kill.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        kill.arguments = ["gpgconf", "--homedir", dir.path, "--kill", "all"]
+        try? kill.run()
+        kill.waitUntilExit()
+        try? FileManager.default.removeItem(at: dir)
+    }
+}
+
+private func gpgAvailable() -> Bool {
+    (try? Gpg(program: nil, homedir: nil).version()) != nil
+}
+
+@Test func splitsUserIds() {
+    #expect(UserIdParts("Alice (work) <alice@example.com>") == UserIdParts(name: "Alice", comment: "work", email: "alice@example.com"))
+    #expect(UserIdParts("<bob@example.com>").name == "bob@example.com")
+    #expect(UserIdParts("Carol").email == nil)
+}
+
+@Test(.enabled(if: gpgAvailable()))
+func groupsOwnKeysAndOthers() throws {
+    let home = try TemporaryKeyring()
+    let other = try TemporaryKeyring()
+    let request = { (uid: String) in
+        GenerateKey(
+            userId: uid, algorithm: "ed25519",
+            capabilities: Capabilities(certify: true, sign: true, encrypt: false, authenticate: false), expires: .never)
+    }
+    let mine = try home.gpg.generateKey(request: request("Alice <alice@example.com>"))
+    let auth = try home.gpg.addSubkey(
+        fingerprint: mine, algorithm: "ed25519",
+        capabilities: Capabilities(certify: false, sign: false, encrypt: false, authenticate: true), expires: .never)
+    let old = try home.gpg.generateKey(request: request("Alice 2019 <alice@old.example>"))
+    try home.gpg.revokeKey(fingerprint: old, reason: .superseded, description: "")
+    let bob = try other.gpg.generateKey(request: request("Bob <bob@example.com>"))
+    _ = try home.gpg.import(data: try other.gpg.exportPublicKeys(fingerprints: [bob], armor: false))
+
+    let grip = try #require(try home.gpg.listKeys().first { $0.fingerprint == mine }?.subkeys.first { $0.fingerprint == auth }?.keygrip)
+    try home.gpg.setSshKeyEnabled(keygrip: grip, enabled: true)
+
+    let ring = Keyring(keys: try home.gpg.listKeys(), sshKeys: try home.gpg.sshKeys(), now: UInt64(Date().timeIntervalSince1970))
+    #expect(ring.usable.map(\.key.fingerprint) == [mine])
+    #expect(ring.usable.first?.ssh == true)
+    #expect(ring.usable.first?.status.sign == .thisDevice)
+    #expect(ring.history.map(\.key.fingerprint) == [old])
+    #expect(ring.others.map(\.fingerprint) == [bob])
+    #expect(ring.usable.first?.key.primaryUserId.map { UserIdParts($0.text).email } == "alice@example.com")
+}
