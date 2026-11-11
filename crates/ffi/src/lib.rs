@@ -239,12 +239,16 @@ pub struct Failure {
 pub enum GpgError {
     /// gpg などを起動できなかった。
     Spawn { program: String, message: String },
-    /// gpg が失敗した。`failures` の `code` の下位 16 ビットが gpg-error の種類（取り消し・パスフレーズの誤りなど）。
+    /// gpg が失敗した。`failures` の `code` の下位 16 ビットが gpg-error の種類。
     Gpg {
         code: Option<i32>,
         failures: Vec<Failure>,
         stderr: String,
     },
+    /// 利用者がパスフレーズの入力を取り消した。
+    Canceled,
+    /// パスフレーズが違った。
+    BadPassphrase,
     /// gpg-agent が要求を断った。
     Agent { code: u32, message: String },
     /// gpg の出力を解釈できなかった。
@@ -284,6 +288,8 @@ impl From<amonhen_core::Error> for GpgError {
                 failures,
                 stderr,
             },
+            E::Canceled => GpgError::Canceled,
+            E::BadPassphrase => GpgError::BadPassphrase,
             E::Agent { code, message } => GpgError::Agent { code, message },
             E::Parse { line, message } => GpgError::Parse {
                 line: line as u64,
@@ -379,9 +385,7 @@ impl Gpg {
     }
 
     pub fn export_public_keys(&self, fingerprints: Vec<String>, armor: bool) -> Result<Vec<u8>> {
-        Ok(self
-            .inner
-            .export_public_keys(&strs(&fingerprints), armor)?)
+        Ok(self.inner.export_public_keys(&strs(&fingerprints), armor)?)
     }
 
     pub fn export_secret_key(&self, fingerprint: String, armor: bool) -> Result<Vec<u8>> {
@@ -480,12 +484,9 @@ impl Gpg {
         capabilities: Capabilities,
         expires: Expiry,
     ) -> Result<String> {
-        Ok(self.inner.add_subkey(
-            &fingerprint,
-            algorithm.as_deref(),
-            capabilities,
-            expires,
-        )?)
+        Ok(self
+            .inner
+            .add_subkey(&fingerprint, algorithm.as_deref(), capabilities, expires)?)
     }
 
     pub fn change_passphrase(&self, fingerprint: String) -> Result<()> {

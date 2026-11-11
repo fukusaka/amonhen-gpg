@@ -37,6 +37,42 @@ impl Home {
         Some(Home { dir })
     }
 
+    /// パスフレーズを本物と同じ道（gpg-agent が pinentry を起動する）で聞く鍵束。pinentry は
+    /// `scripts/fake-pinentry` で、`answer` を答える（`None` なら取り消す）。
+    fn with_pinentry(answer: Option<&str>) -> Option<Self> {
+        let home = Self::new()?;
+        std::fs::remove_file(home.path().join("gpg.conf")).unwrap();
+        let pinentry = home.path().join("pinentry");
+        std::fs::copy(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../scripts/fake-pinentry"),
+            &pinentry,
+        )
+        .unwrap();
+        std::fs::write(
+            home.path().join("gpg-agent.conf"),
+            format!("pinentry-program {}\n", pinentry.display()),
+        )
+        .unwrap();
+        home.answer(answer);
+        Some(home)
+    }
+
+    /// pinentry の答えを変え、gpg-agent が覚えたパスフレーズを忘れさせる。
+    fn answer(&self, answer: Option<&str>) {
+        let file = self.path().join("pinentry-answer");
+        match answer {
+            Some(a) => std::fs::write(&file, a).unwrap(),
+            None => {
+                let _ = std::fs::remove_file(&file);
+            }
+        }
+        let _ = command("gpgconf")
+            .arg("--homedir")
+            .arg(self.path())
+            .args(["--reload", "gpg-agent"])
+            .status();
+    }
+
     fn path(&self) -> &Path {
         self.dir.path()
     }
@@ -606,4 +642,56 @@ fn ssh_keys_through_gpg_agent() {
             "ssh-add -L: {text}"
         );
     }
+}
+
+#[test]
+fn passphrases_through_pinentry() {
+    const PASSPHRASE: &str = "correct horse battery staple";
+    let Some(home) = Home::with_pinentry(None) else {
+        return;
+    };
+    let gpg = Gpg::new().with_homedir(home.path());
+
+    // 鍵の作成でパスフレーズを決めるのを取り消す
+    assert!(matches!(gpg.generate_key(&alice()), Err(Error::Canceled)));
+    home.answer(Some(PASSPHRASE));
+    let fpr = gpg.generate_key(&alice()).unwrap();
+
+    // 主鍵で署名し直す操作（期限）
+    home.answer(None);
+    assert!(matches!(
+        gpg.set_expiry(&fpr, Expiry::Days(365)),
+        Err(Error::Canceled)
+    ));
+    home.answer(Some("wrong"));
+    assert!(matches!(
+        gpg.set_expiry(&fpr, Expiry::Days(365)),
+        Err(Error::BadPassphrase)
+    ));
+    home.answer(Some(PASSPHRASE));
+    gpg.set_expiry(&fpr, Expiry::Days(365)).unwrap();
+
+    // 秘密鍵の書き出し（取り消したときだけ gpg は ERROR を出さない）
+    home.answer(None);
+    assert!(matches!(
+        gpg.export_secret_key(&fpr, true),
+        Err(Error::Canceled)
+    ));
+    home.answer(Some("wrong"));
+    assert!(matches!(
+        gpg.export_secret_key(&fpr, true),
+        Err(Error::BadPassphrase)
+    ));
+    home.answer(Some(PASSPHRASE));
+    let backup = gpg.export_secret_key(&fpr, true).unwrap();
+
+    // 秘密鍵は守られたまま入るので、取り込みではパスフレーズを聞かない
+    let Some(other) = Home::with_pinentry(None) else {
+        return;
+    };
+    let result = Gpg::new()
+        .with_homedir(other.path())
+        .import(&backup)
+        .unwrap();
+    assert_eq!(result.secret_imported, 1);
 }

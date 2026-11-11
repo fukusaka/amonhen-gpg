@@ -53,6 +53,8 @@ gpg 本体には JSON / XML 出力がなく、GnuPG プロジェクトは `--wit
 
 パスフレーズの入力は gpg-agent が呼ぶ **pinentry** に任せる。本アプリのプロセスはパスフレーズ・秘密鍵の素材に一切触れない。これは「純粋な FE」の最大の利点で、セキュリティ上の境界にもなる。
 
+入力を取り消したときは `Error::Canceled`、パスフレーズが違ったときは `Error::BadPassphrase` を返す（gpg の `ERROR` 行の種類 99・11 で見分ける）。秘密鍵の書き出しを取り消したときだけは gpg が `ERROR` を出さないので、`LC_ALL=C` のメッセージで見分ける。FE は取り消しを失敗として知らせなくてよい。
+
 ### 自分の鍵を失わない
 
 自分の秘密鍵を誤って消す・管理できなくなることを最も避ける。
@@ -79,6 +81,7 @@ gpg 本体には JSON / XML 出力がなく、GnuPG プロジェクトは `--wit
 - テスト:
   - colon / status パーサーは単体テストとファズテスト。
   - 一時ディレクトリの `GNUPGHOME` と loopback pinentry を使い、実際の gpg に対する結合テスト。
+  - パスフレーズを聞く道（gpg-agent が pinentry を起動する）は、`scripts/fake-pinentry` を `pinentry-program` にして確かめる。決まった答え・違う答え・取り消しを返せる。本物の pinentry（pinentry-mac など）の見た目は手で確かめる。
 
 ### モジュール構成
 

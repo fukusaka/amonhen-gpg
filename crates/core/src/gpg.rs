@@ -43,13 +43,27 @@ impl Run {
     }
 
     pub(crate) fn into_error(self) -> Error {
+        let failures = Failure::from_status(&self.status);
+        // 秘密鍵の書き出しを取り消したときだけは ERROR が出ず、メッセージ（LC_ALL=C）にしか現れない
+        if failures.iter().any(|f| f.kind() == GPG_ERR_CANCELED)
+            || self.messages.contains(": Operation cancelled")
+        {
+            return Error::Canceled;
+        }
+        if failures.iter().any(|f| f.kind() == GPG_ERR_BAD_PASSPHRASE) {
+            return Error::BadPassphrase;
+        }
         Error::Gpg {
             code: self.code,
-            failures: Failure::from_status(&self.status),
+            failures,
             stderr: self.messages,
         }
     }
 }
+
+/// gpg-error の種類（`Failure::kind`）。
+const GPG_ERR_BAD_PASSPHRASE: u32 = 11;
+const GPG_ERR_CANCELED: u32 = 99;
 
 impl Gpg {
     /// `PATH` の `gpg` と、既定の鍵の置き場所（`GNUPGHOME` または `~/.gnupg`）。
@@ -125,7 +139,7 @@ impl Gpg {
             })
     }
 
-    /// 鍵（公開鍵・秘密鍵・失効証明書）を取り込む。秘密鍵を含むときは pinentry がパスフレーズを聞く。
+    /// 鍵（公開鍵・秘密鍵・失効証明書）を取り込む。秘密鍵は守られたまま入るので、ふつうはパスフレーズを聞かない。
     ///
     /// 一部の鍵だけ取り込めなかったとき、gpg は失敗の終了コードを返すが、結果（`ImportResult::not_imported`）を返す。
     pub fn import(&self, data: &[u8]) -> Result<ImportResult> {

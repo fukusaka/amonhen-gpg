@@ -20,6 +20,10 @@ pub enum Error {
         failures: Vec<Failure>,
         stderr: String,
     },
+    /// 利用者がパスフレーズの入力（pinentry）を取り消した。FE は知らせずに止めてよい。
+    Canceled,
+    /// パスフレーズが違った（gpg-agent が何度か聞き直したうえで諦めた）。
+    BadPassphrase,
     /// gpg-agent が要求を断った（`ERR` の応答）。`code` は gpg-error のコード（下位 16 ビットが種類）。
     Agent { code: u32, message: String },
     /// gpg の出力を解釈できなかった。`line` は 1 始まり（出力全体の問題で、行を決められないときは 0）。
@@ -49,6 +53,8 @@ impl fmt::Display for Error {
             Error::Gpg {
                 code: None, stderr, ..
             } => write!(f, "gpg was terminated: {}", stderr.trim()),
+            Error::Canceled => write!(f, "passphrase entry was canceled"),
+            Error::BadPassphrase => write!(f, "bad passphrase"),
             Error::Agent { code, message } => write!(f, "gpg-agent refused ({code}): {message}"),
             Error::Parse { line, message } => {
                 write!(f, "unexpected gpg output at line {line}: {message}")
