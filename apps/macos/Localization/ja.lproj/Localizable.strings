@@ -23,6 +23,23 @@
 "Expired" = "期限切れ";
 "Expired on %@" = "%@に期限切れ";
 
+/* 期限の延長 */
+"Extend…" = "延長…";
+"Extend Expiry…" = "期限を延長…";
+"Extend Expiry" = "期限の延長";
+"Extend" = "延長";
+"Cancel" = "キャンセル";
+"New expiry" = "新しい期限";
+"1 year" = "1 年";
+"2 years" = "2 年";
+"5 years" = "5 年";
+"No expiry" = "期限なし";
+"Currently: no expiry" = "今は期限なし";
+"Currently: until %@" = "今の期限: %@まで";
+"The key will be usable until %@." = "%@まで使えるようになります。";
+"A key without expiry stays valid even if you lose it and cannot revoke it." = "期限のない鍵は、なくして失効させられなくなっても有効なまま残ります。";
+"gpg will ask for the passphrase of this key." = "この鍵のパスフレーズを gpg が聞きます。";
+
 /* 他者の鍵 */
 "No keys from others" = "他者の鍵はありません";
 "Import keys of people you exchange encrypted or signed messages with." = "暗号化や署名でやり取りする相手の鍵を取り込んでください。";

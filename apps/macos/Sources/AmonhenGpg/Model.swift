@@ -24,6 +24,15 @@ final class KeyringModel {
         apply(result)
     }
 
+    /// 鍵束を変える操作を裏のスレッドで行い、終わったら（失敗しても）読み直す。
+    /// パスフレーズは gpg-agent の pinentry が聞くので、その間も画面は止めない。
+    func perform<T: Sendable>(_ work: @escaping @Sendable (Gpg) throws -> T) async -> Result<T, Error> {
+        let gpg = gpg
+        let result = await Task.detached { Result { try work(gpg) } }.value
+        await reload()
+        return result
+    }
+
     /// 待たずに読む（画像に書き出すときだけ）。
     func reloadNow() {
         apply(Result { try Self.read(gpg) })

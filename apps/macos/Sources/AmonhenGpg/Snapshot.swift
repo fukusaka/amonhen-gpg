@@ -32,3 +32,23 @@ enum Snapshot {
         exit(0)
     }
 }
+
+/// シートを単独で書き出すための入れ物（`--sheet`）。鍵束を読んでから中身を決める。
+struct SheetPreview: View {
+    enum Kind: String {
+        case extend
+    }
+
+    let model: KeyringModel
+    let kind: Kind
+
+    var body: some View {
+        let own = model.keyring.usable.first ?? model.keyring.history.first
+        switch kind {
+        case .extend:
+            if let own {
+                ExtendExpirySheet(model: model, own: own)
+            }
+        }
+    }
+}

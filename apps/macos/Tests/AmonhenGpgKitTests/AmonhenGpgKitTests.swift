@@ -68,3 +68,51 @@ func groupsOwnKeysAndOthers() throws {
     #expect(ring.others.map(\.fingerprint) == [bob])
     #expect(ring.usable.first?.key.primaryUserId.map { UserIdParts($0.text).email } == "alice@example.com")
 }
+
+@Test(.enabled(if: gpgAvailable()))
+func extendsPrimaryAndSubkeys() throws {
+    let home = try TemporaryKeyring()
+    let fpr = try home.gpg.generateKey(
+        request: GenerateKey(
+            userId: "Alice <alice@example.com>", algorithm: "ed25519",
+            capabilities: Capabilities(certify: true, sign: true, encrypt: false, authenticate: false), expires: .days(10)))
+    let sub = try home.gpg.addSubkey(
+        fingerprint: fpr, algorithm: "cv25519",
+        capabilities: Capabilities(certify: false, sign: false, encrypt: true, authenticate: false), expires: .days(10))
+    let now = UInt64(Date().timeIntervalSince1970)
+    let own = try #require(Keyring(keys: try home.gpg.listKeys(), sshKeys: [], now: now).usable.first)
+    #expect(own.canExtendExpiry)
+
+    try home.gpg.extendExpiry(of: own.key, to: .days(730))
+    let key = try #require(try home.gpg.listKeys().first { $0.fingerprint == fpr })
+    let soon = now + 700 * 86_400
+    #expect((key.expires ?? 0) > soon)
+    #expect((key.subkeys.first { $0.fingerprint == sub }?.expires ?? 0) > soon)
+}
+
+@Test(.enabled(if: gpgAvailable()))
+func cannotExtendWithoutPrimarySecret() throws {
+    // 秘密鍵は別の PC にある自分の鍵（公開鍵を取り込み、所有者信頼を絶対にする）
+    let home = try TemporaryKeyring()
+    let other = try TemporaryKeyring()
+    let mine = try other.gpg.generateKey(
+        request: GenerateKey(userId: "Alice Home <alice@home.example>", algorithm: nil, capabilities: nil, expires: .never))
+    _ = try home.gpg.import(data: try other.gpg.exportPublicKeys(fingerprints: [mine], armor: false))
+    try home.gpg.setOwnerTrust(fingerprint: mine, trust: .ultimate)
+    let ring = Keyring(keys: try home.gpg.listKeys(), sshKeys: [], now: UInt64(Date().timeIntervalSince1970))
+    #expect(ring.notOnThisDevice.first?.canExtendExpiry == false)
+}
+
+@Test(.enabled(if: gpgAvailable()))
+func revivesExpiredKey() throws {
+    let home = try TemporaryKeyring()
+    let fpr = try home.gpg.generateKey(
+        request: GenerateKey(userId: "Alice 2019 <alice@old.example>", algorithm: nil, capabilities: nil, expires: .days(1)))
+    // 2 日後から見れば期限切れ
+    let later = UInt64(Date().timeIntervalSince1970) + 2 * 86_400
+    let old = try #require(Keyring(keys: try home.gpg.listKeys(), sshKeys: [], now: later).history.first)
+    #expect(old.canExtendExpiry)
+    try home.gpg.extendExpiry(of: old.key, to: .days(365))
+    let ring = Keyring(keys: try home.gpg.listKeys(), sshKeys: [], now: later)
+    #expect(ring.usable.map(\.key.fingerprint) == [fpr])
+}

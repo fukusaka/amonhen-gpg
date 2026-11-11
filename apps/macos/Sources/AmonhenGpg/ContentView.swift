@@ -41,7 +41,7 @@ struct ContentView: View {
                         L("Cannot read the keyring"), systemImage: "exclamationmark.triangle", description: Text(failure))
                 } else {
                     switch place {
-                    case .mine: OwnKeysView(keyring: model.keyring, showsHistory: showsHistory)
+                    case .mine: OwnKeysView(model: model, showsHistory: showsHistory)
                     case .others: OthersView(keys: model.keyring.others)
                     case .staging:
                         ContentUnavailableView(
@@ -65,11 +65,27 @@ struct ContentView: View {
 
 // MARK: - 自分の鍵
 
+/// 鍵ごとの操作。行から呼び、シートなどは一覧の側で出す。
+struct OwnKeyActions {
+    var extendExpiry: (OwnKey) -> Void = { _ in }
+}
+
 struct OwnKeysView: View {
-    let keyring: Keyring
+    let model: KeyringModel
     @State var showsHistory = false
+    @State private var extending: OwnKey?
 
     var body: some View {
+        list
+            .sheet(item: $extending) { ExtendExpirySheet(model: model, own: $0) }
+    }
+
+    private var actions: OwnKeyActions {
+        OwnKeyActions(extendExpiry: { extending = $0 })
+    }
+
+    @ViewBuilder private var list: some View {
+        let keyring = model.keyring
         let now = UInt64(Date().timeIntervalSince1970)
         if keyring.usable.isEmpty && keyring.notOnThisDevice.isEmpty && keyring.history.isEmpty {
             ContentUnavailableView(
@@ -79,18 +95,18 @@ struct OwnKeysView: View {
             List {
                 if !keyring.usable.isEmpty {
                     Section(L("Usable")) {
-                        ForEach(keyring.usable) { OwnKeyRow(own: $0, now: now) }
+                        ForEach(keyring.usable) { OwnKeyRow(own: $0, now: now, actions: actions) }
                     }
                 }
                 if !keyring.notOnThisDevice.isEmpty {
                     Section(L("Not usable on this Mac")) {
-                        ForEach(keyring.notOnThisDevice) { OwnKeyRow(own: $0, now: now) }
+                        ForEach(keyring.notOnThisDevice) { OwnKeyRow(own: $0, now: now, actions: actions) }
                     }
                 }
                 if !keyring.history.isEmpty {
                     Section {
                         DisclosureGroup(isExpanded: $showsHistory) {
-                            ForEach(keyring.history) { OwnKeyRow(own: $0, now: now) }
+                            ForEach(keyring.history) { OwnKeyRow(own: $0, now: now, actions: actions) }
                         } label: {
                             Text(L("Used before (%ld)", keyring.history.count))
                         }
@@ -104,6 +120,7 @@ struct OwnKeysView: View {
 struct OwnKeyRow: View {
     let own: OwnKey
     let now: UInt64
+    var actions = OwnKeyActions()
 
     var body: some View {
         let parts = own.key.primaryUserId.map { UserIdParts($0.text) }
@@ -141,10 +158,32 @@ struct OwnKeyRow: View {
                 Label(L("Expires in %ld days", max(days, 0)), systemImage: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)
                     .font(.callout)
+                if own.canExtendExpiry {
+                    Button(L("Extend…")) { actions.extendExpiry(own) }
+                        .controlSize(.small)
+                }
+            } else if own.status.tier == .history, own.canExtendExpiry {
+                // 期限切れの鍵は延ばせば使える段に戻る
+                Button(L("Extend…")) { actions.extendExpiry(own) }
+                    .controlSize(.small)
             }
+            Menu {
+                menuItems
+            } label: {
+                Image(systemName: "ellipsis.circle")
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
         }
         .padding(.vertical, 4)
         .listRowSeparator(.hidden)
+        .contextMenu { menuItems }
+    }
+
+    @ViewBuilder private var menuItems: some View {
+        Button(L("Extend Expiry…")) { actions.extendExpiry(own) }
+            .disabled(!own.canExtendExpiry)
     }
 
     private var symbol: String {
