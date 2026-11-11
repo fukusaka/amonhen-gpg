@@ -4,6 +4,7 @@
 #![deny(unsafe_code)]
 
 mod card;
+mod certify;
 pub mod colons;
 mod edit;
 mod error;

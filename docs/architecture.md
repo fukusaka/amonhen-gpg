@@ -117,7 +117,7 @@ apps/
 | インポート / エクスポート（公開鍵、秘密鍵、失効証明書） | `--import` / `--export` / `--export-secret-keys` |
 | 有効期限の変更 | `--quick-set-expire` |
 | UID の追加・失効・主 UID の設定 | `--quick-add-uid` / `--quick-revoke-uid` / `--quick-set-primary-uid` |
-| 鍵への署名 | `--quick-sign-key` / `--quick-lsign-key` |
+| 他者の鍵への署名 | `--quick-sign-key` / `--quick-lsign-key`（UID を選べる。署名に使う鍵は `--local-user` にフィンガープリントで渡す） |
 | 所有者信頼の設定 | `--quick-set-ownertrust`（2.5 で確認。古い gpg にはない） |
 | 失効（鍵全体・サブ鍵） | `--edit-key` を `--command-fd` で駆動し `revkey`（`--gen-revoke` はバッチで動かない）。答え方がずれても気づけるよう、終わったあとに鍵一覧で失効を確かめる。手元の失効証明書（`openpgp-revocs.d`）は、秘密鍵を失ったときのためのもの |
 | 削除 | `--delete-secret-and-public-key`（フィンガープリント指定） |

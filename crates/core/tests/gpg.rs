@@ -428,3 +428,57 @@ fn edit_own_key() {
         Err(Error::InvalidArgument { .. })
     ));
 }
+
+#[test]
+fn sign_others_key() {
+    let (Some(home), Some(other)) = (Home::new(), Home::new()) else {
+        eprintln!("gpg not found; skipped");
+        return;
+    };
+    let gpg = Gpg::new().with_homedir(home.path());
+    let me = gpg.generate_key(&alice()).unwrap();
+
+    // Bob は別の鍵束で作り、公開鍵だけを受け取る
+    let bob_gpg = Gpg::new().with_homedir(other.path());
+    let bob = bob_gpg
+        .generate_key(&GenerateKey {
+            user_id: "Bob <bob@example.com>".into(),
+            ..alice()
+        })
+        .unwrap();
+    bob_gpg
+        .add_user_id(&bob, "Bob Work <bob@work.example>")
+        .unwrap();
+    gpg.import(&bob_gpg.export_public_keys(&[&bob], false).unwrap())
+        .unwrap();
+
+    let uid = |text: &str| {
+        let keys = gpg.list_keys().unwrap();
+        let key = keys.iter().find(|k| k.fingerprint == bob).unwrap();
+        key.user_ids
+            .iter()
+            .find(|u| u.text == text)
+            .unwrap()
+            .validity
+    };
+    assert_ne!(uid("Bob <bob@example.com>"), Validity::Full);
+
+    // 1 つの UID にだけ署名する。自分の鍵（絶対的な信頼）の署名で確認済みになる
+    gpg.sign_key(&bob, &["Bob <bob@example.com>"], Some(&me), false)
+        .unwrap();
+    assert_eq!(uid("Bob <bob@example.com>"), Validity::Full);
+    assert_ne!(uid("Bob Work <bob@work.example>"), Validity::Full);
+
+    // 書き出さない署名で残りの UID にも。署名済みの UID はそのまま
+    gpg.sign_key(&bob, &[], None, true).unwrap();
+    assert_eq!(uid("Bob Work <bob@work.example>"), Validity::Full);
+
+    assert!(
+        gpg.sign_key(&bob, &["Nobody <x@example.com>"], None, false)
+            .is_err()
+    );
+    assert!(matches!(
+        gpg.sign_key(&bob, &[], Some("Alice"), false),
+        Err(Error::InvalidArgument { .. })
+    ));
+}
