@@ -1,0 +1,22 @@
+[package]
+name = "amonhen-ffi"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lib]
+# Swift は静的ライブラリをリンクし、バインディングの生成（uniffi-bindgen）は動的ライブラリからメタデータを読む
+crate-type = ["staticlib", "cdylib", "lib"]
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/bin/uniffi-bindgen.rs"
+required-features = ["bindgen"]
+
+[dependencies]
+amonhen-core.workspace = true
+uniffi = "0.32.2"
+
+[features]
+bindgen = ["uniffi/cli"]

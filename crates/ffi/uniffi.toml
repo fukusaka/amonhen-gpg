@@ -1,0 +1,4 @@
+# Swift: 生成した C のヘッダーは SwiftPM の systemLibrary（CAmonhenGpg）に、Swift のコードは AmonhenGpgKit に置く
+[bindings.swift]
+ffi_module_name = "CAmonhenGpg"
+ffi_module_filename = "CAmonhenGpg"
