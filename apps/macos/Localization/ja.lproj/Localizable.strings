@@ -47,6 +47,13 @@
 "Backed up" = "バックアップしました";
 "Saved the secret key to %@." = "秘密鍵を %@ に保存しました。";
 "Cannot back up the secret key" = "秘密鍵をバックアップできません";
+"No backup" = "バックアップがありません";
+"Back Up…" = "バックアップ…";
+"This app has no record of a backup of this secret key. Without one, losing this Mac means losing the key." = "この秘密鍵のバックアップを取った記録がありません。バックアップがないと、この Mac をなくしたときに鍵も失います。";
+"Mark as Backed Up…" = "バックアップ済みにする…";
+"Mark as Backed Up?" = "バックアップ済みにしますか？";
+"Mark as Backed Up" = "バックアップ済みにする";
+"Do this only if you already keep a backup of this secret key somewhere other than this Mac. The app will stop warning about it." = "この秘密鍵のバックアップを、すでにこの Mac 以外の場所に置いているときだけ選んでください。この鍵について警告を出さなくなります。";
 "No revocation certificate" = "失効証明書がありません";
 "Create…" = "作成…";
 "Without it, you cannot revoke this key if you lose the secret key or forget the passphrase." = "失効証明書がないと、秘密鍵をなくしたりパスフレーズを忘れたりしたときに、この鍵を失効させられません。";

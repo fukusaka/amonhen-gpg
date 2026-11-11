@@ -32,6 +32,8 @@ struct ContentView: View {
     @State private var notice: Notice?
     /// 作ったばかりの鍵（バックアップを勧める）。
     @State private var created: OwnKey?
+    /// バックアップ済みにするか確かめている鍵。
+    @State private var markingBackedUp: OwnKey?
 
     var body: some View {
         NavigationSplitView {
@@ -49,7 +51,9 @@ struct ContentView: View {
                     case .mine:
                         OwnKeysView(
                             model: model, showsHistory: showsHistory,
-                            actions: OwnKeyActions(backUp: backUp, createRevocationCertificate: createRevocationCertificate),
+                            actions: OwnKeyActions(
+                                backUp: backUp, markBackedUp: { markingBackedUp = $0 },
+                                createRevocationCertificate: createRevocationCertificate),
                             create: { creating = true }, importKeys: importKeys)
                     case .others: OthersView(keys: model.keyring.others, importKeys: importKeys)
                     case .staging:
@@ -97,6 +101,16 @@ struct ContentView: View {
         } message: { _ in
             Text(L("Back up the secret key now and keep it somewhere other than this Mac. Without it, losing this Mac means losing the key."))
         }
+        .alert(
+            L("Mark as Backed Up?"),
+            isPresented: Binding(get: { markingBackedUp != nil }, set: { if !$0 { markingBackedUp = nil } }),
+            presenting: markingBackedUp
+        ) { own in
+            Button(L("Mark as Backed Up")) { Task { await model.recordBackup(own.key.fingerprint) } }
+            Button(L("Cancel"), role: .cancel) {}
+        } message: { _ in
+            Text(L("Do this only if you already keep a backup of this secret key somewhere other than this Mac. The app will stop warning about it."))
+        }
         .alert(item: $notice) { notice in
             Alert(title: Text(notice.title), message: Text(notice.message))
         }
@@ -130,6 +144,7 @@ struct ContentView: View {
         Task {
             switch await model.perform({ try $0.backUpSecretKey(fingerprint, to: url) }) {
             case .success:
+                await model.recordBackup(fingerprint)
                 notice = Notice(title: L("Backed up"), message: L("Saved the secret key to %@.", url.path))
             case let .failure(error) where isCanceled(error):
                 break
@@ -163,6 +178,7 @@ struct ContentView: View {
 struct OwnKeyActions {
     var extendExpiry: (OwnKey) -> Void = { _ in }
     var backUp: (OwnKey) -> Void = { _ in }
+    var markBackedUp: (OwnKey) -> Void = { _ in }
     var createRevocationCertificate: (OwnKey) -> Void = { _ in }
 }
 
@@ -284,6 +300,10 @@ struct OwnKeyRow: View {
                 case .history:
                     Text(historyNote).foregroundStyle(.secondary)
                 }
+                if own.needsBackup {
+                    Warning(text: L("No backup"), action: L("Back Up…")) { actions.backUp(own) }
+                        .help(L("This app has no record of a backup of this secret key. Without one, losing this Mac means losing the key."))
+                }
                 if own.needsRevocationCertificate {
                     Warning(text: L("No revocation certificate"), action: L("Create…")) {
                         actions.createRevocationCertificate(own)
@@ -328,6 +348,8 @@ struct OwnKeyRow: View {
             .disabled(!own.canExtendExpiry)
         Button(L("Back Up Secret Key…")) { actions.backUp(own) }
             .disabled(!own.canBackUp)
+        Button(L("Mark as Backed Up…")) { actions.markBackedUp(own) }
+            .disabled(!own.needsBackup)
         Button(L("Create Revocation Certificate…")) { actions.createRevocationCertificate(own) }
             .disabled(!own.needsRevocationCertificate)
     }

@@ -46,6 +46,36 @@ extension OwnKey {
     }
 }
 
+extension OwnKey {
+    /// バックアップを促すか。秘密鍵がこの PC にあり、バックアップの記録がないこと。
+    /// 使えた鍵（期限切れ・失効）も、昔のものを復号するのに秘密鍵が要るので促す。
+    public var needsBackup: Bool {
+        canBackUp && backedUp == nil
+    }
+}
+
+/// 秘密鍵のバックアップを取った日時。gpg は記録しないので、アプリが鍵のフィンガープリントごとに覚える。
+/// アプリで書き出したときと、ほかの方法で取ったと利用者が言ったときに記録する。
+public struct BackupLog {
+    private let defaults: UserDefaults
+    private static let key = "backups"
+
+    public init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+    }
+
+    public var dates: [String: Date] {
+        let stored = defaults.dictionary(forKey: Self.key) as? [String: Double] ?? [:]
+        return stored.mapValues { Date(timeIntervalSince1970: $0) }
+    }
+
+    public func record(_ fingerprint: String, at date: Date = Date()) {
+        var stored = defaults.dictionary(forKey: Self.key) as? [String: Double] ?? [:]
+        stored[fingerprint] = date.timeIntervalSince1970
+        defaults.set(stored, forKey: Self.key)
+    }
+}
+
 extension Gpg {
     /// 秘密鍵を ASCII 形式で `url` に書き出す。書き出したものはパスフレーズで守られたまま。
     /// ファイルは持ち主だけが読める（0600）ように作ってから置き換える。

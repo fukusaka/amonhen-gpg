@@ -6,22 +6,31 @@ import Observation
 @Observable
 final class KeyringModel {
     let gpg: Gpg
+    let backups: BackupLog
     private(set) var keyring = Keyring()
     private(set) var loading = false
     private(set) var failure: String?
 
-    init(gpg: Gpg) {
+    init(gpg: Gpg, backups: BackupLog = BackupLog()) {
         self.gpg = gpg
+        self.backups = backups
     }
 
     func reload() async {
         loading = true
         defer { loading = false }
         let gpg = gpg
+        let dates = backups.dates
         let result = await Task.detached { () -> Result<Keyring, Error> in
-            Result { try Self.read(gpg) }
+            Result { try Self.read(gpg, backups: dates) }
         }.value
         apply(result)
+    }
+
+    /// 秘密鍵のバックアップを取ったと覚え、警告を消す。
+    func recordBackup(_ fingerprint: String) async {
+        backups.record(fingerprint)
+        await reload()
     }
 
     /// 鍵束を変える操作を裏のスレッドで行い、終わったら（失敗しても）読み直す。
@@ -35,7 +44,7 @@ final class KeyringModel {
 
     /// 待たずに読む（画像に書き出すときだけ）。
     func reloadNow() {
-        apply(Result { try Self.read(gpg) })
+        apply(Result { try Self.read(gpg, backups: backups.dates) })
     }
 
     private func apply(_ result: Result<Keyring, Error>) {
@@ -48,14 +57,15 @@ final class KeyringModel {
         }
     }
 
-    nonisolated private static func read(_ gpg: Gpg) throws -> Keyring {
+    nonisolated private static func read(_ gpg: Gpg, backups: [String: Date]) throws -> Keyring {
         let keys = try gpg.listKeys()
         // SSH の状態が取れなくても（gpg-agent が動かないなど）、鍵の一覧は出す
         let sshKeys = (try? gpg.sshKeys()) ?? []
         return Keyring(
             keys: keys, sshKeys: sshKeys, now: UInt64(Date().timeIntervalSince1970),
             // 確かめられないときは、ないと警告しない
-            hasRevocationCertificate: { (try? gpg.hasRevocationCertificate(fingerprint: $0)) ?? true })
+            hasRevocationCertificate: { (try? gpg.hasRevocationCertificate(fingerprint: $0)) ?? true },
+            backups: backups)
     }
 }
 

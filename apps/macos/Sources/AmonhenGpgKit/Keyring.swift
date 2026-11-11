@@ -12,9 +12,11 @@ public struct Keyring: Sendable {
 
     /// `keys` を分ける。`sshKeys` は gpg-agent が SSH に出している鍵を知るため（取れなければ空）。`now` は UNIX 時刻（秒）。
     /// `hasRevocationCertificate` は自分の鍵ごとに、手元に失効証明書があるか（`Gpg.hasRevocationCertificate`）。
+    /// `backups` はバックアップを取った日時（`BackupLog.dates`）。
     public init(
         keys: [Key], sshKeys: [SshKey], now: UInt64,
-        hasRevocationCertificate: (String) -> Bool = { _ in true }
+        hasRevocationCertificate: (String) -> Bool = { _ in true },
+        backups: [String: Date] = [:]
     ) {
         let ssh = Set(sshKeys.filter(sshKeyEnabled(key:)).map(\.keygrip))
         for key in keys {
@@ -25,7 +27,8 @@ public struct Keyring: Sendable {
             let grips = ([key.keygrip] + key.subkeys.map(\.keygrip)).compactMap { $0 }
             let own = OwnKey(
                 key: key, status: keyStatus(key: key, now: now), ssh: grips.contains(where: ssh.contains),
-                hasRevocationCertificate: hasRevocationCertificate(key.fingerprint))
+                hasRevocationCertificate: hasRevocationCertificate(key.fingerprint),
+                backedUp: backups[key.fingerprint])
             switch own.status.tier {
             case .usable: usable.append(own)
             case .notOnThisDevice: notOnThisDevice.append(own)
@@ -45,6 +48,8 @@ public struct OwnKey: Sendable, Identifiable {
     public let ssh: Bool
     /// 手元（`openpgp-revocs.d`）に失効証明書があるか。
     public let hasRevocationCertificate: Bool
+    /// 秘密鍵のバックアップを取った日時（`BackupLog`）。記録がなければ nil。
+    public let backedUp: Date?
 
     public var id: String { key.fingerprint }
 

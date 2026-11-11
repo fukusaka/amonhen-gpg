@@ -215,6 +215,28 @@ func recreatesMissingRevocationCertificate() throws {
 }
 
 @Test(.enabled(if: gpgAvailable()))
+func remembersBackups() throws {
+    let home = try TemporaryKeyring()
+    let fpr = try home.gpg.generateKey(
+        request: GenerateKey(userId: "Alice <alice@example.com>", algorithm: nil, capabilities: nil, expires: .never))
+    let suite = "amonhen-gpg-tests-\(UUID().uuidString)"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let log = BackupLog(defaults: defaults)
+    func own() throws -> OwnKey {
+        try #require(Keyring(keys: try home.gpg.listKeys(), sshKeys: [], now: UInt64(Date().timeIntervalSince1970), backups: log.dates).usable.first)
+    }
+    #expect(try own().needsBackup)
+
+    let date = Date(timeIntervalSince1970: 1_700_000_000)
+    log.record(fpr, at: date)
+    #expect(try own().backedUp == date)
+    #expect(try !own().needsBackup)
+    // 記録は残り、フィンガープリントで引ける
+    #expect(BackupLog(defaults: defaults).dates.keys.sorted() == [fpr])
+}
+
+@Test(.enabled(if: gpgAvailable()))
 func importsFilesAndSummarizes() throws {
     let other = try TemporaryKeyring()
     let bob = try other.gpg.generateKey(
