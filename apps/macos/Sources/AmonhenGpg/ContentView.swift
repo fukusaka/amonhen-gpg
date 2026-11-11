@@ -48,8 +48,9 @@ struct ContentView: View {
                     switch place {
                     case .mine:
                         OwnKeysView(
-                            model: model, showsHistory: showsHistory, backUp: backUp, create: { creating = true })
-                    case .others: OthersView(keys: model.keyring.others)
+                            model: model, showsHistory: showsHistory, backUp: backUp, create: { creating = true },
+                            importKeys: importKeys)
+                    case .others: OthersView(keys: model.keyring.others, importKeys: importKeys)
                     case .staging:
                         ContentUnavailableView(
                             L("Staging"), systemImage: "tray",
@@ -66,6 +67,12 @@ struct ContentView: View {
                         Label(L("New Key…"), systemImage: "plus")
                     }
                     .help(L("New Key…"))
+                }
+                if place != .staging {
+                    Button(action: importKeys) {
+                        Label(L("Import…"), systemImage: "square.and.arrow.down")
+                    }
+                    .help(L("Import…"))
                 }
                 Button {
                     Task { await model.reload() }
@@ -91,6 +98,23 @@ struct ContentView: View {
         }
         .alert(item: $notice) { notice in
             Alert(title: Text(notice.title), message: Text(notice.message))
+        }
+    }
+
+    /// 鍵のファイルを選ばせ、取り込む。秘密鍵を含むときはパスフレーズを gpg が聞く。
+    private func importKeys() {
+        let panel = NSOpenPanel()
+        panel.title = L("Import Keys")
+        panel.message = L("Choose files with public keys, secret key backups or revocation certificates.")
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        guard panel.runModal() == .OK, !panel.urls.isEmpty else { return }
+        let urls = panel.urls
+        Task {
+            switch await model.perform({ $0.importFiles(urls) }) {
+            case let .success(summary): notice = Notice(summary)
+            case let .failure(error): notice = Notice(title: L("Cannot import keys"), message: describe(error))
+            }
         }
     }
 
@@ -128,11 +152,32 @@ struct Notice: Identifiable {
     let message: String
 }
 
+extension Notice {
+    /// 取り込みの結果を文にする。
+    init(_ summary: ImportSummary) {
+        var lines: [String] = []
+        if summary.newKeys > 0 { lines.append(L("New keys: %ld", summary.newKeys)) }
+        if summary.secretKeys > 0 { lines.append(L("Secret keys: %ld", summary.secretKeys)) }
+        if summary.updatedKeys > 0 { lines.append(L("Updated keys: %ld", summary.updatedKeys)) }
+        if summary.revocations > 0 { lines.append(L("Revocations: %ld", summary.revocations)) }
+        if summary.unchangedKeys > 0 { lines.append(L("Already up to date: %ld", summary.unchangedKeys)) }
+        if summary.notImported > 0 { lines.append(L("Not imported: %ld", summary.notImported)) }
+        for failure in summary.failures {
+            lines.append(L("%@: %@", failure.file, describe(failure.error)))
+        }
+        let nothing = summary.newKeys + summary.secretKeys + summary.updatedKeys + summary.revocations + summary.unchangedKeys == 0
+        self.init(
+            title: nothing ? L("No keys were imported") : L("Imported keys"),
+            message: lines.isEmpty ? L("The files contained no keys.") : lines.joined(separator: "\n"))
+    }
+}
+
 struct OwnKeysView: View {
     let model: KeyringModel
     @State var showsHistory = false
     var backUp: (OwnKey) -> Void = { _ in }
     var create: () -> Void = {}
+    var importKeys: () -> Void = {}
     @State private var extending: OwnKey?
 
     var body: some View {
@@ -153,7 +198,10 @@ struct OwnKeysView: View {
             } description: {
                 Text(L("Create a key, or import one you use on another computer."))
             } actions: {
-                Button(L("New Key…"), action: create)
+                HStack {
+                    Button(L("New Key…"), action: create)
+                    Button(L("Import…"), action: importKeys)
+                }
             }
         } else {
             List {
@@ -306,12 +354,17 @@ struct UsageLabel: View {
 
 struct OthersView: View {
     let keys: [Key]
+    var importKeys: () -> Void = {}
 
     var body: some View {
         if keys.isEmpty {
-            ContentUnavailableView(
-                L("No keys from others"), systemImage: "person.2",
-                description: Text(L("Import keys of people you exchange encrypted or signed messages with.")))
+            ContentUnavailableView {
+                Label(L("No keys from others"), systemImage: "person.2")
+            } description: {
+                Text(L("Import keys of people you exchange encrypted or signed messages with."))
+            } actions: {
+                Button(L("Import…"), action: importKeys)
+            }
         } else {
             List(keys, id: \.fingerprint) { key in
                 let parts = key.primaryUserId.map { UserIdParts($0.text) }

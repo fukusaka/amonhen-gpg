@@ -148,3 +148,37 @@ func backsUpSecretKeyToPrivateFile() throws {
     let result = try other.gpg.import(data: try Data(contentsOf: file))
     #expect(result.secretImported == 1)
 }
+
+@Test(.enabled(if: gpgAvailable()))
+func importsFilesAndSummarizes() throws {
+    let other = try TemporaryKeyring()
+    let bob = try other.gpg.generateKey(
+        request: GenerateKey(userId: "Bob <bob@example.org>", algorithm: nil, capabilities: nil, expires: .never))
+    let mine = try other.gpg.generateKey(
+        request: GenerateKey(userId: "Alice <alice@example.com>", algorithm: nil, capabilities: nil, expires: .never))
+    let publicFile = other.dir.appendingPathComponent("bob.asc")
+    try other.gpg.exportPublicKeys(fingerprints: [bob], armor: true).write(to: publicFile)
+    let secretFile = other.dir.appendingPathComponent("alice-secret.asc")
+    try other.gpg.backUpSecretKey(mine, to: secretFile)
+    let broken = other.dir.appendingPathComponent("broken.asc")
+    try Data("not a key".utf8).write(to: broken)
+
+    let home = try TemporaryKeyring()
+    let first = home.gpg.importFiles([publicFile, secretFile, broken])
+    #expect(first.newKeys == 2)
+    #expect(first.secretKeys == 1)
+    #expect(first.failures.map(\.file) == ["broken.asc"])
+
+    // 同じものをもう一度取り込んでも、何も変わらない
+    let second = home.gpg.importFiles([publicFile])
+    #expect(second.newKeys == 0)
+    #expect(second.unchangedKeys == 1)
+
+    // 失効証明書（gpg が作ったものは誤用を防ぐため先頭が `:` になっている）
+    let certificate = try String(
+        contentsOf: other.dir.appendingPathComponent("openpgp-revocs.d/\(bob).rev"), encoding: .utf8)
+    let revocation = other.dir.appendingPathComponent("bob.rev")
+    try certificate.replacingOccurrences(of: ":-----BEGIN", with: "-----BEGIN").write(to: revocation, atomically: true, encoding: .utf8)
+    let third = home.gpg.importFiles([revocation])
+    #expect(third.revocations == 1)
+}

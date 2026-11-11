@@ -63,6 +63,22 @@
 "Later" = "あとで";
 "Back up the secret key now and keep it somewhere other than this Mac. Without it, losing this Mac means losing the key." = "秘密鍵を今バックアップし、この Mac 以外の場所に保管してください。バックアップがないと、この Mac をなくしたときに鍵も失います。";
 
+/* 取り込み */
+"Import…" = "取り込む…";
+"Import Keys" = "鍵の取り込み";
+"Choose files with public keys, secret key backups or revocation certificates." = "公開鍵、秘密鍵のバックアップ、失効証明書のファイルを選んでください。";
+"Cannot import keys" = "鍵を取り込めません";
+"Imported keys" = "鍵を取り込みました";
+"No keys were imported" = "鍵は取り込まれませんでした";
+"The files contained no keys." = "ファイルに鍵はありませんでした。";
+"New keys: %ld" = "新しい鍵: %ld";
+"Secret keys: %ld" = "秘密鍵: %ld";
+"Updated keys: %ld" = "更新した鍵: %ld";
+"Already up to date: %ld" = "変更なし: %ld";
+"Revocations: %ld" = "失効: %ld";
+"Not imported: %ld" = "取り込めなかった鍵: %ld";
+"%@: %@" = "%@: %@";
+
 /* 他者の鍵 */
 "No keys from others" = "他者の鍵はありません";
 "Import keys of people you exchange encrypted or signed messages with." = "暗号化や署名でやり取りする相手の鍵を取り込んでください。";

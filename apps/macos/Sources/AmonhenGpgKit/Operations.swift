@@ -55,3 +55,60 @@ extension Gpg {
         }
     }
 }
+
+/// 取り込みの結果を、いくつかのファイルにわたってまとめたもの。
+public struct ImportSummary: Equatable, Sendable {
+    /// 新しく入った鍵。
+    public var newKeys = 0
+    /// 既にあり、UID・サブ鍵・署名・失効が増えた鍵。
+    public var updatedKeys = 0
+    /// 既にあり、何も変わらなかった鍵。
+    public var unchangedKeys = 0
+    /// 新しく入った秘密鍵。
+    public var secretKeys = 0
+    /// 新しく入った失効（失効証明書の取り込みなど）。
+    public var revocations = 0
+    /// gpg が取り込めなかった鍵。
+    public var notImported = 0
+    /// 読めなかったファイルと、その理由。
+    public var failures: [(file: String, error: Error)] = []
+
+    public init() {}
+
+    public mutating func add(_ result: ImportResult) {
+        // 秘密鍵を含む鍵は、公開鍵と秘密鍵で 1 行ずつ報告される。鍵の数は公開鍵の行で数える
+        for key in result.keys where !key.secret {
+            if key.newKey {
+                newKeys += 1
+            } else if key.newUserIds || key.newSubkeys || key.newSignatures {
+                updatedKeys += 1
+            }
+        }
+        unchangedKeys += Int(result.unchanged)
+        secretKeys += Int(result.secretImported)
+        // 失効証明書だけの取り込みは鍵ごとの報告（IMPORT_OK）がなく、件数にだけ出る
+        revocations += Int(result.newRevocations)
+        notImported += Int(result.notImported)
+    }
+
+    public static func == (a: ImportSummary, b: ImportSummary) -> Bool {
+        (a.newKeys, a.updatedKeys, a.unchangedKeys, a.secretKeys, a.revocations, a.notImported)
+            == (b.newKeys, b.updatedKeys, b.unchangedKeys, b.secretKeys, b.revocations, b.notImported)
+            && a.failures.map(\.file) == b.failures.map(\.file)
+    }
+}
+
+extension Gpg {
+    /// ファイルを 1 つずつ取り込み、結果をまとめる。読めないファイルがあっても残りは取り込む。
+    public func importFiles(_ urls: [URL]) -> ImportSummary {
+        var summary = ImportSummary()
+        for url in urls {
+            do {
+                summary.add(try `import`(data: try Data(contentsOf: url)))
+            } catch {
+                summary.failures.append((url.lastPathComponent, error))
+            }
+        }
+        return summary
+    }
+}
