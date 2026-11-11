@@ -79,10 +79,12 @@ git やメールの署名検証は本来の鍵束しか見ないので、そう�
 - 自分の鍵の編集（有効期限・UID・サブ鍵・パスフレーズ・所有者信頼・失効）。
 - 他者の鍵への署名（`Gpg::sign_key`）。
 - 鍵サーバーへの送信（`Gpg::send_keys`。失効させた自分の鍵を知らせるのに使う）。
+- gpg-agent の SSH 鍵（`Gpg::ssh_support`・`enable_ssh_support`・`ssh_keys`・`set_ssh_key_enabled`・`export_ssh_key`）。主画面の「SSH ✓ この PC」は、認証サブ鍵の keygrip を `SshKey` と照らし合わせて出す。
 
 まだ:
 
 - 鍵サーバーで名前から探す（`--search-keys`）。バッチでの出力の形を確かめてから。
+- 既存の SSH 秘密鍵（`~/.ssh/`）を gpg-agent に取り込む（`ssh-add`）。
 
 ## 未決事項
 

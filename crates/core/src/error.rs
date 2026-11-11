@@ -20,6 +20,8 @@ pub enum Error {
         failures: Vec<Failure>,
         stderr: String,
     },
+    /// gpg-agent が要求を断った（`ERR` の応答）。`code` は gpg-error のコード（下位 16 ビットが種類）。
+    Agent { code: u32, message: String },
     /// gpg の出力を解釈できなかった。`line` は 1 始まり（出力全体の問題で、行を決められないときは 0）。
     Parse { line: usize, message: String },
     /// 引数が正しくない（gpg を起動する前に止めた）。
@@ -47,6 +49,7 @@ impl fmt::Display for Error {
             Error::Gpg {
                 code: None, stderr, ..
             } => write!(f, "gpg was terminated: {}", stderr.trim()),
+            Error::Agent { code, message } => write!(f, "gpg-agent refused ({code}): {message}"),
             Error::Parse { line, message } => {
                 write!(f, "unexpected gpg output at line {line}: {message}")
             }

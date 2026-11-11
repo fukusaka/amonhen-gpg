@@ -130,12 +130,12 @@ apps/
 
 | 機能 | 実現方法 |
 |---|---|
-| gpg-agent の SSH サポートの状態確認 | `gpgconf` で `enable-ssh-support` を確認し、SSH_AUTH_SOCK を案内する |
-| SSH 鍵の一覧 | Assuan の `KEYINFO --ssh-list --ssh-fpr` |
-| GPG の認証 (A) サブ鍵を SSH 鍵として使う | `--quick-add-key <FPR> ed25519 auth` で作成し、keygrip を `sshcontrol` に登録 |
-| SSH 公開鍵の出力（authorized_keys 用） | `gpg --export-ssh-key` |
-| 既存の SSH 秘密鍵の取り込み | `ssh-add` で gpg-agent に登録（パスフレーズは pinentry） |
-| 有効化 / 無効化・確認要求の設定 | `sshcontrol` ファイルの編集 |
+| gpg-agent の SSH サポートの状態確認・有効化 | `gpgconf --list-options gpg-agent` の `enable-ssh-support` と `--list-dirs agent-ssh-socket`（SSH_AUTH_SOCK に渡す）。有効にするときは `gpgconf --change-options` のあと gpg-agent を起動し直す |
+| SSH 鍵の一覧 | Assuan の `KEYINFO --list --ssh-fpr --with-ssh` と `KEYINFO --list --need-attr=Use-for-ssh`（gpg-connect-agent。`ERR` でも終了コードは 0 なので応答の行で判断する）。keygrip で GPG 鍵の主鍵・サブ鍵とつなぐ |
+| GPG の認証 (A) サブ鍵を SSH 鍵として使う | `--quick-add-key <FPR> ed25519 auth` で作り、SSH に出す設定をする |
+| SSH に出す・出さない | 出すときは秘密鍵の属性 `Use-for-ssh: true`（`KEYATTR`。利用者のファイルを書き換えない）。出さないときは属性を消し、`sshcontrol` で有効な行があれば `!` を付ける（属性を偽にしても `sshcontrol` が勝つ）。終わったあとに gpg-agent に聞き直して確かめる |
+| SSH 公開鍵の出力（authorized_keys 用） | `gpg --export-ssh-key <FPR>!`（指した鍵そのもの） |
+| 既存の SSH 秘密鍵の取り込み | `ssh-add` で gpg-agent に登録（パスフレーズは pinentry）。まだ |
 
 ## 未決事項
 

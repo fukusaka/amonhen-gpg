@@ -13,6 +13,7 @@ mod keylist;
 mod model;
 mod ownership;
 pub mod process;
+mod ssh;
 mod staging;
 pub mod status;
 
@@ -26,3 +27,4 @@ pub use model::{
     Validity,
 };
 pub use ownership::{Availability, KeyStatus, Tier};
+pub use ssh::{SshControl, SshKey, SshSupport};

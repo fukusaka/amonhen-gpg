@@ -197,26 +197,9 @@ impl Gpg {
         if let Some(home) = &self.homedir {
             return Ok(home.clone());
         }
-        let program = self.gpgconf_program();
-        let out = command(&program)
-            .args(["--list-dirs", "homedir"])
-            .env("LC_ALL", "C")
-            .stdin(Stdio::null())
-            .output()
-            .map_err(|source| Error::Spawn {
-                program: program.display().to_string(),
-                source,
-            })?;
-        if !out.status.success() {
-            return Err(Error::Gpg {
-                code: out.status.code(),
-                failures: Vec::new(),
-                stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
-            });
-        }
-        let line = String::from_utf8_lossy(&out.stdout);
+        let out = self.run_tool("gpgconf", &["--list-dirs", "homedir"], None)?;
         Ok(PathBuf::from(percent_decode(
-            line.trim_end_matches(['\r', '\n']),
+            out.trim_end_matches(['\r', '\n']),
         )))
     }
 
@@ -230,13 +213,60 @@ impl Gpg {
             .is_file())
     }
 
-    /// gpg と同じ場所の gpgconf（gpg をパスで指していなければ `PATH` で探す）。
-    pub(crate) fn gpgconf_program(&self) -> PathBuf {
-        let name = format!("gpgconf{}", std::env::consts::EXE_SUFFIX);
+    /// gpg と同じ場所にある GnuPG の道具（gpgconf・gpg-connect-agent）。gpg をパスで指していなければ `PATH` で探す。
+    pub(crate) fn tool_program(&self, name: &str) -> PathBuf {
+        let name = format!("{name}{}", std::env::consts::EXE_SUFFIX);
         match self.program.parent().filter(|p| p != &Path::new("")) {
             Some(dir) => dir.join(name),
             None => name.into(),
         }
+    }
+
+    pub(crate) fn gpgconf_program(&self) -> PathBuf {
+        self.tool_program("gpgconf")
+    }
+
+    /// GnuPG の道具を動かし、標準出力を返す。`--homedir` と `LC_ALL=C` は gpg と揃える。
+    pub(crate) fn run_tool(
+        &self,
+        name: &str,
+        args: &[&str],
+        input: Option<&[u8]>,
+    ) -> Result<String> {
+        let program = self.tool_program(name);
+        let spawn_error = |source| Error::Spawn {
+            program: program.display().to_string(),
+            source,
+        };
+        let mut cmd = command(&program);
+        if let Some(home) = &self.homedir {
+            cmd.arg("--homedir").arg(home);
+        }
+        let mut child = cmd
+            .args(args)
+            .env("LC_ALL", "C")
+            .stdin(if input.is_some() {
+                Stdio::piped()
+            } else {
+                Stdio::null()
+            })
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(spawn_error)?;
+        if let (Some(data), Some(mut stdin)) = (input, child.stdin.take()) {
+            // 入力は数行だけなので、読む前に書き切ってもパイプは詰まらない
+            stdin.write_all(data).map_err(spawn_error)?;
+        }
+        let out = child.wait_with_output().map_err(spawn_error)?;
+        if !out.status.success() {
+            return Err(Error::Gpg {
+                code: out.status.code(),
+                failures: Vec::new(),
+                stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
+            });
+        }
+        Ok(String::from_utf8_lossy(&out.stdout).into_owned())
     }
 
     fn export(&self, command: &str, fingerprints: &[&str], armor: bool) -> Result<Vec<u8>> {
@@ -358,7 +388,7 @@ fn parse_import(status: &[Status]) -> Option<ImportResult> {
 }
 
 /// gpgconf はパスの中の `:` などを `%3a` の形で書く。
-fn percent_decode(s: &str) -> String {
+pub(crate) fn percent_decode(s: &str) -> String {
     let bytes = s.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
     let mut i = 0;

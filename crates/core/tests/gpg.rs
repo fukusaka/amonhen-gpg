@@ -506,3 +506,104 @@ fn send_keys_to_a_keyserver() {
         Err(Error::Gpg { .. })
     ));
 }
+
+#[test]
+fn ssh_keys_through_gpg_agent() {
+    use amonhen_core::SshControl;
+
+    let Some(home) = Home::new() else {
+        eprintln!("gpg not found; skipped");
+        return;
+    };
+    let gpg = Gpg::new().with_homedir(home.path());
+    let support = gpg.ssh_support().unwrap();
+    assert!(!support.enabled);
+    let socket = support.socket.unwrap();
+    assert!(socket.starts_with(home.path()));
+
+    let fpr = gpg.generate_key(&alice()).unwrap();
+    let auth = gpg
+        .add_subkey(
+            &fpr,
+            Some("ed25519"),
+            Capabilities {
+                authenticate: true,
+                ..Capabilities::default()
+            },
+            Expiry::Never,
+        )
+        .unwrap();
+    let enc = gpg
+        .add_subkey(
+            &fpr,
+            Some("cv25519"),
+            Capabilities {
+                encrypt: true,
+                ..Capabilities::default()
+            },
+            Expiry::Never,
+        )
+        .unwrap();
+    let key = gpg.list_keys().unwrap().remove(0);
+    let grip = |f: &str| {
+        key.subkeys
+            .iter()
+            .find(|s| s.fingerprint == f)
+            .and_then(|s| s.keygrip.clone())
+            .unwrap()
+    };
+    let (auth_grip, enc_grip) = (grip(&auth), grip(&enc));
+    let ssh_key = |g: &str| gpg.ssh_keys().unwrap().into_iter().find(|k| k.keygrip == g);
+
+    // 暗号化用の鍵は SSH に使えないので出てこない。認証用は最初は使っていない
+    assert!(ssh_key(&enc_grip).is_none());
+    let k = ssh_key(&auth_grip).unwrap();
+    assert!(k.fingerprint.starts_with("SHA256:"));
+    assert!(!k.enabled());
+
+    gpg.set_ssh_key_enabled(&auth_grip, true).unwrap();
+    assert!(ssh_key(&auth_grip).unwrap().use_for_ssh);
+    gpg.set_ssh_key_enabled(&auth_grip, false).unwrap();
+    assert!(!ssh_key(&auth_grip).unwrap().enabled());
+
+    // sshcontrol で有効にしてある鍵は、その行に `!` を付けて止める。ほかの行は変えない
+    let sshcontrol = home.path().join("sshcontrol");
+    std::fs::write(&sshcontrol, format!("# mine\n{auth_grip} 0\n")).unwrap();
+    assert_eq!(ssh_key(&auth_grip).unwrap().sshcontrol, SshControl::Enabled);
+    gpg.set_ssh_key_enabled(&auth_grip, false).unwrap();
+    assert_eq!(
+        std::fs::read_to_string(&sshcontrol).unwrap(),
+        format!("# mine\n!{auth_grip} 0\n")
+    );
+    assert_eq!(
+        ssh_key(&auth_grip).unwrap().sshcontrol,
+        SshControl::Disabled
+    );
+    gpg.set_ssh_key_enabled(&auth_grip, true).unwrap();
+    assert!(ssh_key(&auth_grip).unwrap().enabled());
+
+    assert!(matches!(
+        gpg.set_ssh_key_enabled(&"0".repeat(40), true),
+        Err(Error::Agent { .. })
+    ));
+
+    // authorized_keys の 1 行
+    let line = gpg.export_ssh_key(&auth).unwrap();
+    assert!(line.starts_with("ssh-ed25519 "), "{line}");
+    assert!(matches!(gpg.export_ssh_key(&enc), Err(Error::Gpg { .. })));
+
+    // SSH サポートを有効にすると、ssh-add から鍵が見える
+    gpg.enable_ssh_support().unwrap();
+    assert!(gpg.ssh_support().unwrap().enabled);
+    let listed = command("ssh-add")
+        .arg("-L")
+        .env("SSH_AUTH_SOCK", &socket)
+        .output();
+    if let Ok(out) = listed {
+        let text = String::from_utf8_lossy(&out.stdout);
+        assert!(
+            text.contains(line.split(' ').nth(1).unwrap()),
+            "ssh-add -L: {text}"
+        );
+    }
+}
