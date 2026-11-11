@@ -48,6 +48,21 @@
 "Saved the secret key to %@." = "秘密鍵を %@ に保存しました。";
 "Cannot back up the secret key" = "秘密鍵をバックアップできません";
 
+/* 鍵の作成 */
+"New Key…" = "新しい鍵…";
+"New Key" = "新しい鍵";
+"Name" = "名前";
+"Email" = "メール";
+"Expiry" = "期限";
+"Alice Example" = "山田 花子";
+"You can extend the expiry later. An expiry limits the damage if you lose the key." = "期限はあとで延ばせます。期限があれば、鍵をなくしたときの被害を限れます。";
+"gpg will ask for a passphrase to protect the new key." = "新しい鍵を守るパスフレーズを gpg が聞きます。";
+"Create" = "作成";
+"Key created" = "鍵を作りました";
+"Back Up Now…" = "今すぐバックアップ…";
+"Later" = "あとで";
+"Back up the secret key now and keep it somewhere other than this Mac. Without it, losing this Mac means losing the key." = "秘密鍵を今バックアップし、この Mac 以外の場所に保管してください。バックアップがないと、この Mac をなくしたときに鍵も失います。";
+
 /* 他者の鍵 */
 "No keys from others" = "他者の鍵はありません";
 "Import keys of people you exchange encrypted or signed messages with." = "暗号化や署名でやり取りする相手の鍵を取り込んでください。";

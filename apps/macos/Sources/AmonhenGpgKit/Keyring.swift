@@ -59,6 +59,27 @@ public struct UserIdParts: Equatable, Sendable {
         self.email = email
     }
 
+    /// UID の文字（`名前 (コメント) <メール>`）。空の部分は入れない。
+    public var text: String {
+        var parts = [name.trimmingCharacters(in: .whitespaces)]
+        if let comment = comment?.trimmingCharacters(in: .whitespaces), !comment.isEmpty {
+            parts.append("(\(comment))")
+        }
+        if let email = email?.trimmingCharacters(in: .whitespaces), !email.isEmpty {
+            parts.append("<\(email)>")
+        }
+        return parts.filter { !$0.isEmpty }.joined(separator: " ")
+    }
+
+    /// 鍵を作るのに足りるか。名前かメールのどちらかがあり、メールなら `@` を含むこと。
+    public var isValidForNewKey: Bool {
+        let name = name.trimmingCharacters(in: .whitespaces)
+        let email = (email ?? "").trimmingCharacters(in: .whitespaces)
+        if !email.isEmpty, !email.contains("@") || email.contains(where: { " <>".contains($0) }) { return false }
+        if name.contains(where: { "<>()".contains($0) }) { return false }
+        return !name.isEmpty || !email.isEmpty
+    }
+
     public init(_ text: String) {
         var rest = text.trimmingCharacters(in: .whitespaces)
         var email: String?

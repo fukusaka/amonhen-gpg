@@ -39,6 +39,17 @@ private func gpgAvailable() -> Bool {
     #expect(UserIdParts("Carol").email == nil)
 }
 
+@Test func composesUserIdsForNewKeys() {
+    #expect(UserIdParts(name: "Alice ", comment: nil, email: " alice@example.com").text == "Alice <alice@example.com>")
+    #expect(UserIdParts(name: "", comment: "", email: "alice@example.com").text == "<alice@example.com>")
+    #expect(UserIdParts(name: "Alice", comment: "work", email: "").text == "Alice (work)")
+    #expect(UserIdParts(name: "Alice", comment: nil, email: "alice@example.com").isValidForNewKey)
+    #expect(UserIdParts(name: "", comment: nil, email: "alice@example.com").isValidForNewKey)
+    #expect(!UserIdParts(name: "", comment: nil, email: "").isValidForNewKey)
+    #expect(!UserIdParts(name: "Alice", comment: nil, email: "alice").isValidForNewKey)
+    #expect(!UserIdParts(name: "Alice <x>", comment: nil, email: nil).isValidForNewKey)
+}
+
 @Test(.enabled(if: gpgAvailable()))
 func groupsOwnKeysAndOthers() throws {
     let home = try TemporaryKeyring()

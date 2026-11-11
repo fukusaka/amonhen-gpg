@@ -28,6 +28,10 @@ struct ContentView: View {
     @State var place: Place = .mine
     /// 使えた鍵（履歴）を開いておくか。
     var showsHistory = false
+    @State private var creating = false
+    @State private var notice: Notice?
+    /// 作ったばかりの鍵（バックアップを勧める）。
+    @State private var created: OwnKey?
 
     var body: some View {
         NavigationSplitView {
@@ -42,7 +46,9 @@ struct ContentView: View {
                         L("Cannot read the keyring"), systemImage: "exclamationmark.triangle", description: Text(failure))
                 } else {
                     switch place {
-                    case .mine: OwnKeysView(model: model, showsHistory: showsHistory)
+                    case .mine:
+                        OwnKeysView(
+                            model: model, showsHistory: showsHistory, backUp: backUp, create: { creating = true })
                     case .others: OthersView(keys: model.keyring.others)
                     case .staging:
                         ContentUnavailableView(
@@ -53,12 +59,55 @@ struct ContentView: View {
             }
             .navigationTitle(place.title)
             .toolbar {
+                if place == .mine {
+                    Button {
+                        creating = true
+                    } label: {
+                        Label(L("New Key…"), systemImage: "plus")
+                    }
+                    .help(L("New Key…"))
+                }
                 Button {
                     Task { await model.reload() }
                 } label: {
                     Label(L("Reload"), systemImage: "arrow.clockwise")
                 }
                 .disabled(model.loading)
+            }
+        }
+        .sheet(isPresented: $creating) {
+            NewKeySheet(model: model) { fingerprint in
+                created = model.keyring.usable.first { $0.id == fingerprint }
+            }
+        }
+        .alert(
+            L("Key created"), isPresented: Binding(get: { created != nil }, set: { if !$0 { created = nil } }),
+            presenting: created
+        ) { own in
+            Button(L("Back Up Now…")) { backUp(own) }
+            Button(L("Later"), role: .cancel) {}
+        } message: { _ in
+            Text(L("Back up the secret key now and keep it somewhere other than this Mac. Without it, losing this Mac means losing the key."))
+        }
+        .alert(item: $notice) { notice in
+            Alert(title: Text(notice.title), message: Text(notice.message))
+        }
+    }
+
+    /// 秘密鍵を書き出す先を選ばせ、書き出す。パスフレーズは gpg が聞く。
+    private func backUp(_ own: OwnKey) {
+        let panel = NSSavePanel()
+        panel.title = L("Back Up Secret Key")
+        panel.message = L("The backup stays protected by the key's passphrase. Keep it somewhere other than this Mac, such as a USB drive.")
+        panel.nameFieldStringValue = own.backupFileName
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let fingerprint = own.key.fingerprint
+        Task {
+            switch await model.perform({ try $0.backUpSecretKey(fingerprint, to: url) }) {
+            case .success:
+                notice = Notice(title: L("Backed up"), message: L("Saved the secret key to %@.", url.path))
+            case let .failure(error):
+                notice = Notice(title: L("Cannot back up the secret key"), message: describe(error))
             }
         }
     }
@@ -82,46 +131,30 @@ struct Notice: Identifiable {
 struct OwnKeysView: View {
     let model: KeyringModel
     @State var showsHistory = false
+    var backUp: (OwnKey) -> Void = { _ in }
+    var create: () -> Void = {}
     @State private var extending: OwnKey?
-    @State private var notice: Notice?
 
     var body: some View {
         list
             .sheet(item: $extending) { ExtendExpirySheet(model: model, own: $0) }
-            .alert(item: $notice) { notice in
-                Alert(title: Text(notice.title), message: Text(notice.message))
-            }
     }
 
     private var actions: OwnKeyActions {
         OwnKeyActions(extendExpiry: { extending = $0 }, backUp: backUp)
     }
 
-    /// 秘密鍵を書き出す先を選ばせ、書き出す。パスフレーズは gpg が聞く。
-    private func backUp(_ own: OwnKey) {
-        let panel = NSSavePanel()
-        panel.title = L("Back Up Secret Key")
-        panel.message = L("The backup stays protected by the key's passphrase. Keep it somewhere other than this Mac, such as a USB drive.")
-        panel.nameFieldStringValue = own.backupFileName
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        let fingerprint = own.key.fingerprint
-        Task {
-            switch await model.perform({ try $0.backUpSecretKey(fingerprint, to: url) }) {
-            case .success:
-                notice = Notice(title: L("Backed up"), message: L("Saved the secret key to %@.", url.path))
-            case let .failure(error):
-                notice = Notice(title: L("Cannot back up the secret key"), message: describe(error))
-            }
-        }
-    }
-
     @ViewBuilder private var list: some View {
         let keyring = model.keyring
         let now = UInt64(Date().timeIntervalSince1970)
         if keyring.usable.isEmpty && keyring.notOnThisDevice.isEmpty && keyring.history.isEmpty {
-            ContentUnavailableView(
-                L("No keys of your own"), systemImage: "key",
-                description: Text(L("Create a key, or import one you use on another computer.")))
+            ContentUnavailableView {
+                Label(L("No keys of your own"), systemImage: "key")
+            } description: {
+                Text(L("Create a key, or import one you use on another computer."))
+            } actions: {
+                Button(L("New Key…"), action: create)
+            }
         } else {
             List {
                 if !keyring.usable.isEmpty {
