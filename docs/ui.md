@@ -75,6 +75,7 @@ git やメールの署名検証は本来の鍵束しか見ないので、そう�
 - 一時保管の鍵束（`Gpg::staging`・`discard_staging`）と、本来の鍵束へ公開鍵だけを移す処理（`copy_public_keys_to`）。`discard_staging` は一時保管の印（`.amonhen-staging`）があるディレクトリしか消さない。
 - 鍵サーバー（`receive_keys`。フィンガープリントで取る）・WKD（`locate_external_key`。メールアドレスで探し、なければ鍵サーバー）からの取得。新しい鍵束の dirmngr には鍵サーバーの設定がないので、一時保管では FE が鍵サーバーを決めて渡す。
 - カードの状態（`Gpg::card_status`、`Card::holds` で鍵一覧の `SecretState::OnCard` と照らし合わせる）。カードがないときの動きは確認済みだが、実際のカードでの出力の解析はまだ確かめていない。
+- 自分の鍵の編集（有効期限・UID・サブ鍵・パスフレーズ・所有者信頼・失効）。
 
 まだ:
 

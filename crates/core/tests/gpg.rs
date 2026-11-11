@@ -338,3 +338,93 @@ fn locate_external_key_through_wkd() {
     assert!(r.considered >= 1);
     staging.discard_staging().unwrap();
 }
+
+#[test]
+fn edit_own_key() {
+    use amonhen_core::{OwnerTrust, RevocationReason, Tier};
+
+    let Some(home) = Home::new() else {
+        eprintln!("gpg not found; skipped");
+        return;
+    };
+    let gpg = Gpg::new().with_homedir(home.path());
+    let fpr = gpg.generate_key(&alice()).unwrap();
+    let key = |gpg: &Gpg| gpg.list_keys().unwrap().remove(0);
+
+    // 有効期限: 付けて、外す
+    gpg.set_expiry(&fpr, Expiry::Days(30)).unwrap();
+    assert!(key(&gpg).expires.is_some());
+    gpg.set_expiry(&fpr, Expiry::Never).unwrap();
+    assert_eq!(key(&gpg).expires, None);
+
+    // サブ鍵を加え、その期限を変える
+    let enc = gpg
+        .add_subkey(
+            &fpr,
+            Some("cv25519"),
+            Capabilities {
+                encrypt: true,
+                ..Capabilities::default()
+            },
+            Expiry::Never,
+        )
+        .unwrap();
+    let auth = gpg
+        .add_subkey(
+            &fpr,
+            None,
+            Capabilities {
+                authenticate: true,
+                ..Capabilities::default()
+            },
+            Expiry::Days(365),
+        )
+        .unwrap();
+    let k = key(&gpg);
+    assert_eq!(k.subkeys.len(), 2);
+    assert_eq!(k.subkeys[0].fingerprint, enc);
+    assert!(k.subkeys[1].capabilities.authenticate);
+    gpg.set_subkey_expiry(&fpr, &[&enc], Expiry::Days(10))
+        .unwrap();
+    assert!(key(&gpg).subkeys[0].expires.is_some());
+
+    // UID: 加える、主にする、失効させる
+    gpg.add_user_id(&fpr, "Alice Work <alice@work.example>")
+        .unwrap();
+    gpg.set_primary_user_id(&fpr, "Alice Work <alice@work.example>")
+        .unwrap();
+    assert_eq!(key(&gpg).user_ids.len(), 2);
+    gpg.revoke_user_id(&fpr, "Alice <alice@example.com>")
+        .unwrap();
+    let k = key(&gpg);
+    let old = k
+        .user_ids
+        .iter()
+        .find(|u| u.text == "Alice <alice@example.com>")
+        .unwrap();
+    assert_eq!(old.validity, Validity::Revoked);
+
+    // サブ鍵の失効
+    gpg.revoke_subkey(&fpr, &auth, RevocationReason::Retired, "no longer used")
+        .unwrap();
+    let k = key(&gpg);
+    assert_eq!(k.subkeys[1].validity, Validity::Revoked);
+    assert_eq!(k.subkeys[0].validity, Validity::Ultimate);
+
+    gpg.change_passphrase(&fpr).unwrap();
+    gpg.set_owner_trust(&fpr, OwnerTrust::Full).unwrap();
+    assert_eq!(key(&gpg).owner_trust, Validity::Full);
+    gpg.set_owner_trust(&fpr, OwnerTrust::Ultimate).unwrap();
+
+    // 鍵全体の失効。履歴の段に移る
+    gpg.revoke_key(&fpr, RevocationReason::Superseded, "")
+        .unwrap();
+    let k = key(&gpg);
+    assert_eq!(k.validity, Validity::Revoked);
+    assert_eq!(k.status(0).tier, Tier::History);
+
+    assert!(matches!(
+        gpg.revoke_subkey(&fpr, &fpr[..16], RevocationReason::Retired, ""),
+        Err(Error::InvalidArgument { .. })
+    ));
+}

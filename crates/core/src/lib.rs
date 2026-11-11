@@ -5,6 +5,7 @@
 
 mod card;
 pub mod colons;
+mod edit;
 mod error;
 mod gpg;
 mod keylist;
@@ -15,6 +16,7 @@ mod staging;
 pub mod status;
 
 pub use card::Card;
+pub use edit::{OwnerTrust, RevocationReason};
 pub use error::{Error, Result};
 pub use gpg::{Gpg, Version};
 pub use keylist::parse_keylist;

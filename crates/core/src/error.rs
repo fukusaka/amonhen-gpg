@@ -26,6 +26,8 @@ pub enum Error {
     InvalidArgument { name: &'static str, message: String },
     /// 指した鍵がない。
     NotFound,
+    /// gpg は成功を返したが、鍵が思ったとおりに変わらなかった（対話で答える操作の確かめ）。
+    NotApplied { message: String },
     /// ファイルの操作に失敗した（一時保管の鍵束を作る・消すなど）。
     Io {
         path: std::path::PathBuf,
@@ -50,6 +52,7 @@ impl fmt::Display for Error {
             }
             Error::InvalidArgument { name, message } => write!(f, "invalid {name}: {message}"),
             Error::NotFound => write!(f, "key not found"),
+            Error::NotApplied { message } => write!(f, "{message}"),
             Error::Io { path, source } => write!(f, "{}: {source}", path.display()),
         }
     }

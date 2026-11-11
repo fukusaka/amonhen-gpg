@@ -397,7 +397,7 @@ pub(crate) fn check_fingerprint(fingerprint: &str) -> Result<&str> {
 }
 
 /// UID に改行などの制御文字があると、gpg の出力や鍵の中身が壊れる。
-fn check_user_id(user_id: &str) -> Result<&str> {
+pub(crate) fn check_user_id(user_id: &str) -> Result<&str> {
     if user_id.trim().is_empty() || user_id.chars().any(char::is_control) {
         return Err(Error::InvalidArgument {
             name: "user_id",
@@ -408,7 +408,7 @@ fn check_user_id(user_id: &str) -> Result<&str> {
 }
 
 /// アルゴリズム名（`ed25519`・`rsa4096`・`future-default` など）。
-fn check_token<'a>(name: &'static str, value: &'a str) -> Result<&'a str> {
+pub(crate) fn check_token<'a>(name: &'static str, value: &'a str) -> Result<&'a str> {
     let ok = !value.is_empty()
         && !value.starts_with('-')
         && value
@@ -425,7 +425,7 @@ fn check_token<'a>(name: &'static str, value: &'a str) -> Result<&'a str> {
 }
 
 impl Expiry {
-    fn argument(&self) -> String {
+    pub(crate) fn argument(&self) -> String {
         match self {
             Expiry::Never => "never".into(),
             Expiry::Days(d) => format!("{d}d"),
