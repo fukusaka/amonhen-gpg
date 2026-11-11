@@ -404,6 +404,21 @@ impl Gpg {
         Ok(self.inner.has_revocation_certificate(&fingerprint)?)
     }
 
+    pub fn generate_revocation_certificate(
+        &self,
+        fingerprint: String,
+        reason: RevocationReason,
+        description: String,
+    ) -> Result<Vec<u8>> {
+        Ok(self
+            .inner
+            .generate_revocation_certificate(&fingerprint, reason, &description)?)
+    }
+
+    pub fn save_revocation_certificate(&self, fingerprint: String) -> Result<PathBuf> {
+        Ok(self.inner.save_revocation_certificate(&fingerprint)?)
+    }
+
     pub fn card_status(&self) -> Result<Option<Card>> {
         Ok(self.inner.card_status()?)
     }

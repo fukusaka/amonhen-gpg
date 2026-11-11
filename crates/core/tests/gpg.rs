@@ -275,6 +275,47 @@ fn own_keys_show_keys_and_revocation_certificates() {
 }
 
 #[test]
+fn saves_a_missing_revocation_certificate() {
+    let Some(home) = Home::new() else {
+        return;
+    };
+    let gpg = Gpg::new().with_homedir(home.path());
+    let fpr = gpg.generate_key(&alice()).unwrap();
+    let path = home
+        .path()
+        .join("openpgp-revocs.d")
+        .join(format!("{fpr}.rev"));
+    std::fs::remove_file(&path).unwrap();
+    assert!(!gpg.has_revocation_certificate(&fpr).unwrap());
+
+    assert_eq!(gpg.save_revocation_certificate(&fpr).unwrap(), path);
+    assert!(gpg.has_revocation_certificate(&fpr).unwrap());
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o600);
+    }
+    // 作っただけでは失効しない。そのまま取り込んでも、先頭の `:` のおかげで失効しない
+    let contents = std::fs::read_to_string(&path).unwrap();
+    assert!(contents.contains(&fpr));
+    assert!(contents.contains("\n:-----BEGIN PGP PUBLIC KEY BLOCK-----"));
+    assert!(gpg.import(contents.as_bytes()).is_err());
+    assert_ne!(gpg.list_keys().unwrap()[0].validity, Validity::Revoked);
+
+    // あればそのまま（パスフレーズも聞かない）
+    let before = std::fs::read(&path).unwrap();
+    gpg.save_revocation_certificate(&fpr).unwrap();
+    assert_eq!(std::fs::read(&path).unwrap(), before);
+
+    // `:` を外して取り込むと失効する
+    let armored = contents.replace("\n:-----BEGIN", "\n-----BEGIN");
+    let result = gpg.import(armored.as_bytes()).unwrap();
+    assert_eq!(result.new_revocations, 1);
+    assert_eq!(gpg.list_keys().unwrap()[0].validity, Validity::Revoked);
+}
+
+#[test]
 fn missing_program_is_a_spawn_error() {
     let err = Gpg::new()
         .with_program("amonhen-no-such-gpg")
@@ -684,6 +725,24 @@ fn passphrases_through_pinentry() {
     ));
     home.answer(Some(PASSPHRASE));
     let backup = gpg.export_secret_key(&fpr, true).unwrap();
+
+    // 失効証明書（`--batch` を外して動かす）
+    use amonhen_core::RevocationReason::Unspecified;
+    home.answer(None);
+    assert!(matches!(
+        gpg.generate_revocation_certificate(&fpr, Unspecified, ""),
+        Err(Error::Canceled)
+    ));
+    home.answer(Some("wrong"));
+    assert!(matches!(
+        gpg.generate_revocation_certificate(&fpr, Unspecified, ""),
+        Err(Error::BadPassphrase)
+    ));
+    home.answer(Some(PASSPHRASE));
+    let certificate = gpg
+        .generate_revocation_certificate(&fpr, Unspecified, "")
+        .unwrap();
+    assert!(certificate.starts_with(b"-----BEGIN PGP PUBLIC KEY BLOCK-----"));
 
     // 秘密鍵は守られたまま入るので、取り込みではパスフレーズを聞かない
     let Some(other) = Home::with_pinentry(None) else {

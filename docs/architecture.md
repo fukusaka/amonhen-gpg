@@ -53,7 +53,7 @@ gpg 本体には JSON / XML 出力がなく、GnuPG プロジェクトは `--wit
 
 パスフレーズの入力は gpg-agent が呼ぶ **pinentry** に任せる。本アプリのプロセスはパスフレーズ・秘密鍵の素材に一切触れない。これは「純粋な FE」の最大の利点で、セキュリティ上の境界にもなる。
 
-入力を取り消したときは `Error::Canceled`、パスフレーズが違ったときは `Error::BadPassphrase` を返す（gpg の `ERROR` 行の種類 99・11 で見分ける）。秘密鍵の書き出しを取り消したときだけは gpg が `ERROR` を出さないので、`LC_ALL=C` のメッセージで見分ける。FE は取り消しを失敗として知らせなくてよい。
+入力を取り消したときは `Error::Canceled`、パスフレーズが違ったときは `Error::BadPassphrase` を返す（gpg の `ERROR` 行の種類 99・11 で見分ける）。秘密鍵の書き出しの取り消しと、失効証明書を作るときの取り消し・パスフレーズ違いは gpg が `ERROR` を出さないので、`LC_ALL=C` のメッセージで見分ける。FE は取り消しを失敗として知らせなくてよい。
 
 ### 自分の鍵を失わない
 
@@ -124,6 +124,7 @@ apps/
 | 他者の鍵への署名 | `--quick-sign-key` / `--quick-lsign-key`（UID を選べる。署名に使う鍵は `--local-user` にフィンガープリントで渡す） |
 | 所有者信頼の設定 | `--quick-set-ownertrust`（2.5 で確認。古い gpg にはない） |
 | 失効（鍵全体・サブ鍵） | `--edit-key` を `--command-fd` で駆動し `revkey`（`--gen-revoke` はバッチで動かない）。答え方がずれても気づけるよう、終わったあとに鍵一覧で失効を確かめる。手元の失効証明書（`openpgp-revocs.d`）は、秘密鍵を失ったときのためのもの |
+| 失効証明書の作成 | `--gen-revoke` を `--batch` なしで（`--no-tty` と `--command-fd` で答える）。ない鍵には作り直して `openpgp-revocs.d/<FPR>.rev` に置く（gpg と同じく先頭に `:` を入れ、誤って取り込んでも失効しないようにする） |
 | 削除 | `--delete-secret-and-public-key`（フィンガープリント指定） |
 | 鍵サーバー / WKD | `--receive-keys` / `--send-keys` / `--locate-external-keys`。送ったものは取り消せないので、FE が送る鍵と送り先を確かめる |
 | パスフレーズ変更 | `--passwd`（入力は pinentry） |

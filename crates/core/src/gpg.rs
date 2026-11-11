@@ -42,15 +42,26 @@ impl Run {
         self.code == Some(0)
     }
 
+    fn into_result(self) -> Result<Run> {
+        if self.success() {
+            Ok(self)
+        } else {
+            Err(self.into_error())
+        }
+    }
+
     pub(crate) fn into_error(self) -> Error {
         let failures = Failure::from_status(&self.status);
-        // 秘密鍵の書き出しを取り消したときだけは ERROR が出ず、メッセージ（LC_ALL=C）にしか現れない
+        // 秘密鍵の書き出しの取り消しと、失効証明書を作るときの取り消し・パスフレーズ違いは ERROR が出ず、
+        // メッセージ（LC_ALL=C）にしか現れない
         if failures.iter().any(|f| f.kind() == GPG_ERR_CANCELED)
             || self.messages.contains(": Operation cancelled")
         {
             return Error::Canceled;
         }
-        if failures.iter().any(|f| f.kind() == GPG_ERR_BAD_PASSPHRASE) {
+        if failures.iter().any(|f| f.kind() == GPG_ERR_BAD_PASSPHRASE)
+            || self.messages.contains(": Bad passphrase")
+        {
             return Error::BadPassphrase;
         }
         Error::Gpg {
@@ -307,9 +318,13 @@ impl Gpg {
     }
 
     /// 対話しない gpg。出力は `LC_ALL=C` にそろえ、status は stderr に混ぜて出させる（`status::split` で分ける）。
-    fn command(&self) -> Command {
+    /// `batch` が偽でも端末は使わない（`--no-tty`）。問いには `--command-fd` で答える。
+    fn command(&self, batch: bool) -> Command {
         let mut cmd = command(&self.program);
-        cmd.args(["--batch", "--no-tty", "--status-fd", "2"])
+        if batch {
+            cmd.arg("--batch");
+        }
+        cmd.args(["--no-tty", "--status-fd", "2"])
             .env("LC_ALL", "C");
         if let Some(home) = &self.homedir {
             cmd.arg("--homedir").arg(home);
@@ -318,22 +333,26 @@ impl Gpg {
     }
 
     pub(crate) fn run(&self, args: &[&str], input: Option<&[u8]>) -> Result<Run> {
-        let out = self.run_raw(args, input)?;
-        if out.success() {
-            Ok(out)
-        } else {
-            Err(out.into_error())
-        }
+        self.spawn(args, input, true)?.into_result()
+    }
+
+    /// `--batch` を付けずに動かす。`--gen-revoke` のようにバッチでは断る操作だけに使い、問いには `input` で答える。
+    pub(crate) fn run_unbatched(&self, args: &[&str], input: &[u8]) -> Result<Run> {
+        self.spawn(args, Some(input), false)?.into_result()
     }
 
     /// 終了コードを見ずに結果を返す。`input` は標準入力に渡す（なければ閉じる）。
     pub(crate) fn run_raw<S: AsRef<OsStr>>(&self, args: &[S], input: Option<&[u8]>) -> Result<Run> {
+        self.spawn(args, input, true)
+    }
+
+    fn spawn<S: AsRef<OsStr>>(&self, args: &[S], input: Option<&[u8]>, batch: bool) -> Result<Run> {
         let spawn_error = |source| Error::Spawn {
             program: self.program.display().to_string(),
             source,
         };
         let mut child = self
-            .command()
+            .command(batch)
             .args(args)
             .stdin(if input.is_some() {
                 Stdio::piped()

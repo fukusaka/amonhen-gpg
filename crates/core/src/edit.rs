@@ -1,8 +1,11 @@
-//! 自分の鍵の編集（有効期限・UID・サブ鍵・失効・パスフレーズ・所有者信頼）。
+//! 自分の鍵の編集（有効期限・UID・サブ鍵・失効・パスフレーズ・所有者信頼）と、失効証明書の作成。
 //!
 //! どれも主鍵の秘密鍵で署名し直すので、パスフレーズは pinentry が聞く。`--quick-*` があるものはそれを使い、
-//! ない操作（失効）だけ `--edit-key` を `--command-fd` で動かし、gpg の問いに順に答える。答え方がずれると別の結果になり得るので、
+//! ない操作（失効）だけ `--edit-key` を `--command-fd` で動かし、gpg の問いに順に答える（失効証明書は `--gen-revoke`）。答え方がずれると別の結果になり得るので、
 //! そうした操作は終わったあとに鍵一覧で結果を確かめる。
+
+use std::io::Write;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -223,6 +226,67 @@ impl Gpg {
         })
     }
 
+    /// 失効証明書を作る（鍵は失効させない）。ASCII 形式の証明書を返す。取り込むと鍵が失効するので、扱いに注意する。
+    /// 主鍵の秘密鍵で署名するので、パスフレーズは pinentry が聞く。
+    pub fn generate_revocation_certificate(
+        &self,
+        fingerprint: &str,
+        reason: RevocationReason,
+        description: &str,
+    ) -> Result<Vec<u8>> {
+        let fingerprint = check_fingerprint(fingerprint)?;
+        let answers = revocation_answers(reason, description)?;
+        // `--gen-revoke` はバッチでは断るので、`--batch` を外して問いに答える:
+        // 作るか（gen_revoke.okay）→ 理由 → 説明 → okay
+        let input = format!("y\n{answers}");
+        let out = self.run_unbatched(
+            &[
+                "--command-fd",
+                "0",
+                "--armor",
+                "--output",
+                "-",
+                "--gen-revoke",
+                "--",
+                fingerprint,
+            ],
+            input.as_bytes(),
+        )?;
+        if out.stdout.is_empty() {
+            return Err(Error::NotApplied {
+                message: "gpg made no revocation certificate".into(),
+            });
+        }
+        Ok(out.stdout)
+    }
+
+    /// 失効証明書がなければ作り、gpg が鍵を作るときと同じ場所（`openpgp-revocs.d/<フィンガープリント>.rev`）に置く。
+    /// あれば何もしない。誤って取り込んでも失効しないよう、gpg と同じく先頭の `-----BEGIN` の前に `:` を入れる。
+    /// 置いた場所を返す。
+    pub fn save_revocation_certificate(&self, fingerprint: &str) -> Result<PathBuf> {
+        let fingerprint = check_fingerprint(fingerprint)?.to_ascii_uppercase();
+        let dir = self.homedir()?.join("openpgp-revocs.d");
+        let path = dir.join(format!("{fingerprint}.rev"));
+        if path.is_file() {
+            return Ok(path);
+        }
+        let certificate =
+            self.generate_revocation_certificate(&fingerprint, RevocationReason::Unspecified, "")?;
+        let certificate = String::from_utf8_lossy(&certificate);
+        let contents = format!(
+            "This is a revocation certificate for the OpenPGP key\n\
+             {fingerprint}\n\
+             \n\
+             Importing it revokes the key for good. Use it if the secret key is lost or\n\
+             leaked. To avoid using it by accident, a colon was inserted before the\n\
+             first five dashes below. Remove it before importing.\n\
+             \n\
+             :{certificate}"
+        );
+        write_private_file(&dir, &path, contents.as_bytes())?;
+        Ok(path)
+    }
+
     /// 対話で答えた操作が、思ったとおりに鍵に反映されたか。
     fn expect(&self, fingerprint: &str, applied: impl Fn(&crate::Key) -> bool) -> Result<()> {
         let keys = self.list_keys()?;
@@ -238,6 +302,39 @@ impl Gpg {
             })
         }
     }
+}
+
+/// 持ち主だけが読めるファイルを `dir`（なければ作る。持ち主だけが入れる）に書く。書きかけを残さないよう、隣に書いてから置き換える。
+fn write_private_file(dir: &Path, path: &Path, contents: &[u8]) -> Result<()> {
+    let io = |path: &Path| {
+        let path = path.to_owned();
+        move |source| Error::Io { path, source }
+    };
+    if !dir.is_dir() {
+        std::fs::create_dir_all(dir).map_err(io(dir))?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))
+                .map_err(io(dir))?;
+        }
+    }
+    let tmp = path.with_extension("amonhen-tmp");
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let written = options
+        .open(&tmp)
+        .and_then(|mut file| file.write_all(contents));
+    if let Err(source) = written {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(Error::Io { path: tmp, source });
+    }
+    std::fs::rename(&tmp, path).map_err(io(path))
 }
 
 /// 失効の理由と説明への答え（理由のコード、説明の 1 行、終わりの空行、確認の y）。
