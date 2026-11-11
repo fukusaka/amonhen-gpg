@@ -116,3 +116,24 @@ func revivesExpiredKey() throws {
     let ring = Keyring(keys: try home.gpg.listKeys(), sshKeys: [], now: later)
     #expect(ring.usable.map(\.key.fingerprint) == [fpr])
 }
+
+@Test(.enabled(if: gpgAvailable()))
+func backsUpSecretKeyToPrivateFile() throws {
+    let home = try TemporaryKeyring()
+    let fpr = try home.gpg.generateKey(
+        request: GenerateKey(userId: "Alice / Work <alice@example.com>", algorithm: nil, capabilities: nil, expires: .never))
+    let own = try #require(Keyring(keys: try home.gpg.listKeys(), sshKeys: [], now: UInt64(Date().timeIntervalSince1970)).usable.first)
+    #expect(own.canBackUp)
+    #expect(own.backupFileName == "Alice - Work \(fpr.suffix(16)) secret.asc")
+
+    let file = home.dir.appendingPathComponent(own.backupFileName)
+    try home.gpg.backUpSecretKey(fpr, to: file)
+    let attributes = try FileManager.default.attributesOfItem(atPath: file.path)
+    #expect((attributes[.posixPermissions] as? NSNumber)?.intValue == 0o600)
+    #expect(try String(contentsOf: file, encoding: .utf8).hasPrefix("-----BEGIN PGP PRIVATE KEY BLOCK-----"))
+
+    // 別の鍵束に取り込めば、秘密鍵ごと戻る
+    let other = try TemporaryKeyring()
+    let result = try other.gpg.import(data: try Data(contentsOf: file))
+    #expect(result.secretImported == 1)
+}

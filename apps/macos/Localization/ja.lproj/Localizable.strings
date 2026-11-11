@@ -40,6 +40,14 @@
 "A key without expiry stays valid even if you lose it and cannot revoke it." = "期限のない鍵は、なくして失効させられなくなっても有効なまま残ります。";
 "gpg will ask for the passphrase of this key." = "この鍵のパスフレーズを gpg が聞きます。";
 
+/* バックアップ */
+"Back Up Secret Key…" = "秘密鍵をバックアップ…";
+"Back Up Secret Key" = "秘密鍵のバックアップ";
+"The backup stays protected by the key's passphrase. Keep it somewhere other than this Mac, such as a USB drive." = "書き出した秘密鍵は、鍵のパスフレーズで守られたままです。USB メモリなど、この Mac 以外の場所に保管してください。";
+"Backed up" = "バックアップしました";
+"Saved the secret key to %@." = "秘密鍵を %@ に保存しました。";
+"Cannot back up the secret key" = "秘密鍵をバックアップできません";
+
 /* 他者の鍵 */
 "No keys from others" = "他者の鍵はありません";
 "Import keys of people you exchange encrypted or signed messages with." = "暗号化や署名でやり取りする相手の鍵を取り込んでください。";

@@ -1,4 +1,5 @@
 import AmonhenGpgKit
+import AppKit
 import SwiftUI
 
 /// 画面の 3 つの場所（docs/ui.md）。
@@ -68,20 +69,50 @@ struct ContentView: View {
 /// 鍵ごとの操作。行から呼び、シートなどは一覧の側で出す。
 struct OwnKeyActions {
     var extendExpiry: (OwnKey) -> Void = { _ in }
+    var backUp: (OwnKey) -> Void = { _ in }
+}
+
+/// 操作の結果を知らせる（成功も失敗も）。
+struct Notice: Identifiable {
+    let id = UUID()
+    let title: String
+    let message: String
 }
 
 struct OwnKeysView: View {
     let model: KeyringModel
     @State var showsHistory = false
     @State private var extending: OwnKey?
+    @State private var notice: Notice?
 
     var body: some View {
         list
             .sheet(item: $extending) { ExtendExpirySheet(model: model, own: $0) }
+            .alert(item: $notice) { notice in
+                Alert(title: Text(notice.title), message: Text(notice.message))
+            }
     }
 
     private var actions: OwnKeyActions {
-        OwnKeyActions(extendExpiry: { extending = $0 })
+        OwnKeyActions(extendExpiry: { extending = $0 }, backUp: backUp)
+    }
+
+    /// 秘密鍵を書き出す先を選ばせ、書き出す。パスフレーズは gpg が聞く。
+    private func backUp(_ own: OwnKey) {
+        let panel = NSSavePanel()
+        panel.title = L("Back Up Secret Key")
+        panel.message = L("The backup stays protected by the key's passphrase. Keep it somewhere other than this Mac, such as a USB drive.")
+        panel.nameFieldStringValue = own.backupFileName
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let fingerprint = own.key.fingerprint
+        Task {
+            switch await model.perform({ try $0.backUpSecretKey(fingerprint, to: url) }) {
+            case .success:
+                notice = Notice(title: L("Backed up"), message: L("Saved the secret key to %@.", url.path))
+            case let .failure(error):
+                notice = Notice(title: L("Cannot back up the secret key"), message: describe(error))
+            }
+        }
     }
 
     @ViewBuilder private var list: some View {
@@ -184,6 +215,8 @@ struct OwnKeyRow: View {
     @ViewBuilder private var menuItems: some View {
         Button(L("Extend Expiry…")) { actions.extendExpiry(own) }
             .disabled(!own.canExtendExpiry)
+        Button(L("Back Up Secret Key…")) { actions.backUp(own) }
+            .disabled(!own.canBackUp)
     }
 
     private var symbol: String {
