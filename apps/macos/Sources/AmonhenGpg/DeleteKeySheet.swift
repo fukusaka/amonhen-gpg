@@ -27,12 +27,9 @@ struct DeleteKeySheet: View {
         let tail = String(own.key.fingerprint.suffix(4))
         VStack(alignment: .leading, spacing: 16) {
             Text(L("Delete Key with Secret Key")).font(.title2.bold())
-            VStack(alignment: .leading, spacing: 4) {
-                Text(name).font(.headline)
-                Text(Fingerprint.grouped(own.key.fingerprint))
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
-            }
+            Text(name).font(.headline)
+            // どの鍵を消す（失効させる）のか取り違えないよう、詳細・確認と同じ大きさで出す
+            FingerprintView(fingerprint: own.key.fingerprint)
             Text(L("This removes the secret and public key from this Mac. It cannot be undone. Without a backup, anything encrypted to this key can never be decrypted again."))
             VStack(alignment: .leading, spacing: 8) {
                 if own.canBackUp {

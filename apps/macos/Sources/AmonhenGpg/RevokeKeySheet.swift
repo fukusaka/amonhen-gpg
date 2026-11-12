@@ -34,12 +34,9 @@ struct RevokeKeySheet: View {
         let name = own.key.primaryUserId.map { UserIdParts($0.text).name } ?? own.key.fingerprint
         VStack(alignment: .leading, spacing: 16) {
             Text(L("Revoke Key")).font(.title2.bold())
-            VStack(alignment: .leading, spacing: 4) {
-                Text(own.key.primaryUserId?.text ?? own.key.fingerprint).font(.headline)
-                Text(Fingerprint.grouped(own.key.fingerprint))
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
-            }
+            Text(own.key.primaryUserId?.text ?? own.key.fingerprint).font(.headline)
+            // どの鍵を消す（失効させる）のか取り違えないよう、詳細・確認と同じ大きさで出す
+            FingerprintView(fingerprint: own.key.fingerprint)
             Text(L("Once revoked, others stop encrypting to this key and its signatures count as from a revoked key. This cannot be undone. The secret key stays, so you can still decrypt old messages."))
                 .fixedSize(horizontal: false, vertical: true)
             Form {
