@@ -74,8 +74,7 @@ if let path = options.snapshot, let sheet = options.sheet {
     Snapshot.write(ContentView(model: model, staging: staging, place: options.place, showsHistory: true), size: CGSize(width: 960, height: 600), to: URL(fileURLWithPath: path)) {
         model.reloadNow()
         if let stage = options.stage, let data = FileManager.default.contents(atPath: stage) {
-            _ = try? staging.staging.add(data)
-            staging.reloadNow()
+            staging.addNow(data)
         }
     } cleanup: {
         staging.discardAll()

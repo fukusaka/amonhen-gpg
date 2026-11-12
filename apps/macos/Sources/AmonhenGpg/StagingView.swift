@@ -13,6 +13,10 @@ final class StagingModel {
     var failure: String?
     /// 操作の結果（取り込んだ、見つからなかった）。
     var message: String?
+    /// 直前に探した（ファイルから入れた）とき、見つかった鍵。一覧は一時保管にある鍵すべてなので、今回の分に印を付ける。
+    private(set) var lastFound: Set<String> = []
+    /// 直前の操作が探す（ファイルから入れる）ものだったか。見つからなかったとき、一覧が前の鍵だと添えるため。
+    private(set) var searched = false
 
     init(main: KeyringModel, dir: URL) {
         self.main = main
@@ -20,22 +24,25 @@ final class StagingModel {
     }
 
     func find(_ query: StagingQuery) async {
-        await run { staging in
-            switch StagingOutcome(try staging.find(query)) {
-            case .found: return nil
+        await run(search: true) { staging in
+            let result = try staging.find(query)
+            let found = Set(result.keys.map(\.fingerprint))
+            switch StagingOutcome(result) {
+            case .found: return (nil, found)
             case .withoutUserIds:
-                return L("The keyserver has this key, but without any name or email address, so it cannot be imported. keys.openpgp.org publishes them only after the owner confirms them by mail. Try searching by email address, or get the key from its owner.")
-            case .nothing: return L("No key was found.")
+                return (L("The keyserver has this key, but without any name or email address, so it cannot be imported. keys.openpgp.org publishes them only after the owner confirms them by mail. Try searching by email address, or get the key from its owner."), found)
+            case .nothing: return (L("No key was found."), found)
             }
         }
     }
 
     func add(_ urls: [URL]) async {
-        await run { staging in
+        await run(search: true) { staging in
+            var found = Set<String>()
             for url in urls {
-                try staging.add(try Data(contentsOf: url))
+                found.formUnion(try staging.add(try Data(contentsOf: url)).keys.map(\.fingerprint))
             }
-            return nil
+            return (nil, found)
         }
     }
 
@@ -44,7 +51,7 @@ final class StagingModel {
         let fingerprint = key.fingerprint
         await run { staging in
             try staging.importKey(fingerprint)
-            return L("Imported %@ into Others' Keys.", name)
+            return (L("Imported %@ into Others' Keys.", name), nil)
         }
         await main.reload()
     }
@@ -53,7 +60,7 @@ final class StagingModel {
         let fingerprint = key.fingerprint
         await run { staging in
             try staging.discard(fingerprint)
-            return nil
+            return (nil, nil)
         }
     }
 
@@ -67,22 +74,35 @@ final class StagingModel {
         keys = (try? staging.keys()) ?? []
     }
 
-    /// 裏で `work` を行い、一時保管を読み直す。`work` が返した文を知らせる。
-    private func run(_ work: @escaping @Sendable (Staging) throws -> String?) async {
+    /// 待たずにファイルの鍵を入れ、今回見つかった印を付ける（画像に書き出すときだけ）。
+    func addNow(_ data: Data) {
+        searched = true
+        lastFound = Set(((try? staging.add(data))?.keys ?? []).map(\.fingerprint))
+        reloadNow()
+    }
+
+    /// 裏で `work` を行い、一時保管を読み直す。`work` は知らせる文と、見つかった鍵（探す操作のとき）を返す。
+    /// 探す操作でなければ、今回見つかった印は残す（取り込んだ・捨てた鍵は一覧から消える）。
+    private func run(search: Bool = false, _ work: @escaping @Sendable (Staging) throws -> (String?, Set<String>?)) async {
         working = true
         failure = nil
         message = nil
+        if search {
+            searched = true
+            lastFound = []
+        }
         defer { working = false }
         let staging = staging
-        let result = await Task.detached { () -> Result<(String?, [Key]), Error> in
+        let result = await Task.detached { () -> Result<(String?, Set<String>?, [Key]), Error> in
             Result {
-                let message = try work(staging)
-                return (message, try staging.keys())
+                let (message, found) = try work(staging)
+                return (message, found, try staging.keys())
             }
         }.value
         switch result {
-        case let .success((message, keys)):
+        case let .success((message, found, keys)):
             self.message = message
+            if let found { lastFound = found }
             self.keys = keys
         case let .failure(error):
             failure = describe(error)
@@ -114,22 +134,19 @@ struct StagingView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
             // fixedSize を付けると、この並べ方では窓全体が描かれなくなる（折り返しは幅いっぱいで足りる）
-            if let failure = model.failure {
-                Text(failure)
-                    .foregroundStyle(.red)
-                    .textSelection(.enabled)
-            } else if let message = model.message {
-                Text(message).foregroundStyle(.secondary)
+            if model.failure != nil || model.message != nil {
+                ResultBox(text: model.failure ?? model.message ?? "", isFailure: model.failure != nil, note: leftoverNote)
             }
             if model.keys.isEmpty {
                 ContentUnavailableView(
                     L("Staging"), systemImage: "tray",
                     description: Text(L("Keys found on keyservers or through WKD will be kept here until you import them.")))
             } else {
+                Text(L("Keys in staging (%ld)", model.keys.count)).font(.headline)
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 12) {
                         ForEach(model.keys, id: \.fingerprint) { key in
-                            StagedKeyRow(key: key, working: model.working) {
+                            StagedKeyRow(key: key, isNew: model.lastFound.contains(key.fingerprint), working: model.working) {
                                 Task { await model.importKey(key) }
                             } discard: {
                                 Task { await model.discard(key) }
@@ -142,6 +159,12 @@ struct StagingView: View {
         }
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    /// 探して何も入らなかったのに一覧に鍵があるとき、それが前の鍵だと添える。
+    private var leftoverNote: String? {
+        guard model.searched, model.lastFound.isEmpty, !model.keys.isEmpty else { return nil }
+        return L("The keys listed below were found earlier and are still kept here.")
     }
 
     private func find() {
@@ -164,6 +187,8 @@ struct StagingView: View {
 /// 一時保管の鍵ひとつ。取り込む前に確かめられるよう、UID をすべてとフィンガープリント、作成日を出す。
 struct StagedKeyRow: View {
     let key: Key
+    /// 直前に探して見つかった鍵か。
+    var isNew = false
     let working: Bool
     let importKey: () -> Void
     let discard: () -> Void
@@ -171,6 +196,14 @@ struct StagedKeyRow: View {
     var body: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 4) {
+                if isNew {
+                    Text(L("Just found"))
+                        .font(.caption.bold())
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.accentColor, in: Capsule())
+                }
                 ForEach(Array(key.userIds.filter { !$0.attribute }.enumerated()), id: \.offset) { index, uid in
                     Text(uid.text)
                         .font(index == 0 ? .headline : .body)
@@ -205,5 +238,28 @@ struct StagedKeyRow: View {
             }
         }
         return parts.joined(separator: " · ")
+    }
+}
+
+/// 操作の結果を、一覧と見分けられるよう枠で囲んで出す。
+struct ResultBox: View {
+    let text: String
+    let isFailure: Bool
+    var note: String?
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: isFailure ? "exclamationmark.triangle.fill" : "info.circle.fill")
+                .foregroundStyle(isFailure ? .orange : .accentColor)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(text).textSelection(.enabled)
+                if let note {
+                    Text(note).font(.callout).foregroundStyle(.secondary)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(10)
+        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
     }
 }

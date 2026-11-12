@@ -206,6 +206,9 @@
 "From File…" = "ファイルから…";
 "Found keys stay here and are not in your keyring until you import them. Compare the fingerprint with its owner before importing. Keys left here are discarded when the app quits." = "見つけた鍵はここに置かれ、取り込むまで鍵束には入りません。取り込む前に、フィンガープリントを持ち主と照らし合わせてください。ここに残した鍵は、アプリを終了すると捨てます。";
 "No key was found." = "鍵は見つかりませんでした。";
+"Keys in staging (%ld)" = "一時保管にある鍵（%ld）";
+"Just found" = "今回見つかった";
+"The keys listed below were found earlier and are still kept here." = "下の一覧は、前に見つけて一時保管に残っている鍵です。";
 "The keyserver has this key, but without any name or email address, so it cannot be imported. keys.openpgp.org publishes them only after the owner confirms them by mail. Try searching by email address, or get the key from its owner." = "鍵サーバーにこの鍵はありますが、名前もメールアドレスも付いていないので取り込めません。keys.openpgp.org は、持ち主がメールで確認した名前とメールアドレスしか公開しません。メールアドレスで探すか、持ち主から鍵を受け取ってください。";
 "Imported %@ into Others' Keys." = "%@ を「他者の鍵」に取り込みました。";
 "Open Keys" = "鍵を開く";
