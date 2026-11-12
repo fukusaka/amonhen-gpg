@@ -550,7 +550,7 @@ struct OthersView: View {
                 }
             }
             .sheet(item: Binding(get: { showing.map(IdentifiedKey.init) }, set: { showing = $0?.key })) {
-                KeyDetailSheet(key: $0.key)
+                KeyDetailSheet(key: $0.key) { certifying = $0 }
             }
             .alert(
                 L("Delete the public key of %@?", deleting?.primaryUserId?.text ?? ""),

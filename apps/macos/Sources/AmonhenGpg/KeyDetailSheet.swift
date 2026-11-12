@@ -4,14 +4,14 @@ import SwiftUI
 /// 鍵の詳細。UID ごとの有効性と、主鍵・サブ鍵の方式・用途・期限を出す（一覧では主鍵とサブ鍵の違いを出さないので）。
 struct KeyDetailSheet: View {
     let key: Key
+    /// 確認済みにする（未確認の他者の鍵のとき。このシートを閉じてから、確認のシートを出す）。
+    var certify: ((Key) -> Void)?
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(key.primaryUserId?.text ?? key.fingerprint).font(.title2.bold())
-            Text(Fingerprint.grouped(key.fingerprint))
-                .font(.body.monospaced())
-                .textSelection(.enabled)
+            FingerprintView(fingerprint: key.fingerprint)
             Section {
                 ForEach(Array(key.userIds.filter { !$0.attribute }.enumerated()), id: \.offset) { _, uid in
                     HStack {
@@ -45,6 +45,12 @@ struct KeyDetailSheet: View {
             }
             HStack {
                 Spacer()
+                if let certify, key.canCertify {
+                    Button(L("Mark as Verified…")) {
+                        dismiss()
+                        certify(key)
+                    }
+                }
                 Button(L("Close")) { dismiss() }
                     .keyboardShortcut(.defaultAction)
             }
@@ -93,5 +99,21 @@ func validityWord(_ validity: Validity) -> String {
     case .full, .ultimate: L("Verified")
     case .marginal: L("Partly verified")
     default: L("Not verified")
+    }
+}
+
+/// 持ち主と声に出して照らし合わせるためのフィンガープリント。大きく 2 行に分ける（gpg の表示と同じ切れ目）。
+struct FingerprintView: View {
+    let fingerprint: String
+
+    var body: some View {
+        Text(Fingerprint.lines(fingerprint))
+            .font(.system(size: 24, weight: .medium, design: .monospaced))
+            .multilineTextAlignment(.center)
+            .lineSpacing(4)
+            .textSelection(.enabled)
+            .padding(10)
+            .frame(maxWidth: .infinity)
+            .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
     }
 }
