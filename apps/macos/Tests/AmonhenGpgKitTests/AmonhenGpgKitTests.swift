@@ -164,6 +164,9 @@ func revivesExpiredKey() throws {
     try home.gpg.extendExpiry(of: old.key, to: .days(365))
     let ring = Keyring(keys: try home.gpg.listKeys(), sshKeys: [], now: later)
     #expect(ring.usable.map(\.key.fingerprint) == [fpr])
+    // 延ばしたあとの鍵は、段が変わってもフィンガープリントで見つかる（成功を知らせるのに使う）
+    #expect(ring.own(fpr.lowercased())?.status.tier == .usable)
+    #expect(ring.own("0123456789ABCDEF0123456789ABCDEF01234567") == nil)
 }
 
 @Test(.enabled(if: gpgAvailable()))

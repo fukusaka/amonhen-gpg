@@ -52,7 +52,7 @@ struct ContentView: View {
                         OwnKeysView(
                             model: model, showsHistory: showsHistory,
                             actions: OwnKeyActions(
-                                backUp: backUp, markBackedUp: { markingBackedUp = $0 },
+                                notify: { notice = $0 }, backUp: backUp, markBackedUp: { markingBackedUp = $0 },
                                 createRevocationCertificate: createRevocationCertificate),
                             create: { creating = true }, importKeys: importKeys)
                     case .others: OthersView(keys: model.keyring.others, importKeys: importKeys)
@@ -176,6 +176,8 @@ struct ContentView: View {
 
 /// 鍵ごとの操作。行から呼び、シートなどは一覧の側で出す。
 struct OwnKeyActions {
+    /// 操作の結果を知らせる。
+    var notify: (Notice) -> Void = { _ in }
     var extendExpiry: (OwnKey) -> Void = { _ in }
     var backUp: (OwnKey) -> Void = { _ in }
     var markBackedUp: (OwnKey) -> Void = { _ in }
@@ -190,6 +192,17 @@ struct Notice: Identifiable {
 }
 
 extension Notice {
+    /// 延ばした期限を知らせる。gpg が実際に付けた期限（読み直した鍵）で書く。
+    init(extended own: OwnKey) {
+        let name = own.key.primaryUserId.map { UserIdParts($0.text).name } ?? own.key.fingerprint
+        guard let expires = own.key.expires else {
+            self.init(title: L("Expiry extended"), message: L("%@ no longer expires.", name))
+            return
+        }
+        let date = Date(timeIntervalSince1970: TimeInterval(expires))
+        self.init(title: L("Expiry extended"), message: L("%@ is usable until %@.", name, date.formatted(date: .long, time: .omitted)))
+    }
+
     /// 取り込みの結果を文にする。
     init(_ summary: ImportSummary) {
         var lines: [String] = []
@@ -220,7 +233,9 @@ struct OwnKeysView: View {
 
     var body: some View {
         list
-            .sheet(item: $extending) { ExtendExpirySheet(model: model, own: $0) }
+            .sheet(item: $extending) { own in
+                ExtendExpirySheet(model: model, own: own) { actions.notify(Notice(extended: $0)) }
+            }
     }
 
     private var rowActions: OwnKeyActions {

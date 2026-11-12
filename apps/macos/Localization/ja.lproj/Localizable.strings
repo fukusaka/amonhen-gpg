@@ -47,6 +47,9 @@
 "Backed up" = "バックアップしました";
 "Saved the secret key to %@." = "秘密鍵を %@ に保存しました。";
 "Cannot back up the secret key" = "秘密鍵をバックアップできません";
+"Expiry extended" = "期限を延長しました";
+"%@ no longer expires." = "%@ は期限なしになりました。";
+"%@ is usable until %@." = "%@ は %@ まで使えます。";
 "No backup" = "バックアップがありません";
 "Back Up…" = "バックアップ…";
 "This app has no record of a backup of this secret key. Without one, losing this Mac means losing the key." = "この秘密鍵のバックアップを取った記録がありません。バックアップがないと、この Mac をなくしたときに鍵も失います。";

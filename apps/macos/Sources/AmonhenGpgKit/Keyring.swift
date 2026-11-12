@@ -38,6 +38,11 @@ public struct Keyring: Sendable {
         // 履歴は新しいものから
         history.sort { ($0.key.created ?? 0) > ($1.key.created ?? 0) }
     }
+
+    /// 自分の鍵をフィンガープリントで探す（どの段にあっても）。
+    public func own(_ fingerprint: String) -> OwnKey? {
+        (usable + notOnThisDevice + history).first { $0.key.fingerprint.caseInsensitiveCompare(fingerprint) == .orderedSame }
+    }
 }
 
 /// 自分の鍵と、その使える状態。

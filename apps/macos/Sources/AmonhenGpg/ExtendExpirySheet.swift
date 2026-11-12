@@ -34,6 +34,8 @@ enum ExpiryChoice: Hashable, CaseIterable {
 struct ExtendExpirySheet: View {
     let model: KeyringModel
     let own: OwnKey
+    /// 延ばせたら、読み直した鍵で呼ぶ（成功を知らせるため。シートは閉じる）。
+    var onExtended: (OwnKey) -> Void = { _ in }
     @Environment(\.dismiss) private var dismiss
     @State private var choice = ExpiryChoice.twoYears
     @State private var working = false
@@ -102,7 +104,11 @@ struct ExtendExpirySheet: View {
             let result = await model.perform { try $0.extendExpiry(of: key, to: expiry) }
             working = false
             switch result {
-            case .success: dismiss()
+            case .success:
+                dismiss()
+                if let extended = model.keyring.own(key.fingerprint) {
+                    onExtended(extended)
+                }
             case let .failure(error) where isCanceled(error): break
             case let .failure(error): failure = describe(error)
             }
