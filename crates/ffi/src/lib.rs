@@ -251,6 +251,12 @@ pub enum GpgError {
     BadPassphrase,
     /// パスフレーズを聞く画面（pinentry）を出せなかった。`flavor` は端末用の pinentry の種類（`curses`・`tty`）。
     NoPinentry { flavor: Option<String> },
+    /// gpg 以外の道具（ssh-add）が失敗した。
+    Tool {
+        program: String,
+        code: Option<i32>,
+        stderr: String,
+    },
     /// gpg-agent が要求を断った。
     Agent { code: u32, message: String },
     /// gpg の出力を解釈できなかった。
@@ -293,6 +299,15 @@ impl From<amonhen_core::Error> for GpgError {
             E::Canceled => GpgError::Canceled,
             E::BadPassphrase => GpgError::BadPassphrase,
             E::NoPinentry { flavor } => GpgError::NoPinentry { flavor },
+            E::Tool {
+                program,
+                code,
+                stderr,
+            } => GpgError::Tool {
+                program,
+                code,
+                stderr,
+            },
             E::Agent { code, message } => GpgError::Agent { code, message },
             E::Parse { line, message } => GpgError::Parse {
                 line: line as u64,
@@ -566,6 +581,10 @@ impl Gpg {
 
     pub fn set_ssh_key_enabled(&self, keygrip: String, enabled: bool) -> Result<()> {
         Ok(self.inner.set_ssh_key_enabled(&keygrip, enabled)?)
+    }
+
+    pub fn add_ssh_key(&self, path: String) -> Result<()> {
+        Ok(self.inner.add_ssh_key(std::path::Path::new(&path))?)
     }
 
     pub fn export_ssh_key(&self, fingerprint: String) -> Result<String> {

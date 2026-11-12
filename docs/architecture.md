@@ -130,6 +130,7 @@ apps/
 | 削除 | `--delete-secret-and-public-key`（フィンガープリント指定） |
 | 鍵サーバー / WKD | `--receive-keys` / `--send-keys` / `--locate-external-keys`。送ったものは取り消せないので、FE が送る鍵と送り先を確かめる |
 | パスフレーズ変更 | `--passwd`（入力は pinentry） |
+| 既存の SSH 秘密鍵の取り込み | `ssh-add`（`SSH_AUTH_SOCK` を gpg-agent の SSH ソケットに）。鍵ファイルのパスフレーズは ssh-add が `SSH_ASKPASS` で聞くので、gpg-agent の `GET_PASSPHRASE`（pinentry）で聞く小さなスクリプトを一時ディレクトリに置いて渡す。パスフレーズはスクリプトから ssh-add に直に渡り、アプリは触れない。ssh-add は取り消しや間違いの理由を伝えず、間違えると何度でも聞き直すので、スクリプトが印を残し、3 回で打ち切る |
 
 ### SSH 鍵（gpg-agent 経由）
 

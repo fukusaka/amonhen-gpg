@@ -83,6 +83,7 @@ func describe(_ error: Error) -> String {
     case .Canceled: return L("The passphrase entry was canceled.")
     case .BadPassphrase: return L("The passphrase was wrong.")
     case let .NoPinentry(flavor): return describeNoPinentry(flavor: flavor)
+    case let .Tool(program, _, stderr): return L("%@ failed: %@", program, stderr.trimmingCharacters(in: .whitespacesAndNewlines))
     case let .Agent(_, message): return L("gpg-agent refused: %@", message)
     case let .Parse(_, message): return L("Unexpected output from gpg: %@", message)
     case let .InvalidArgument(name, message): return L("Invalid %@: %@", name, message)

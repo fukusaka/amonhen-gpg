@@ -784,3 +784,66 @@ fn passphrases_through_pinentry() {
         .unwrap();
     assert_eq!(result.secret_imported, 1);
 }
+
+/// 既存の SSH 秘密鍵を ssh-add で gpg-agent に取り込む。鍵ファイルのパスフレーズも gpg-agent が守るパスフレーズも、
+/// fake の pinentry が答える。ssh-keygen・ssh-add がなければ何もしない。
+#[test]
+fn adds_existing_ssh_keys() {
+    const PASSPHRASE: &str = "correct horse battery staple";
+    let found = ["ssh-keygen", "ssh-add"].iter().all(|p| {
+        command("sh")
+            .args(["-c", &format!("command -v {p}")])
+            .stdout(Stdio::null())
+            .status()
+            .is_ok_and(|s| s.success())
+    });
+    if !found {
+        eprintln!("ssh-keygen or ssh-add not found; skipped");
+        return;
+    }
+    let Some(home) = Home::with_pinentry(Some(PASSPHRASE)) else {
+        return;
+    };
+    let gpg = Gpg::new().with_homedir(home.path());
+    let keys = tempfile::tempdir().unwrap();
+    let keygen = |name: &str, passphrase: &str| {
+        let path = keys.path().join(name);
+        let status = command("ssh-keygen")
+            .args(["-q", "-t", "ed25519", "-C", name, "-N", passphrase, "-f"])
+            .arg(&path)
+            .status()
+            .unwrap();
+        assert!(status.success());
+        path
+    };
+    let plain = keygen("id_plain", "");
+
+    // SSH サポートが有効でなければ断る
+    assert!(matches!(
+        gpg.add_ssh_key(&plain),
+        Err(Error::InvalidArgument { name: "ssh", .. })
+    ));
+    gpg.enable_ssh_support().unwrap();
+
+    gpg.add_ssh_key(&plain).unwrap();
+    let encrypted = keygen("id_encrypted", PASSPHRASE);
+    gpg.add_ssh_key(&encrypted).unwrap();
+    let keys_in_agent = gpg.ssh_keys().unwrap();
+    assert_eq!(keys_in_agent.len(), 2);
+    assert!(keys_in_agent.iter().all(|k| k.enabled()));
+
+    // 鍵ファイルのパスフレーズを聞かれて取り消す
+    let other = keygen("id_other", "other passphrase");
+    home.answer(None);
+    assert!(matches!(gpg.add_ssh_key(&other), Err(Error::Canceled)));
+    // 3 回間違える（ssh-add は何度でも聞き直すので、askpass が打ち切る）
+    home.answer(Some("wrong"));
+    assert!(matches!(gpg.add_ssh_key(&other), Err(Error::BadPassphrase)));
+    // 鍵ファイルでないもの
+    std::fs::write(keys.path().join("not-a-key"), "hello").unwrap();
+    assert!(matches!(
+        gpg.add_ssh_key(&keys.path().join("not-a-key")),
+        Err(Error::Tool { .. })
+    ));
+    assert_eq!(gpg.ssh_keys().unwrap().len(), 2);
+}

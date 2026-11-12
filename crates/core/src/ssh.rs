@@ -7,12 +7,19 @@
 //! 使うようにするときは属性だけを付け、利用者のファイルは書き換えない。使わないようにするときは属性を消し、
 //! `sshcontrol` で有効になっていればその行に `!` を付ける（属性を偽にしても `sshcontrol` の行が勝つため）。
 //! 鍵は keygrip で指し、`Key::keygrip`・`Subkey::keygrip` と照らし合わせて GPG 鍵とつなぐ。
+//!
+//! 既存の SSH 秘密鍵（`~/.ssh/id_*`）は ssh-add で gpg-agent に渡す。鍵ファイルのパスフレーズは ssh-add が
+//! `SSH_ASKPASS` で聞くので、gpg-agent の pinentry で聞く小さなスクリプトを渡す（アプリはパスフレーズに触れない）。
+//! 受け取った gpg-agent は、自分の鍵束に置くためのパスフレーズを pinentry で聞き、`sshcontrol` に足す。
 
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use std::process::Stdio;
+
 use crate::gpg::{check_fingerprint, percent_decode};
+use crate::process::command;
 use crate::{Error, Gpg, Result};
 
 /// gpg-agent の SSH サポート。
@@ -153,6 +160,75 @@ impl Gpg {
             })
     }
 
+    /// 既存の SSH 秘密鍵のファイルを gpg-agent に取り込み、SSH に出す。gpg-agent の SSH サポートが有効でなければ断る。
+    /// 鍵ファイルのパスフレーズと、gpg-agent が鍵を守るパスフレーズは、どちらも pinentry が聞く。鍵ファイルは変えない。
+    /// 取り消したときは `Error::Canceled`、鍵ファイルのパスフレーズを 3 回間違えたときは `Error::BadPassphrase`。
+    pub fn add_ssh_key(&self, path: &Path) -> Result<()> {
+        let support = self.ssh_support()?;
+        let socket = match support.socket {
+            Some(socket) if support.enabled => socket,
+            _ => {
+                return Err(Error::InvalidArgument {
+                    name: "ssh",
+                    message: "ssh support of gpg-agent is not enabled".into(),
+                });
+            }
+        };
+        // SSH クライアントは gpg-agent を起動しないので、ソケットを用意させておく
+        self.run_tool("gpgconf", &["--launch", "gpg-agent"], None)?;
+        let state = AskpassState::create()?;
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let mut cmd = command("ssh-add");
+        cmd.arg("--")
+            .arg(path)
+            .env("SSH_AUTH_SOCK", &socket)
+            .env("SSH_ASKPASS", state.script())
+            .env("SSH_ASKPASS_REQUIRE", "force")
+            // 古い ssh-add は DISPLAY がないと SSH_ASKPASS を使わない
+            .env(
+                "DISPLAY",
+                std::env::var_os("DISPLAY").unwrap_or(":0".into()),
+            )
+            .env("AMONHEN_ASKPASS_STATE", state.dir())
+            .env(
+                "AMONHEN_CONNECT_AGENT",
+                self.tool_program("gpg-connect-agent"),
+            )
+            .env(
+                "AMONHEN_ASKPASS_DESC",
+                assuan_text(&format!("Enter the passphrase of the SSH key {name}")),
+            )
+            .env("LC_ALL", "C")
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        match &self.homedir {
+            Some(home) => cmd.env("AMONHEN_GNUPGHOME", home),
+            None => cmd.env_remove("AMONHEN_GNUPGHOME"),
+        };
+        let out = cmd.output().map_err(|source| Error::Spawn {
+            program: "ssh-add".into(),
+            source,
+        })?;
+        if out.status.success() {
+            return Ok(());
+        }
+        if state.marked("canceled") {
+            return Err(Error::Canceled);
+        }
+        if state.marked("bad-passphrase") {
+            return Err(Error::BadPassphrase);
+        }
+        Err(Error::Tool {
+            program: "ssh-add".into(),
+            code: out.status.code(),
+            stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
+        })
+    }
+
     /// gpg-agent に Assuan のコマンドを順に送り、それぞれの応答の行（`S`・`D` の行）を返す。
     /// gpg-connect-agent は `ERR` の応答でも 0 で終わるので、応答の行で判断する。
     fn agent(&self, commands: &[&str]) -> Result<Vec<Vec<String>>> {
@@ -161,6 +237,113 @@ impl Gpg {
         let out = self.run_tool("gpg-connect-agent", &args, None)?;
         parse_replies(&out, commands.len())
     }
+}
+
+/// ssh-add の `SSH_ASKPASS`。gpg-agent の pinentry（`GET_PASSPHRASE`）で鍵ファイルのパスフレーズを聞き、標準出力で
+/// ssh-add に渡す。取り消し・3 回の間違いは、状態のディレクトリに印を残して知らせる（ssh-add は理由を伝えない）。
+const ASKPASS: &str = r#"#!/bin/sh
+state="$AMONHEN_ASKPASS_STATE"
+error=X
+case "$1" in
+*"Bad passphrase"*)
+    tries=$(cat "$state/tries" 2>/dev/null || echo 0)
+    tries=$((tries + 1))
+    echo "$tries" > "$state/tries"
+    if [ "$tries" -ge 3 ]; then
+        : > "$state/bad-passphrase"
+        exit 1
+    fi
+    error=Bad+passphrase
+    ;;
+esac
+if [ -n "$AMONHEN_GNUPGHOME" ]; then
+    out=$("$AMONHEN_CONNECT_AGENT" --homedir "$AMONHEN_GNUPGHOME" --decode "GET_PASSPHRASE --data X $error Passphrase $AMONHEN_ASKPASS_DESC" /bye)
+else
+    out=$("$AMONHEN_CONNECT_AGENT" --decode "GET_PASSPHRASE --data X $error Passphrase $AMONHEN_ASKPASS_DESC" /bye)
+fi
+case "$out" in
+"D "*) printf '%s
+' "${out#D }" | head -n 1 ;;
+OK*) echo ;;
+*)
+    : > "$state/canceled"
+    exit 1
+    ;;
+esac
+"#;
+
+/// askpass のスクリプトと、その印を置く一時ディレクトリ（持ち主だけが入れる）。終わったら消す。
+struct AskpassState {
+    dir: PathBuf,
+}
+
+impl AskpassState {
+    fn create() -> Result<Self> {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let dir =
+            std::env::temp_dir().join(format!("amonhen-askpass-{}-{nanos}", std::process::id()));
+        let io = |path: &Path| {
+            let path = path.to_owned();
+            move |source| Error::Io { path, source }
+        };
+        let mut builder = std::fs::DirBuilder::new();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::DirBuilderExt;
+            builder.mode(0o700);
+        }
+        builder.create(&dir).map_err(io(&dir))?;
+        let state = AskpassState { dir };
+        let script = state.script();
+        let mut options = std::fs::OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o700);
+        }
+        options
+            .open(&script)
+            .and_then(|mut f| std::io::Write::write_all(&mut f, ASKPASS.as_bytes()))
+            .map_err(io(&script))?;
+        Ok(state)
+    }
+
+    fn dir(&self) -> &Path {
+        &self.dir
+    }
+
+    fn script(&self) -> PathBuf {
+        self.dir.join("askpass")
+    }
+
+    fn marked(&self, name: &str) -> bool {
+        self.dir.join(name).is_file()
+    }
+}
+
+impl Drop for AskpassState {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.dir);
+    }
+}
+
+/// Assuan の引数の文字（空白は `+`、`+`・`%`・制御文字は `%XX`）。
+fn assuan_text(text: &str) -> String {
+    let mut out = String::new();
+    for b in text.bytes() {
+        match b {
+            b' ' => out.push('+'),
+            b'+' | b'%' => out.push_str(&format!("%{b:02X}")),
+            0x21..=0x7e => out.push(b as char),
+            // 制御文字と、UTF-8 の多バイト文字のバイト
+            _ => out.push_str(&format!("%{b:02X}")),
+        }
+    }
+    out
 }
 
 fn parse_replies(out: &str, expected: usize) -> Result<Vec<Vec<String>>> {
@@ -276,6 +459,13 @@ mod tests {
     use super::*;
 
     const AUTH: &str = "C6672EE91EB4D61374F8C32CA5CE1B743CCBD169";
+
+    #[test]
+    fn assuan_text_escapes_spaces_and_bytes() {
+        assert_eq!(assuan_text("key id_ed25519"), "key+id_ed25519");
+        assert_eq!(assuan_text("a+b 100%"), "a%2Bb+100%25");
+        assert_eq!(assuan_text("鍵\n"), "%E9%8D%B5%0A");
+    }
 
     #[test]
     fn parses_keyinfo_lines() {

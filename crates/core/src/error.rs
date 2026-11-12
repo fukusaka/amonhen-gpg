@@ -28,6 +28,12 @@ pub enum Error {
     /// pinentry（`flavor` が `curses`・`tty`）で、端末のない FE からは出せない。FE は GUI の pinentry
     /// （gpg-agent.conf の `pinentry-program`）を設定するよう案内する。
     NoPinentry { flavor: Option<String> },
+    /// gpg 以外の道具（ssh-add）が失敗した。`stderr` は人間向けのメッセージ。
+    Tool {
+        program: String,
+        code: Option<i32>,
+        stderr: String,
+    },
     /// gpg-agent が要求を断った（`ERR` の応答）。`code` は gpg-error のコード（下位 16 ビットが種類）。
     Agent { code: u32, message: String },
     /// gpg の出力を解釈できなかった。`line` は 1 始まり（出力全体の問題で、行を決められないときは 0）。
@@ -65,6 +71,9 @@ impl fmt::Display for Error {
                 write!(f, "pinentry ({flavor}) cannot ask for the passphrase here")
             }
             Error::NoPinentry { flavor: None } => write!(f, "no usable pinentry"),
+            Error::Tool {
+                program, stderr, ..
+            } => write!(f, "{program} failed: {}", stderr.trim()),
             Error::Agent { code, message } => write!(f, "gpg-agent refused ({code}): {message}"),
             Error::Parse { line, message } => {
                 write!(f, "unexpected gpg output at line {line}: {message}")

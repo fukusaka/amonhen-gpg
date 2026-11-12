@@ -193,6 +193,7 @@
 "gpg-agent cannot start its pinentry to ask for the passphrase." = "gpg-agent がパスフレーズを聞く pinentry を起動できません。";
 "Install pinentry-mac (brew install pinentry-mac), add this line to gpg-agent.conf in your GnuPG folder (usually ~/.gnupg), and run gpgconf --kill gpg-agent:" = "pinentry-mac を入れ（brew install pinentry-mac）、GnuPG のフォルダ（通常は ~/.gnupg）の gpg-agent.conf に次の行を足してから、gpgconf --kill gpg-agent を実行してください:";
 "Add this line to gpg-agent.conf in your GnuPG folder (usually ~/.gnupg), then run gpgconf --kill gpg-agent:" = "GnuPG のフォルダ（通常は ~/.gnupg）の gpg-agent.conf に次の行を足してから、gpgconf --kill gpg-agent を実行してください:";
+"%@ failed: %@" = "%@ が失敗しました: %@";
 "gpg-agent refused: %@" = "gpg-agent が要求を断りました: %@";
 "Unexpected output from gpg: %@" = "gpg の出力を解釈できません: %@";
 "Invalid %@: %@" = "%@ が正しくありません: %@";
