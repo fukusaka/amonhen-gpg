@@ -179,6 +179,7 @@ struct OwnKeyActions {
     /// 操作の結果を知らせる。
     var notify: (Notice) -> Void = { _ in }
     var extendExpiry: (OwnKey) -> Void = { _ in }
+    var revoke: (OwnKey) -> Void = { _ in }
     var backUp: (OwnKey) -> Void = { _ in }
     var markBackedUp: (OwnKey) -> Void = { _ in }
     var createRevocationCertificate: (OwnKey) -> Void = { _ in }
@@ -201,6 +202,14 @@ extension Notice {
         }
         let date = Date(timeIntervalSince1970: TimeInterval(expires))
         self.init(title: L("Expiry extended"), message: L("%@ is usable until %@.", name, date.formatted(date: .long, time: .omitted)))
+    }
+
+    /// 失効させたことと、ほかの人に知らせる必要があることを伝える。
+    init(revoked own: OwnKey) {
+        let name = own.key.primaryUserId.map { UserIdParts($0.text).name } ?? own.key.fingerprint
+        self.init(
+            title: L("Key revoked"),
+            message: L("%@ is revoked. Others learn about it only when they get the updated public key, from a keyserver or from you.", name))
     }
 
     /// 取り込みの結果を文にする。
@@ -230,17 +239,22 @@ struct OwnKeysView: View {
     var create: () -> Void = {}
     var importKeys: () -> Void = {}
     @State private var extending: OwnKey?
+    @State private var revoking: OwnKey?
 
     var body: some View {
         list
             .sheet(item: $extending) { own in
                 ExtendExpirySheet(model: model, own: own) { actions.notify(Notice(extended: $0)) }
             }
+            .sheet(item: $revoking) { own in
+                RevokeKeySheet(model: model, own: own, backUp: actions.backUp) { actions.notify(Notice(revoked: $0)) }
+            }
     }
 
     private var rowActions: OwnKeyActions {
         var actions = actions
         actions.extendExpiry = { extending = $0 }
+        actions.revoke = { revoking = $0 }
         return actions
     }
 
@@ -367,6 +381,9 @@ struct OwnKeyRow: View {
             .disabled(!own.needsBackup)
         Button(L("Create Revocation Certificate…")) { actions.createRevocationCertificate(own) }
             .disabled(!own.needsRevocationCertificate)
+        Divider()
+        Button(L("Revoke Key…"), role: .destructive) { actions.revoke(own) }
+            .disabled(!own.canRevoke)
     }
 
     private var symbol: String {

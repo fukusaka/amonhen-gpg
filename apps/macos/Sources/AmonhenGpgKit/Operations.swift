@@ -13,6 +13,12 @@ extension OwnKey {
 }
 
 extension OwnKey {
+    /// 失効させられるか。主鍵の秘密鍵で署名するので、期限の延長と同じ条件
+    /// （失効していない、主鍵の秘密鍵がこの PC かカードにある）。秘密鍵が別の PC にある鍵は、そちらか失効証明書で失効させる。
+    public var canRevoke: Bool { canExtendExpiry }
+}
+
+extension OwnKey {
     /// 失効証明書がなく、作れるか。秘密鍵を失ったときに鍵を失効させるのに要る。
     /// 作るには主鍵の秘密鍵で署名するので、期限の延長と同じ条件（失効していない、主鍵の秘密鍵がこの PC かカードにある）。
     public var needsRevocationCertificate: Bool {

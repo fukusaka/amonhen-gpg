@@ -65,6 +65,25 @@
 "Saved it to %@. Keep a copy with the secret key backup, somewhere other than this Mac." = "%@ に保存しました。秘密鍵のバックアップと一緒に、この Mac 以外の場所にも写しを置いてください。";
 "Cannot create a revocation certificate" = "失効証明書を作成できません";
 
+/* 失効 */
+"Revoke Key…" = "鍵を失効させる…";
+"Revoke Key" = "鍵を失効させる";
+"Once revoked, others stop encrypting to this key and its signatures count as from a revoked key. This cannot be undone. The secret key stays, so you can still decrypt old messages." = "失効させると、ほかの人はこの鍵に暗号化しなくなり、この鍵の署名は失効した鍵のものとして扱われます。元に戻せません。秘密鍵は残るので、昔のものは復号できます。";
+"Reason" = "理由";
+"I no longer use it" = "もう使わない";
+"I replaced it with a new key" = "新しい鍵に置き換えた";
+"The secret key leaked, or may have" = "秘密鍵が漏れた（漏れた恐れがある）";
+"No reason given" = "理由を示さない";
+"Note (optional)" = "説明（任意）";
+"e.g. Replaced by key 1234 5678" = "例: 鍵 1234 5678 に移行";
+"Revoke it now, then tell the people you exchange messages with. A leaked key can still be used to decrypt what was sent to it." = "すぐに失効させ、やり取りしている人に知らせてください。漏れた鍵では、この鍵宛てに送られたものを復号できてしまいます。";
+"Revoke…" = "失効させる…";
+"Revoke “%@”?" = "「%@」を失効させますか？";
+"Revoke" = "失効させる";
+"This cannot be undone." = "元に戻せません。";
+"Key revoked" = "鍵を失効させました";
+"%@ is revoked. Others learn about it only when they get the updated public key, from a keyserver or from you." = "%@ を失効させました。ほかの人が知るのは、鍵サーバーやあなたから新しい公開鍵を受け取ったときです。";
+
 /* 鍵の作成 */
 "New Key…" = "新しい鍵…";
 "New Key" = "新しい鍵";

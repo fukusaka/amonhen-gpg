@@ -36,7 +36,7 @@ enum Snapshot {
 /// シートを単独で書き出すための入れ物（`--sheet`）。鍵束を読んでから中身を決める。
 struct SheetPreview: View {
     enum Kind: String {
-        case extend, create
+        case extend, create, revoke
     }
 
     let model: KeyringModel
@@ -48,6 +48,10 @@ struct SheetPreview: View {
         case .extend:
             if let own {
                 ExtendExpirySheet(model: model, own: own)
+            }
+        case .revoke:
+            if let own {
+                RevokeKeySheet(model: model, own: own)
             }
         case .create:
             NewKeySheet(model: model, name: "Alice Example", email: "alice@example.com")

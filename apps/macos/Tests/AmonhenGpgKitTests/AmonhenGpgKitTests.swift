@@ -170,6 +170,25 @@ func revivesExpiredKey() throws {
 }
 
 @Test(.enabled(if: gpgAvailable()))
+func revokesOwnKey() throws {
+    let home = try TemporaryKeyring()
+    let fpr = try home.gpg.generateKey(
+        request: GenerateKey(userId: "Alice <alice@example.com>", algorithm: nil, capabilities: nil, expires: .never))
+    let now = UInt64(Date().timeIntervalSince1970)
+    let own = try #require(Keyring(keys: try home.gpg.listKeys(), sshKeys: [], now: now).usable.first)
+    #expect(own.canRevoke)
+
+    try home.gpg.revokeKey(fingerprint: fpr, reason: .superseded, description: "Replaced by a new key")
+    let ring = Keyring(keys: try home.gpg.listKeys(), sshKeys: [], now: now)
+    let revoked = try #require(ring.own(fpr))
+    #expect(revoked.status.tier == .history)
+    #expect(revoked.key.validity == .revoked)
+    // もう一度は失効させられない。秘密鍵は残る（昔のものの復号に使う）
+    #expect(!revoked.canRevoke)
+    #expect(revoked.canBackUp)
+}
+
+@Test(.enabled(if: gpgAvailable()))
 func backsUpSecretKeyToPrivateFile() throws {
     let home = try TemporaryKeyring()
     let fpr = try home.gpg.generateKey(
