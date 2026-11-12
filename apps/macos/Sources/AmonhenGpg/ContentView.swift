@@ -62,7 +62,7 @@ struct ContentView: View {
                                 sendToKeyserver: { sending = $0 },
                                 createRevocationCertificate: createRevocationCertificate),
                             create: { creating = true }, importKeys: importKeys)
-                    case .others: OthersView(keys: model.keyring.others, importKeys: importKeys)
+                    case .others: OthersView(model: model, importKeys: importKeys, notify: { notice = $0 })
                     case .staging: StagingView(model: staging)
                     }
                 }
@@ -517,10 +517,23 @@ struct UsageLabel: View {
 // MARK: - 他者の鍵
 
 struct OthersView: View {
-    let keys: [Key]
+    let model: KeyringModel
     var importKeys: () -> Void = {}
+    var notify: (Notice) -> Void = { _ in }
+    @State private var certifying: Key?
 
     var body: some View {
+        list
+            .sheet(item: Binding(get: { certifying.map(IdentifiedKey.init) }, set: { certifying = $0?.key })) { item in
+                CertifySheet(model: model, key: item.key) {
+                    let name = item.key.primaryUserId?.text ?? item.key.fingerprint
+                    notify(Notice(title: L("Marked as verified"), message: L("%@ is now verified in your keyring.", name)))
+                }
+            }
+    }
+
+    @ViewBuilder private var list: some View {
+        let keys = model.keyring.others
         if keys.isEmpty {
             ContentUnavailableView {
                 Label(L("No keys from others"), systemImage: "person.2")
@@ -547,11 +560,29 @@ struct OthersView: View {
                     }
                     Spacer()
                     Text(validityWord(key)).foregroundStyle(.secondary)
+                    if key.canCertify {
+                        Button(L("Verify…")) { certifying = key }
+                            .controlSize(.small)
+                    }
+                    Menu {
+                        menuItems(key)
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .fixedSize()
                 }
                 .padding(.vertical, 4)
                 .listRowSeparator(.hidden)
+                .contextMenu { menuItems(key) }
             }
         }
+    }
+
+    @ViewBuilder private func menuItems(_ key: Key) -> some View {
+        Button(L("Mark as Verified…")) { certifying = key }
+            .disabled(!key.canCertify)
     }
 
     /// 有効性は記号ではなく言葉で（docs/ui.md）。
@@ -575,4 +606,10 @@ enum Fingerprint {
             return String(fingerprint[from..<to])
         }.joined(separator: " ")
     }
+}
+
+/// シートに渡すため、鍵をフィンガープリントで見分ける。
+struct IdentifiedKey: Identifiable {
+    let key: Key
+    var id: String { key.fingerprint }
 }

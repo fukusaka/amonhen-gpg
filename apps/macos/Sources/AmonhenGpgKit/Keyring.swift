@@ -39,6 +39,16 @@ public struct Keyring: Sendable {
         history.sort { ($0.key.created ?? 0) > ($1.key.created ?? 0) }
     }
 
+    /// 他者の鍵に署名する（確認済みにする）のに使える自分の鍵。使える段にあり、証明の秘密鍵がこの PC かカードにあるもの。
+    public var signers: [OwnKey] {
+        usable.filter {
+            switch $0.status.certify {
+            case .thisDevice, .card: true
+            case .elsewhere, .none: false
+            }
+        }
+    }
+
     /// 自分の鍵をフィンガープリントで探す（どの段にあっても）。
     public func own(_ fingerprint: String) -> OwnKey? {
         (usable + notOnThisDevice + history).first { $0.key.fingerprint.caseInsensitiveCompare(fingerprint) == .orderedSame }
@@ -117,6 +127,19 @@ public struct UserIdParts: Equatable, Sendable {
 }
 
 extension Key {
+    /// 署名して確認済みにできる UID（写真の UID と失効した UID を除く）。
+    public var certifiableUserIds: [UserId] {
+        userIds.filter { !$0.attribute && $0.validity != .revoked }
+    }
+
+    /// 確認済みにする操作を出すか。失効・期限切れの鍵と、もう確認済みの鍵には出さない。
+    public var canCertify: Bool {
+        switch validity {
+        case .new, .unknown, .never, .marginal: !certifiableUserIds.isEmpty
+        default: false
+        }
+    }
+
     /// 名前として出す UID。gpg は主たる UID を先に並べるので、失効していない最初のもの。
     public var primaryUserId: UserId? {
         let ids = userIds.filter { !$0.attribute }

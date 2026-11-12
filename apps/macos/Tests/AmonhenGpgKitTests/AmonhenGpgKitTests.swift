@@ -393,3 +393,40 @@ func stagingKeepsKeysApartUntilImported() throws {
     #expect(!FileManager.default.fileExists(atPath: dir.path))
     #expect(try home.gpg.listKeys().map(\.fingerprint) == [bobFpr])
 }
+
+@Test(.enabled(if: gpgAvailable()))
+func certifiesOthersKeys() throws {
+    let bob = try TemporaryKeyring()
+    let bobFpr = try bob.gpg.generateKey(
+        request: GenerateKey(userId: "Bob <bob@example.org>", algorithm: nil, capabilities: nil, expires: .never))
+    try bob.gpg.addUserId(fingerprint: bobFpr, userId: "Bob (work) <bob@work.example>")
+
+    let home = try TemporaryKeyring()
+    _ = try home.gpg.generateKey(
+        request: GenerateKey(userId: "Alice <alice@example.com>", algorithm: nil, capabilities: nil, expires: .never))
+    _ = try home.gpg.import(data: try bob.gpg.exportPublicKeys(fingerprints: [bobFpr], armor: true))
+    let now = UInt64(Date().timeIntervalSince1970)
+    var ring = Keyring(keys: try home.gpg.listKeys(), sshKeys: [], now: now)
+    let signer = try #require(ring.signers.first)
+    let key = try #require(ring.others.first)
+    #expect(key.canCertify)
+    #expect(key.certifiableUserIds.count == 2)
+
+    // 確かめた UID だけに、書き出さない署名をする
+    try home.gpg.signKey(fingerprint: bobFpr, userIds: ["Bob <bob@example.org>"], signer: signer.key.fingerprint, local: true)
+    ring = Keyring(keys: try home.gpg.listKeys(), sshKeys: [], now: now)
+    let verified = try #require(ring.others.first)
+    #expect(verified.validity == .full)
+    #expect(!verified.canCertify)
+    let validities = Dictionary(uniqueKeysWithValues: verified.userIds.map { ($0.text, $0.validity) })
+    #expect(validities["Bob <bob@example.org>"] == .full)
+    #expect(validities["Bob (work) <bob@work.example>"] != .full)
+    // 書き出さない署名は、公開鍵を渡しても相手に届かない
+    let exported = try home.gpg.exportPublicKeys(fingerprints: [bobFpr], armor: true)
+    let other = try TemporaryKeyring()
+    _ = try other.gpg.import(data: exported)
+    #expect(try other.gpg.listKeys().first?.validity != .full)
+
+    // 秘密鍵のない鍵束には、署名に使える鍵がない
+    #expect(Keyring(keys: try other.gpg.listKeys(), sshKeys: [], now: now).signers.isEmpty)
+}

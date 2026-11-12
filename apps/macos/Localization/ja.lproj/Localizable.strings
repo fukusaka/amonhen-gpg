@@ -135,6 +135,19 @@
 "Verified" = "確認済み";
 "Partly verified" = "一部確認済み";
 "Not verified" = "未確認";
+"Verify…" = "確認…";
+"Mark as Verified…" = "確認済みにする…";
+"Mark as Verified" = "確認済みにする";
+"Ask the owner to read out their fingerprint by another channel, in person or on the phone, and compare it with this one, group by group." = "持ち主に、会って、または電話など別の手段でフィンガープリントを読み上げてもらい、下のものと 4 桁ずつ照らし合わせてください。";
+"The fingerprint matches the one the owner gave me" = "持ち主から聞いたフィンガープリントと一致した";
+"Names and addresses you checked" = "確かめた名前とメールアドレス";
+"You have no key of your own that can sign on this Mac." = "この Mac には、署名に使える自分の鍵がありません。";
+"Sign with" = "署名に使う鍵";
+"Let others see it (publish the signature with the key)" = "ほかの人にも示す（署名を鍵と一緒に公開する）";
+"The signature goes wherever this key is sent, including keyservers, and shows that you know the owner." = "署名はこの鍵が送られる先（鍵サーバーを含む）に一緒に載り、あなたが持ち主を知っていることが分かります。";
+"The key is verified only in your keyring. Nothing is published." = "確認済みになるのは自分の鍵束の中だけで、何も公開されません。";
+"Marked as verified" = "確認済みにしました";
+"%@ is now verified in your keyring." = "%@ を確認済みにしました。";
 
 /* 一時保管 */
 "Keys found on keyservers or through WKD will be kept here until you import them." = "鍵サーバーや WKD で見つけた鍵は、取り込むまでここに置きます。";
