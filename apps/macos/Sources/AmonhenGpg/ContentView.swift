@@ -346,6 +346,7 @@ struct OwnKeysView: View {
                         ForEach(keyring.notOnThisDevice) { OwnKeyRow(own: $0, now: now, actions: rowActions) }
                     }
                 }
+                SshSection(model: model, notify: actions.notify)
                 if !keyring.history.isEmpty {
                     Section {
                         DisclosureGroup(isExpanded: $showsHistory) {

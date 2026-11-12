@@ -79,12 +79,11 @@ git やメールの署名検証は本来の鍵束しか見ないので、そう�
 - 自分の鍵の編集（有効期限・UID・サブ鍵・パスフレーズ・所有者信頼・失効）。
 - 他者の鍵への署名（`Gpg::sign_key`）。
 - 鍵サーバーへの送信（`Gpg::send_keys`。失効させた自分の鍵を知らせるのに使う）。
-- gpg-agent の SSH 鍵（`Gpg::ssh_support`・`enable_ssh_support`・`ssh_keys`・`set_ssh_key_enabled`・`export_ssh_key`）。主画面の「SSH ✓ この PC」は、認証サブ鍵の keygrip を `SshKey` と照らし合わせて出す。
+- gpg-agent の SSH 鍵（`Gpg::ssh_support`・`enable_ssh_support`・`ssh_keys`・`set_ssh_key_enabled`・`export_ssh_key`）と、既存の SSH 秘密鍵の取り込み（`Gpg::add_ssh_key`）。主画面の「SSH ✓ この PC」は、認証サブ鍵の keygrip を `SshKey` と照らし合わせて出す。
 
 まだ:
 
 - 鍵サーバーで名前から探す（`--search-keys`）。バッチでの出力の形を確かめてから。
-- 既存の SSH 秘密鍵（`~/.ssh/`）を gpg-agent に取り込む（`ssh-add`）。
 
 ## macOS アプリ（SwiftUI）でできること
 
@@ -101,6 +100,7 @@ git やメールの署名検証は本来の鍵束しか見ないので、そう�
 - 他者の鍵を確認済みにする（未確認の鍵の「確認…」、行のメニュー）。フィンガープリントを大きく出し、持ち主と照らし合わせたと答えるまで署名できない。確かめた UID だけを選んで署名する（あとで UID が増えても、確かめていないものには署名しない）。署名に使う自分の鍵を選ぶ。既定は書き出さない署名で、鍵と一緒に公開する署名は選んだときだけ。
 - 鍵の詳細（行のメニューの「詳細…」）。UID ごとの有効性と、主鍵・サブ鍵の方式・用途・作成日・期限。
 - 他者の公開鍵の削除（行のメニュー）。確かめてから消す。確認済みにした署名も一緒に消えることを伝える。
+- 自分の鍵の画面の SSH の段。gpg-agent の SSH サポートが無効ならそう知らせ、確かめてから有効にする（gpg-agent.conf に足し、gpg-agent を起動し直す）。OpenPGP の鍵でない SSH の鍵（ssh-add で取り込んだ鍵）を並べ、SSH に使うかを切り替える。既存の SSH 秘密鍵のファイル（`~/.ssh`）を取り込む。`SSH_AUTH_SOCK` に指すソケットの場所を示す。
 - パスフレーズは gpg-agent の pinentry が聞く。入力を取り消したときは何も知らせずに元の画面に戻り、パスフレーズが違ったときはそう知らせる。pinentry を出せない（端末用の pinentry-curses などを使っている）ときは、gpg-agent.conf に足す `pinentry-program` の行（入っている pinentry-mac の場所）を示す。設定はアプリでは書き換えない。
 
 ## 未決事項

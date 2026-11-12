@@ -438,3 +438,31 @@ func certifiesOthersKeys() throws {
     #expect(algorithmName(algorithm: 27, length: 0, curve: nil) == "Ed25519")
     #expect(algorithmName(algorithm: 99, length: 0, curve: nil) == "#99")
 }
+
+@Test(.enabled(if: gpgAvailable()))
+func listsSshKeysThatAreNotOpenPgpKeys() throws {
+    let home = try TemporaryKeyring(pinentry: "correct horse battery staple")
+    try home.gpg.enableSshSupport()
+    _ = try home.gpg.generateKey(
+        request: GenerateKey(userId: "Alice <alice@example.com>", algorithm: nil, capabilities: nil, expires: .never))
+    let file = home.dir.appendingPathComponent("id_ed25519")
+    let keygen = Process()
+    keygen.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+    keygen.arguments = ["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", "test", "-f", file.path]
+    try keygen.run()
+    keygen.waitUntilExit()
+    try #require(keygen.terminationStatus == 0)
+    try home.gpg.addSshKey(path: file.path)
+
+    var ring = Keyring(keys: try home.gpg.listKeys(), sshKeys: try home.gpg.sshKeys(), now: UInt64(Date().timeIntervalSince1970))
+    // OpenPGP の鍵は自分の鍵の段に、ssh-add で取り込んだ鍵だけが sshOnly に
+    #expect(ring.usable.count == 1)
+    let ssh = try #require(ring.sshOnly.first)
+    #expect(ring.sshOnly.count == 1)
+    #expect(sshKeyEnabled(key: ssh))
+    #expect(ssh.fingerprint.hasPrefix("SHA256:"))
+
+    try home.gpg.setSshKeyEnabled(keygrip: ssh.keygrip, enabled: false)
+    ring = Keyring(keys: try home.gpg.listKeys(), sshKeys: try home.gpg.sshKeys(), now: UInt64(Date().timeIntervalSince1970))
+    #expect(ring.sshOnly.map { sshKeyEnabled(key: $0) } == [false])
+}

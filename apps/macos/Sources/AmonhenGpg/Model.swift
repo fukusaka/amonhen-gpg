@@ -61,11 +61,13 @@ final class KeyringModel {
         let keys = try gpg.listKeys()
         // SSH の状態が取れなくても（gpg-agent が動かないなど）、鍵の一覧は出す
         let sshKeys = (try? gpg.sshKeys()) ?? []
-        return Keyring(
+        var keyring = Keyring(
             keys: keys, sshKeys: sshKeys, now: UInt64(Date().timeIntervalSince1970),
             // 確かめられないときは、ないと警告しない
             hasRevocationCertificate: { (try? gpg.hasRevocationCertificate(fingerprint: $0)) ?? true },
             backups: backups)
+        keyring.sshSupport = try? gpg.sshSupport()
+        return keyring
     }
 }
 

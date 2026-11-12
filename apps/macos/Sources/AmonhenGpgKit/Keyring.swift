@@ -7,6 +7,10 @@ public struct Keyring: Sendable {
     public var history: [OwnKey] = []
     /// 他者の鍵。
     public var others: [Key] = []
+    /// gpg-agent が持つ SSH の鍵のうち、OpenPGP の鍵でないもの（ssh-add で取り込んだ鍵）。
+    public var sshOnly: [SshKey] = []
+    /// gpg-agent の SSH サポート（取れなければ nil）。
+    public var sshSupport: SshSupport?
 
     public init() {}
 
@@ -35,6 +39,8 @@ public struct Keyring: Sendable {
             case .history: history.append(own)
             }
         }
+        let grips = Set(keys.flatMap { ([$0.keygrip] + $0.subkeys.map(\.keygrip)).compactMap { $0 } })
+        sshOnly = sshKeys.filter { !grips.contains($0.keygrip) }
         // 履歴は新しいものから
         history.sort { ($0.key.created ?? 0) > ($1.key.created ?? 0) }
     }

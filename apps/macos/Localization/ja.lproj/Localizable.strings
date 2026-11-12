@@ -65,6 +65,25 @@
 "Saved it to %@. Keep a copy with the secret key backup, somewhere other than this Mac." = "%@ に保存しました。秘密鍵のバックアップと一緒に、この Mac 以外の場所にも写しを置いてください。";
 "Cannot create a revocation certificate" = "失効証明書を作成できません";
 
+/* SSH */
+"SSH support of gpg-agent is off, so SSH cannot use these keys." = "gpg-agent の SSH サポートが無効なので、SSH でこれらの鍵を使えません。";
+"Turn On…" = "有効にする…";
+"Turn on SSH support?" = "SSH サポートを有効にしますか？";
+"Turn On" = "有効にする";
+"This adds enable-ssh-support to gpg-agent.conf and restarts gpg-agent, which forgets the passphrases it remembered." = "gpg-agent.conf に enable-ssh-support を足し、gpg-agent を起動し直します。gpg-agent が覚えていたパスフレーズは忘れます。";
+"Cannot turn on SSH support" = "SSH サポートを有効にできません";
+"Cannot change the SSH key" = "SSH の鍵を変更できません";
+"Add SSH Key…" = "SSH の鍵を取り込む…";
+"Add SSH Key" = "SSH の鍵を取り込む";
+"Choose a private key file, such as id_ed25519. gpg-agent keeps its own copy; the file is not changed." = "id_ed25519 などの秘密鍵のファイルを選んでください。gpg-agent が自分の写しを持ち、ファイルは変えません。";
+"SSH key added" = "SSH の鍵を取り込みました";
+"gpg-agent now offers %@ to ssh." = "gpg-agent が %@ を SSH に出すようになりました。";
+"Cannot add the SSH key" = "SSH の鍵を取り込めません";
+"To use gpg-agent from ssh, set SSH_AUTH_SOCK to %@." = "ssh から gpg-agent を使うには、SSH_AUTH_SOCK を %@ にしてください。";
+"SSH key on card %@" = "カード %@ の SSH の鍵";
+"SSH key" = "SSH の鍵";
+"Use for SSH" = "SSH に使う";
+
 /* 失効 */
 "Revoke Key…" = "鍵を失効させる…";
 "Revoke Key" = "鍵を失効させる";
