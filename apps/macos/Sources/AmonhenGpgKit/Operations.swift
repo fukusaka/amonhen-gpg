@@ -65,6 +65,12 @@ extension OwnKey {
     }
 }
 
+extension OwnKey {
+    /// 秘密鍵ごと消してよいか。秘密鍵がこの PC にあるなら、バックアップの記録があること（消したら戻せないので）。
+    /// 秘密鍵がカードや別の PC にあるだけなら、この PC から消しても秘密鍵は失わない。
+    public var canDelete: Bool { !needsBackup }
+}
+
 /// 秘密鍵のバックアップを取った日時。gpg は記録しないので、アプリが鍵のフィンガープリントごとに覚える。
 /// アプリで書き出したときと、ほかの方法で取ったと利用者が言ったときに記録する。
 public struct BackupLog {

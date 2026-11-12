@@ -115,6 +115,18 @@
 "Sent" = "送りました";
 "Sent the public key to %@." = "公開鍵を %@ に送りました。";
 "Cannot send the public key" = "公開鍵を送れません";
+"Delete Key with Secret Key…" = "秘密鍵ごと削除…";
+"Delete Key with Secret Key" = "秘密鍵ごと削除する";
+"This removes the secret and public key from this Mac. It cannot be undone. Without a backup, anything encrypted to this key can never be decrypted again." = "この Mac から、この鍵の秘密鍵と公開鍵を消します。元に戻せません。バックアップがなければ、この鍵宛てに暗号化されたものは二度と復号できません。";
+"Backed up on %@" = "%@ にバックアップを取りました";
+"No backup. Back it up before deleting." = "バックアップがありません。消す前にバックアップしてください。";
+"The secret key on the card stays on the card." = "カード上の秘密鍵は、カードに残ります。";
+"Not revoked. Others will keep encrypting to it." = "失効させていません。ほかの人はこの鍵に暗号化し続けます。";
+"Type the last 4 characters of the fingerprint (%@)" = "確認のため、フィンガープリントの最後の 4 文字（%@）を入力";
+"Delete…" = "削除…";
+"Delete “%@” for good?" = "「%@」を完全に削除しますか？";
+"Key deleted" = "鍵を削除しました";
+"Deleted %@ from this Mac." = "%@ をこの Mac から削除しました。";
 "%@ is revoked. Others learn about it only when they get the updated public key, from a keyserver or from you." = "%@ を失効させました。ほかの人が知るのは、鍵サーバーやあなたから新しい公開鍵を受け取ったときです。";
 
 /* 鍵の作成 */

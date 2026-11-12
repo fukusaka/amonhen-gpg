@@ -237,6 +237,7 @@ struct OwnKeyActions {
     var showDetails: (OwnKey) -> Void = { _ in }
     var extendExpiry: (OwnKey) -> Void = { _ in }
     var revoke: (OwnKey) -> Void = { _ in }
+    var delete: (OwnKey) -> Void = { _ in }
     var backUp: (OwnKey) -> Void = { _ in }
     var markBackedUp: (OwnKey) -> Void = { _ in }
     var exportPublicKey: (OwnKey) -> Void = { _ in }
@@ -300,6 +301,7 @@ struct OwnKeysView: View {
     @State private var extending: OwnKey?
     @State private var revoking: OwnKey?
     @State private var showing: OwnKey?
+    @State private var deleting: OwnKey?
 
     var body: some View {
         list
@@ -307,6 +309,11 @@ struct OwnKeysView: View {
                 ExtendExpirySheet(model: model, own: own) { actions.notify(Notice(extended: $0)) }
             }
             .sheet(item: $showing) { KeyDetailSheet(key: $0.key) }
+            .sheet(item: $deleting) { own in
+                DeleteKeySheet(model: model, own: own, backUp: actions.backUp, revoke: { revoking = $0 }) { name in
+                    actions.notify(Notice(title: L("Key deleted"), message: L("Deleted %@ from this Mac.", name)))
+                }
+            }
             .sheet(item: $revoking) { own in
                 RevokeKeySheet(model: model, own: own, backUp: actions.backUp, onRevoked: actions.revoked)
             }
@@ -317,6 +324,7 @@ struct OwnKeysView: View {
         actions.extendExpiry = { extending = $0 }
         actions.revoke = { revoking = $0 }
         actions.showDetails = { showing = $0 }
+        actions.delete = { deleting = $0 }
         return actions
     }
 
@@ -452,6 +460,8 @@ struct OwnKeyRow: View {
         Divider()
         Button(L("Revoke Key…"), role: .destructive) { actions.revoke(own) }
             .disabled(!own.canRevoke)
+        Divider()
+        Button(L("Delete Key with Secret Key…"), role: .destructive) { actions.delete(own) }
     }
 
     private var symbol: String {

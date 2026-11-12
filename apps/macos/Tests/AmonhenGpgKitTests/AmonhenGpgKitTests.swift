@@ -466,3 +466,36 @@ func listsSshKeysThatAreNotOpenPgpKeys() throws {
     ring = Keyring(keys: try home.gpg.listKeys(), sshKeys: try home.gpg.sshKeys(), now: UInt64(Date().timeIntervalSince1970))
     #expect(ring.sshOnly.map { sshKeyEnabled(key: $0) } == [false])
 }
+
+@Test(.enabled(if: gpgAvailable()))
+func deletesSecretKeyOnlyAfterBackup() throws {
+    let home = try TemporaryKeyring()
+    let fpr = try home.gpg.generateKey(
+        request: GenerateKey(userId: "Alice <alice@example.com>", algorithm: nil, capabilities: nil, expires: .never))
+    let suite = "amonhen-gpg-tests-\(UUID().uuidString)"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let log = BackupLog(defaults: defaults)
+    func own() throws -> OwnKey {
+        try #require(Keyring(keys: try home.gpg.listKeys(), sshKeys: [], now: UInt64(Date().timeIntervalSince1970), backups: log.dates).own(fpr))
+    }
+    // 秘密鍵がこの PC にあり、バックアップの記録がなければ消させない
+    #expect(try !own().canDelete)
+    let file = home.dir.appendingPathComponent("backup.asc")
+    try home.gpg.backUpSecretKey(fpr, to: file)
+    log.record(fpr)
+    #expect(try own().canDelete)
+
+    try home.gpg.deleteSecretAndPublicKey(fingerprint: fpr)
+    #expect(try home.gpg.listKeys().isEmpty)
+    // バックアップから戻せる
+    _ = try home.gpg.import(data: try Data(contentsOf: file))
+    #expect(try own().key.secret == .available)
+
+    // 秘密鍵が別の PC にあるだけの鍵は、この PC から消しても秘密鍵を失わない
+    let other = try TemporaryKeyring()
+    _ = try other.gpg.import(data: try home.gpg.exportPublicKeys(fingerprints: [fpr], armor: true))
+    try other.gpg.setOwnerTrust(fingerprint: fpr, trust: .ultimate)
+    let elsewhere = try #require(Keyring(keys: try other.gpg.listKeys(), sshKeys: [], now: 0).own(fpr))
+    #expect(elsewhere.canDelete)
+}
