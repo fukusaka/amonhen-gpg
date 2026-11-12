@@ -45,10 +45,15 @@ extension OwnKey {
     }
 
     /// バックアップの既定のファイル名（`名前 鍵ID secret.asc`）。
-    public var backupFileName: String {
+    public var backupFileName: String { fileName("secret") }
+
+    /// 公開鍵の既定のファイル名（`名前 鍵ID public.asc`）。
+    public var publicKeyFileName: String { fileName("public") }
+
+    private func fileName(_ kind: String) -> String {
         let name = key.primaryUserId.map { UserIdParts($0.text).name } ?? "key"
         let safe = name.map { "/:\\".contains($0) ? "-" : $0 }
-        return "\(String(safe)) \(key.fingerprint.suffix(16)) secret.asc"
+        return "\(String(safe)) \(key.fingerprint.suffix(16)) \(kind).asc"
     }
 }
 
@@ -86,10 +91,19 @@ extension Gpg {
     /// 秘密鍵を ASCII 形式で `url` に書き出す。書き出したものはパスフレーズで守られたまま。
     /// ファイルは持ち主だけが読める（0600）ように作ってから置き換える。
     public func backUpSecretKey(_ fingerprint: String, to url: URL) throws {
-        let data = try exportSecretKey(fingerprint: fingerprint, armor: true)
+        try write(exportSecretKey(fingerprint: fingerprint, armor: true), to: url, permissions: 0o600)
+    }
+
+    /// 公開鍵を ASCII 形式で `url` に書き出す（渡す相手に読ませるので、ほかの人も読める 0644）。
+    public func exportPublicKey(_ fingerprint: String, to url: URL) throws {
+        try write(exportPublicKeys(fingerprints: [fingerprint], armor: true), to: url, permissions: 0o644)
+    }
+
+    /// 隣に `permissions` で作ってから置き換える（書きかけや、緩い権限のファイルを残さない）。
+    private func write(_ data: Data, to url: URL, permissions: Int) throws {
         let temporary = url.deletingLastPathComponent()
             .appendingPathComponent(".\(url.lastPathComponent).\(UUID().uuidString.prefix(8))")
-        guard FileManager.default.createFile(atPath: temporary.path, contents: data, attributes: [.posixPermissions: 0o600]) else {
+        guard FileManager.default.createFile(atPath: temporary.path, contents: data, attributes: [.posixPermissions: permissions]) else {
             throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: temporary.path])
         }
         guard rename(temporary.path, url.path) == 0 else {
@@ -97,6 +111,16 @@ extension Gpg {
             try? FileManager.default.removeItem(at: temporary)
             throw error
         }
+    }
+}
+
+/// 公開鍵を送る鍵サーバー。送り先を確かめさせるので、gpg の既定に任せずに決めて渡す。
+public enum Keyserver {
+    public static let `default` = "hkps://keys.openpgp.org"
+
+    /// 画面に出す名前（`keys.openpgp.org`）。
+    public static func name(_ url: String) -> String {
+        URL(string: url)?.host ?? url
     }
 }
 

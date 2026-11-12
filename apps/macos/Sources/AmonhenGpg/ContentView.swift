@@ -34,6 +34,10 @@ struct ContentView: View {
     @State private var created: OwnKey?
     /// バックアップ済みにするか確かめている鍵。
     @State private var markingBackedUp: OwnKey?
+    /// 鍵サーバーに送るか確かめている鍵。
+    @State private var sending: OwnKey?
+    /// 失効させたばかりの鍵（ほかの人に知らせるよう勧める）。
+    @State private var revoked: OwnKey?
 
     var body: some View {
         NavigationSplitView {
@@ -52,7 +56,9 @@ struct ContentView: View {
                         OwnKeysView(
                             model: model, showsHistory: showsHistory,
                             actions: OwnKeyActions(
-                                notify: { notice = $0 }, backUp: backUp, markBackedUp: { markingBackedUp = $0 },
+                                notify: { notice = $0 }, revoked: { revoked = $0 }, backUp: backUp,
+                                markBackedUp: { markingBackedUp = $0 }, exportPublicKey: exportPublicKey,
+                                sendToKeyserver: { sending = $0 },
                                 createRevocationCertificate: createRevocationCertificate),
                             create: { creating = true }, importKeys: importKeys)
                     case .others: OthersView(keys: model.keyring.others, importKeys: importKeys)
@@ -111,6 +117,26 @@ struct ContentView: View {
         } message: { _ in
             Text(L("Do this only if you already keep a backup of this secret key somewhere other than this Mac. The app will stop warning about it."))
         }
+        .alert(
+            L("Send to %@?", Keyserver.name(Keyserver.default)),
+            isPresented: Binding(get: { sending != nil }, set: { if !$0 { sending = nil } }),
+            presenting: sending
+        ) { own in
+            Button(L("Send")) { send(own) }
+            Button(L("Cancel"), role: .cancel) {}
+        } message: { own in
+            Text(L("Anyone will be able to download the public key of %@. Keyservers keep what they receive, so this cannot be undone. keys.openpgp.org shows the email address only after you confirm it by mail.", own.key.primaryUserId?.text ?? own.key.fingerprint))
+        }
+        .alert(
+            L("Key revoked"), isPresented: Binding(get: { revoked != nil }, set: { if !$0 { revoked = nil } }),
+            presenting: revoked
+        ) { own in
+            Button(L("Send to Keyserver…")) { sending = own }
+            Button(L("Export Public Key…")) { exportPublicKey(own) }
+            Button(L("Later"), role: .cancel) {}
+        } message: { own in
+            Text(Notice(revoked: own).message)
+        }
         .alert(item: $notice) { notice in
             Alert(title: Text(notice.title), message: Text(notice.message))
         }
@@ -154,6 +180,36 @@ struct ContentView: View {
         }
     }
 
+    /// 公開鍵を書き出す先を選ばせ、書き出す（相手に渡す、失効を知らせる）。
+    private func exportPublicKey(_ own: OwnKey) {
+        let panel = NSSavePanel()
+        panel.title = L("Export Public Key")
+        panel.nameFieldStringValue = own.publicKeyFileName
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let fingerprint = own.key.fingerprint
+        Task {
+            switch await model.perform({ try $0.exportPublicKey(fingerprint, to: url) }) {
+            case .success:
+                notice = Notice(title: L("Exported"), message: L("Saved the public key to %@.", url.path))
+            case let .failure(error):
+                notice = Notice(title: L("Cannot export the public key"), message: describe(error))
+            }
+        }
+    }
+
+    /// 公開鍵を鍵サーバーに送る（確かめたあと）。秘密鍵は送らない。
+    private func send(_ own: OwnKey) {
+        let fingerprint = own.key.fingerprint
+        Task {
+            switch await model.perform({ try $0.sendKeys(fingerprints: [fingerprint], keyserver: Keyserver.default) }) {
+            case .success:
+                notice = Notice(title: L("Sent"), message: L("Sent the public key to %@.", Keyserver.name(Keyserver.default)))
+            case let .failure(error):
+                notice = Notice(title: L("Cannot send the public key"), message: describe(error))
+            }
+        }
+    }
+
     /// 失効証明書を作り、gpg が置く場所（`openpgp-revocs.d`）に置く。パスフレーズは gpg が聞く。
     private func createRevocationCertificate(_ own: OwnKey) {
         let fingerprint = own.key.fingerprint
@@ -178,10 +234,14 @@ struct ContentView: View {
 struct OwnKeyActions {
     /// 操作の結果を知らせる。
     var notify: (Notice) -> Void = { _ in }
+    /// 失効させたあと（ほかの人に知らせるよう勧める）。
+    var revoked: (OwnKey) -> Void = { _ in }
     var extendExpiry: (OwnKey) -> Void = { _ in }
     var revoke: (OwnKey) -> Void = { _ in }
     var backUp: (OwnKey) -> Void = { _ in }
     var markBackedUp: (OwnKey) -> Void = { _ in }
+    var exportPublicKey: (OwnKey) -> Void = { _ in }
+    var sendToKeyserver: (OwnKey) -> Void = { _ in }
     var createRevocationCertificate: (OwnKey) -> Void = { _ in }
 }
 
@@ -247,7 +307,7 @@ struct OwnKeysView: View {
                 ExtendExpirySheet(model: model, own: own) { actions.notify(Notice(extended: $0)) }
             }
             .sheet(item: $revoking) { own in
-                RevokeKeySheet(model: model, own: own, backUp: actions.backUp) { actions.notify(Notice(revoked: $0)) }
+                RevokeKeySheet(model: model, own: own, backUp: actions.backUp, onRevoked: actions.revoked)
             }
     }
 
@@ -381,6 +441,9 @@ struct OwnKeyRow: View {
             .disabled(!own.needsBackup)
         Button(L("Create Revocation Certificate…")) { actions.createRevocationCertificate(own) }
             .disabled(!own.needsRevocationCertificate)
+        Divider()
+        Button(L("Export Public Key…")) { actions.exportPublicKey(own) }
+        Button(L("Send to Keyserver…")) { actions.sendToKeyserver(own) }
         Divider()
         Button(L("Revoke Key…"), role: .destructive) { actions.revoke(own) }
             .disabled(!own.canRevoke)

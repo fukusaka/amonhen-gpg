@@ -82,6 +82,20 @@
 "Revoke" = "失効させる";
 "This cannot be undone." = "元に戻せません。";
 "Key revoked" = "鍵を失効させました";
+
+/* 公開鍵を渡す */
+"Export Public Key…" = "公開鍵を書き出す…";
+"Export Public Key" = "公開鍵を書き出す";
+"Exported" = "書き出しました";
+"Saved the public key to %@." = "公開鍵を %@ に保存しました。";
+"Cannot export the public key" = "公開鍵を書き出せません";
+"Send to Keyserver…" = "鍵サーバーに送る…";
+"Send to %@?" = "%@ に送りますか？";
+"Send" = "送る";
+"Anyone will be able to download the public key of %@. Keyservers keep what they receive, so this cannot be undone. keys.openpgp.org shows the email address only after you confirm it by mail." = "%@ の公開鍵を、誰でも取得できるようになります。鍵サーバーは受け取ったものを消さないので、元に戻せません。keys.openpgp.org では、メールで確認するまでメールアドレスは公開されません。";
+"Sent" = "送りました";
+"Sent the public key to %@." = "公開鍵を %@ に送りました。";
+"Cannot send the public key" = "公開鍵を送れません";
 "%@ is revoked. Others learn about it only when they get the updated public key, from a keyserver or from you." = "%@ を失効させました。ほかの人が知るのは、鍵サーバーやあなたから新しい公開鍵を受け取ったときです。";
 
 /* 鍵の作成 */

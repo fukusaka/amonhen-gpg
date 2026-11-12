@@ -186,6 +186,17 @@ func revokesOwnKey() throws {
     // もう一度は失効させられない。秘密鍵は残る（昔のものの復号に使う）
     #expect(!revoked.canRevoke)
     #expect(revoked.canBackUp)
+
+    // 書き出した公開鍵を受け取った人の鍵束でも、失効している
+    #expect(revoked.publicKeyFileName == "Alice \(fpr.suffix(16)) public.asc")
+    let file = home.dir.appendingPathComponent(revoked.publicKeyFileName)
+    try home.gpg.exportPublicKey(fpr, to: file)
+    let attributes = try FileManager.default.attributesOfItem(atPath: file.path)
+    #expect((attributes[.posixPermissions] as? NSNumber)?.intValue == 0o644)
+    let other = try TemporaryKeyring()
+    _ = try other.gpg.import(data: try Data(contentsOf: file))
+    #expect(try other.gpg.listKeys().first?.validity == .revoked)
+    #expect(Keyserver.name(Keyserver.default) == "keys.openpgp.org")
 }
 
 @Test(.enabled(if: gpgAvailable()))
