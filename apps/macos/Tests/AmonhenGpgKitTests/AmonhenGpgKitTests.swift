@@ -70,6 +70,13 @@ private func gpgAvailable() -> Bool {
     #expect(UserIdParts("Carol").email == nil)
 }
 
+@Test func findsPinentryMac() {
+    #expect(Pinentry.macPath(isExecutable: { _ in false }) == nil)
+    #expect(Pinentry.macPath(isExecutable: { $0.hasPrefix("/usr/local/bin/") }) == "/usr/local/bin/pinentry-mac")
+    // Homebrew（Apple シリコン）を先に
+    #expect(Pinentry.macPath(isExecutable: { _ in true }) == "/opt/homebrew/bin/pinentry-mac")
+}
+
 @Test func composesUserIdsForNewKeys() {
     #expect(UserIdParts(name: "Alice ", comment: nil, email: " alice@example.com").text == "Alice <alice@example.com>")
     #expect(UserIdParts(name: "", comment: "", email: "alice@example.com").text == "<alice@example.com>")

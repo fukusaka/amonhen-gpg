@@ -82,6 +82,7 @@ func describe(_ error: Error) -> String {
     case let .Gpg(_, _, stderr): return L("gpg failed: %@", stderr.trimmingCharacters(in: .whitespacesAndNewlines))
     case .Canceled: return L("The passphrase entry was canceled.")
     case .BadPassphrase: return L("The passphrase was wrong.")
+    case let .NoPinentry(flavor): return describeNoPinentry(flavor: flavor)
     case let .Agent(_, message): return L("gpg-agent refused: %@", message)
     case let .Parse(_, message): return L("Unexpected output from gpg: %@", message)
     case let .InvalidArgument(name, message): return L("Invalid %@: %@", name, message)
@@ -89,4 +90,16 @@ func describe(_ error: Error) -> String {
     case let .NotApplied(message): return message
     case let .Io(path, message): return "\(path): \(message)"
     }
+}
+
+/// pinentry を出せないときの案内。gpg-agent.conf に pinentry-mac を設定してもらう（アプリは書き換えない）。
+private func describeNoPinentry(flavor: String?) -> String {
+    let problem = flavor.map { L("gpg-agent uses a pinentry for terminals (%@), so it cannot ask for the passphrase here.", $0) }
+        ?? L("gpg-agent cannot start its pinentry to ask for the passphrase.")
+    guard let path = Pinentry.macPath() else {
+        return problem + "\n\n" + L("Install pinentry-mac (brew install pinentry-mac), add this line to gpg-agent.conf in your GnuPG folder (usually ~/.gnupg), and run gpgconf --kill gpg-agent:")
+            + "\n\npinentry-program /opt/homebrew/bin/pinentry-mac"
+    }
+    return problem + "\n\n" + L("Add this line to gpg-agent.conf in your GnuPG folder (usually ~/.gnupg), then run gpgconf --kill gpg-agent:")
+        + "\n\npinentry-program \(path)"
 }

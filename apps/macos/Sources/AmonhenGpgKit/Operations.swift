@@ -150,3 +150,18 @@ extension Gpg {
         return summary
     }
 }
+
+/// macOS の GUI の pinentry。gpg-agent が端末用の pinentry を使っているときに、設定を案内する。
+public enum Pinentry {
+    /// pinentry-mac の置き場所の候補（Homebrew の Apple シリコン・Intel、GPG Suite）。
+    static let macCandidates = [
+        "/opt/homebrew/bin/pinentry-mac",
+        "/usr/local/bin/pinentry-mac",
+        "/usr/local/MacGPG2/libexec/pinentry-mac.app/Contents/MacOS/pinentry-mac",
+    ]
+
+    /// 入っている pinentry-mac。なければ nil。
+    public static func macPath(isExecutable: (String) -> Bool = FileManager.default.isExecutableFile(atPath:)) -> String? {
+        macCandidates.first(where: isExecutable)
+    }
+}
