@@ -29,8 +29,11 @@ struct CertifySheet: View {
         VStack(alignment: .leading, spacing: 16) {
             Text(L("Mark as Verified")).font(.title2.bold())
             Text(L("Ask the owner to read out their fingerprint by another channel, in person or on the phone, and compare it with this one, group by group."))
-            Text(Fingerprint.grouped(key.fingerprint))
-                .font(.title3.monospaced())
+            // 声に出して照らし合わせやすいよう、大きく 2 行に分ける（gpg の表示と同じ切れ目）
+            Text(Fingerprint.lines(key.fingerprint))
+                .font(.system(size: 24, weight: .medium, design: .monospaced))
+                .multilineTextAlignment(.center)
+                .lineSpacing(4)
                 .textSelection(.enabled)
                 .padding(10)
                 .frame(maxWidth: .infinity)

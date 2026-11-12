@@ -643,6 +643,13 @@ enum Fingerprint {
             return String(fingerprint[from..<to])
         }.joined(separator: " ")
     }
+
+    /// 4 桁ずつ区切り、前半と後半の 2 行にする（40 桁なら 5 組ずつ）。
+    static func lines(_ fingerprint: String) -> String {
+        let groups = grouped(fingerprint).split(separator: " ")
+        let half = (groups.count + 1) / 2
+        return [groups[..<half], groups[half...]].map { $0.joined(separator: " ") }.joined(separator: "\n")
+    }
 }
 
 /// シートに渡すため、鍵をフィンガープリントで見分ける。
