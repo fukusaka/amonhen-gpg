@@ -35,10 +35,8 @@ struct Options {
 
 let options = Options(CommandLine.arguments)
 let model = KeyringModel(gpg: Gpg(program: options.gpg, homedir: options.homedir))
-/// 一時保管は起動ごとに一時ディレクトリに作り、終わるときに捨てる。
-let staging = StagingModel(
-    main: model,
-    dir: FileManager.default.temporaryDirectory.appendingPathComponent("amonhen-staging-\(UUID().uuidString.prefix(8))"))
+/// 一時保管は起動ごとに一時ディレクトリに作り、終わるときに捨てる。落ちて残った前の一時保管は、起動したときに捨てる。
+let staging = StagingModel(main: model, dir: Staging.directory(in: FileManager.default.temporaryDirectory))
 
 struct GpgApp: App {
     @NSApplicationDelegateAdaptor var delegate: AppDelegate
@@ -54,6 +52,10 @@ struct GpgApp: App {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        let gpg = model.gpg
+        Task.detached {
+            Staging.discardStale(in: FileManager.default.temporaryDirectory, gpg: gpg)
+        }
         // .app に入れずに実行ファイルを起動したときも、普通のアプリとして前に出す
         NSApp.setActivationPolicy(.regular)
         NSApp.activate()

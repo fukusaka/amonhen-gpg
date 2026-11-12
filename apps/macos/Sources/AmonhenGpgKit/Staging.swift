@@ -38,6 +38,38 @@ public final class Staging: @unchecked Sendable {
         self.dir = dir
     }
 
+    private static let prefix = "amonhen-staging-"
+
+    /// 一時保管の置き場所（`parent` の下）。作ったプロセスの ID を名前に入れ、落ちて残ったものを次の起動で見分ける。
+    /// gpg-agent のソケットのパスには長さの上限（macOS では 104 バイト）があるので、名前は短くする。
+    public static func directory(in parent: URL, pid: Int32 = ProcessInfo.processInfo.processIdentifier) -> URL {
+        parent.appendingPathComponent("\(prefix)\(pid)-\(UUID().uuidString.prefix(4))")
+    }
+
+    /// アプリが落ちて残った一時保管を捨てる（gpg-agent・dirmngr を止めてから消す）。作ったプロセスが動いているもの
+    /// （同時に開いている別のアプリ）と、一時保管の印がないもの（`Gpg.discardStaging` が断る）には触らない。
+    /// 捨てた場所を返す。
+    @discardableResult
+    public static func discardStale(
+        in parent: URL, gpg: Gpg, isRunning: (Int32) -> Bool = { kill($0, 0) == 0 || errno == EPERM }
+    ) -> [URL] {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: parent.path)) ?? []
+        var discarded: [URL] = []
+        for name in names {
+            // 秘密鍵から公開鍵だけを取り出す使い捨ての鍵束は `.<名前>-in`
+            let base = name.hasPrefix(".") && name.hasSuffix("-in") ? String(name.dropFirst().dropLast(3)) : name
+            guard base.hasPrefix(prefix),
+                let pid = base.dropFirst(prefix.count).split(separator: "-").first.flatMap({ Int32($0) }),
+                pid != ProcessInfo.processInfo.processIdentifier, !isRunning(pid)
+            else { continue }
+            let dir = parent.appendingPathComponent(name)
+            // 印がなければ `staging` が中身のあるディレクトリとして断るので、利用者のものは消えない
+            guard let staged = try? gpg.staging(dir: dir.path), (try? staged.discardStaging()) != nil else { continue }
+            discarded.append(dir)
+        }
+        return discarded
+    }
+
     /// 一時保管の鍵束。初めて使うときに作り、鍵サーバーを決めておく（新しい鍵束の dirmngr には設定がない）。
     private func staging() throws -> Gpg {
         lock.lock()

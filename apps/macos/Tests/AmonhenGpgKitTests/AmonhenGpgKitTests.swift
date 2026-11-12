@@ -516,3 +516,43 @@ func deletesSecretKeyOnlyAfterBackup() throws {
     #expect(StagingOutcome(result(considered: 1, noUserId: 1)) == .withoutUserIds)
     #expect(StagingOutcome(result(considered: 0)) == .nothing)
 }
+
+@Test(.enabled(if: gpgAvailable()))
+func discardsStagingLeftByCrashedApps() throws {
+    let home = try TemporaryKeyring()
+    // 本物の一時ディレクトリは見ない（動いているアプリの一時保管を、テストの「動いていない」で消さないように）。
+    // gpg-agent のソケットのパスの長さの上限に収まるよう、短い場所にする
+    let parent = URL(fileURLWithPath: "/tmp/amonhen-t-\(UUID().uuidString.prefix(4))")
+    try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: parent) }
+    let bob = try TemporaryKeyring()
+    let bobFpr = try bob.gpg.generateKey(
+        request: GenerateKey(userId: "Bob <bob@example.org>", algorithm: nil, capabilities: nil, expires: .never))
+    let key = try bob.gpg.exportPublicKeys(fingerprints: [bobFpr], armor: true)
+
+    // 落ちたアプリ（pid 111）と、動いているアプリ（pid 222）の一時保管。鍵を入れて gpg-agent も動かしておく
+    let crashed = Staging(main: home.gpg, dir: Staging.directory(in: parent, pid: 111))
+    try crashed.add(key)
+    let running = Staging(main: home.gpg, dir: Staging.directory(in: parent, pid: 222))
+    try running.add(key)
+    defer { try? running.discardAll() }
+    // 秘密鍵から公開鍵だけを取り出す途中で落ちた、使い捨ての鍵束
+    let scratch = parent.appendingPathComponent(".\(Staging.directory(in: parent, pid: 111).lastPathComponent)-in")
+    _ = try home.gpg.staging(dir: scratch.path)
+    // 名前は似ているが、一時保管の印がないディレクトリ（利用者のものかもしれない）
+    let unmarked = Staging.directory(in: parent, pid: 111)
+    try FileManager.default.createDirectory(at: unmarked, withIntermediateDirectories: true)
+    try Data("keep".utf8).write(to: unmarked.appendingPathComponent("file"))
+    // 名前の形が違うもの
+    let other = parent.appendingPathComponent("amonhen-staging-ABCDEF12")
+    _ = try home.gpg.staging(dir: other.path)
+
+    let discarded = Staging.discardStale(in: parent, gpg: home.gpg, isRunning: { $0 == 222 })
+    #expect(Set(discarded.map(\.lastPathComponent)) == [crashed.dir.lastPathComponent, scratch.lastPathComponent])
+    #expect(!FileManager.default.fileExists(atPath: crashed.dir.path))
+    #expect(!FileManager.default.fileExists(atPath: scratch.path))
+    #expect(try running.keys().map(\.fingerprint) == [bobFpr])
+    #expect(FileManager.default.fileExists(atPath: unmarked.appendingPathComponent("file").path))
+    #expect(FileManager.default.fileExists(atPath: other.path))
+    _ = try? home.gpg.staging(dir: other.path).discardStaging()
+}
