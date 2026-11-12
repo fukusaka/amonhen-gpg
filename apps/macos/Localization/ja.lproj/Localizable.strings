@@ -147,6 +147,25 @@
 "The signature goes wherever this key is sent, including keyservers, and shows that you know the owner." = "署名はこの鍵が送られる先（鍵サーバーを含む）に一緒に載り、あなたが持ち主を知っていることが分かります。";
 "The key is verified only in your keyring. Nothing is published." = "確認済みになるのは自分の鍵束の中だけで、何も公開されません。";
 "Marked as verified" = "確認済みにしました";
+"Details…" = "詳細…";
+"Names and addresses" = "名前とメールアドレス";
+"Keys" = "鍵";
+"Key" = "鍵";
+"Use" = "用途";
+"Created" = "作成";
+"Expires" = "期限";
+"Primary key" = "主鍵";
+"Subkey" = "サブ鍵";
+"Never" = "なし";
+"Certify" = "証明";
+"Encrypt" = "暗号化";
+"Authenticate" = "認証";
+"Close" = "閉じる";
+"Delete Public Key…" = "公開鍵を削除…";
+"Delete the public key of %@?" = "%@ の公開鍵を削除しますか？";
+"Delete" = "削除";
+"You will no longer be able to encrypt to it or verify its signatures. Your verification of it is deleted too. You can import it again later." = "この鍵への暗号化と、この鍵の署名の検証ができなくなります。確認済みにした記録も消えます。あとで取り込み直せます。";
+"Cannot delete %@" = "%@ を削除できません";
 "%@ is now verified in your keyring." = "%@ を確認済みにしました。";
 
 /* 一時保管 */

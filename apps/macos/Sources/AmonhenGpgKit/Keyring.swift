@@ -146,3 +146,26 @@ extension Key {
         return ids.first { $0.validity != .revoked } ?? ids.first
     }
 }
+
+/// 鍵の方式の名前（`ed25519`・`RSA 4096` など）。楕円曲線の鍵は曲線の名前で示す。
+public func algorithmName(algorithm: UInt32, length: UInt32, curve: String?) -> String {
+    if let curve, !curve.isEmpty {
+        return curve
+    }
+    // OpenPGP の公開鍵方式の番号（RFC 9580）
+    let name: String
+    switch algorithm {
+    case 1, 2, 3: name = "RSA"
+    case 16, 20: name = "ElGamal"
+    case 17: name = "DSA"
+    case 18: name = "ECDH"
+    case 19: name = "ECDSA"
+    case 22: name = "EdDSA"
+    case 25: return "X25519"
+    case 26: return "X448"
+    case 27: return "Ed25519"
+    case 28: return "Ed448"
+    default: name = "#\(algorithm)"
+    }
+    return length > 0 ? "\(name) \(length)" : name
+}

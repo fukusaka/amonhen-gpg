@@ -7,7 +7,7 @@ import SwiftUI
 /// - `--homedir <dir>`: 鍵の置き場所（既定は `GNUPGHOME` か `~/.gnupg`）
 /// - `--snapshot <file.png>`: 窓を開かずに、画面を画像に書き出して終わる（見た目の確認用。使えた鍵は開いておく）
 /// - `--place mine|others|staging`: 書き出す場所
-/// - `--sheet extend|create|revoke|certify`: 一覧の代わりに、シートを書き出す（最初の自分の鍵で）
+/// - `--sheet extend|create|revoke|certify|details`: 一覧の代わりに、シートを書き出す（最初の自分の鍵で）
 /// - `--stage <file>`: 鍵のファイルを一時保管に入れてから書き出す（一時保管の見た目の確認用）
 struct Options {
     var gpg: String?
@@ -67,7 +67,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 if let path = options.snapshot, let sheet = options.sheet {
-    Snapshot.write(SheetPreview(model: model, kind: sheet), size: CGSize(width: 480, height: 420), to: URL(fileURLWithPath: path)) {
+    Snapshot.write(SheetPreview(model: model, kind: sheet), size: CGSize(width: 600, height: 560), to: URL(fileURLWithPath: path)) {
         model.reloadNow()
     }
 } else if let path = options.snapshot {

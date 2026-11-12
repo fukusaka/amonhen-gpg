@@ -430,3 +430,11 @@ func certifiesOthersKeys() throws {
     // 秘密鍵のない鍵束には、署名に使える鍵がない
     #expect(Keyring(keys: try other.gpg.listKeys(), sshKeys: [], now: now).signers.isEmpty)
 }
+
+@Test func namesAlgorithms() {
+    #expect(algorithmName(algorithm: 22, length: 255, curve: "ed25519") == "ed25519")
+    #expect(algorithmName(algorithm: 1, length: 4096, curve: nil) == "RSA 4096")
+    #expect(algorithmName(algorithm: 17, length: 2048, curve: "") == "DSA 2048")
+    #expect(algorithmName(algorithm: 27, length: 0, curve: nil) == "Ed25519")
+    #expect(algorithmName(algorithm: 99, length: 0, curve: nil) == "#99")
+}

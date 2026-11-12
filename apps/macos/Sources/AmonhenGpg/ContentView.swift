@@ -234,6 +234,7 @@ struct OwnKeyActions {
     var notify: (Notice) -> Void = { _ in }
     /// 失効させたあと（ほかの人に知らせるよう勧める）。
     var revoked: (OwnKey) -> Void = { _ in }
+    var showDetails: (OwnKey) -> Void = { _ in }
     var extendExpiry: (OwnKey) -> Void = { _ in }
     var revoke: (OwnKey) -> Void = { _ in }
     var backUp: (OwnKey) -> Void = { _ in }
@@ -298,12 +299,14 @@ struct OwnKeysView: View {
     var importKeys: () -> Void = {}
     @State private var extending: OwnKey?
     @State private var revoking: OwnKey?
+    @State private var showing: OwnKey?
 
     var body: some View {
         list
             .sheet(item: $extending) { own in
                 ExtendExpirySheet(model: model, own: own) { actions.notify(Notice(extended: $0)) }
             }
+            .sheet(item: $showing) { KeyDetailSheet(key: $0.key) }
             .sheet(item: $revoking) { own in
                 RevokeKeySheet(model: model, own: own, backUp: actions.backUp, onRevoked: actions.revoked)
             }
@@ -313,6 +316,7 @@ struct OwnKeysView: View {
         var actions = actions
         actions.extendExpiry = { extending = $0 }
         actions.revoke = { revoking = $0 }
+        actions.showDetails = { showing = $0 }
         return actions
     }
 
@@ -431,6 +435,8 @@ struct OwnKeyRow: View {
     }
 
     @ViewBuilder private var menuItems: some View {
+        Button(L("Details…")) { actions.showDetails(own) }
+        Divider()
         Button(L("Extend Expiry…")) { actions.extendExpiry(own) }
             .disabled(!own.canExtendExpiry)
         Button(L("Back Up Secret Key…")) { actions.backUp(own) }
@@ -521,6 +527,8 @@ struct OthersView: View {
     var importKeys: () -> Void = {}
     var notify: (Notice) -> Void = { _ in }
     @State private var certifying: Key?
+    @State private var showing: Key?
+    @State private var deleting: Key?
 
     var body: some View {
         list
@@ -529,6 +537,19 @@ struct OthersView: View {
                     let name = item.key.primaryUserId?.text ?? item.key.fingerprint
                     notify(Notice(title: L("Marked as verified"), message: L("%@ is now verified in your keyring.", name)))
                 }
+            }
+            .sheet(item: Binding(get: { showing.map(IdentifiedKey.init) }, set: { showing = $0?.key })) {
+                KeyDetailSheet(key: $0.key)
+            }
+            .alert(
+                L("Delete the public key of %@?", deleting?.primaryUserId?.text ?? ""),
+                isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
+                presenting: deleting
+            ) { key in
+                Button(L("Delete"), role: .destructive) { delete(key) }
+                Button(L("Cancel"), role: .cancel) {}
+            } message: { _ in
+                Text(L("You will no longer be able to encrypt to it or verify its signatures. Your verification of it is deleted too. You can import it again later."))
             }
     }
 
@@ -559,7 +580,7 @@ struct OthersView: View {
                             .textSelection(.enabled)
                     }
                     Spacer()
-                    Text(validityWord(key)).foregroundStyle(.secondary)
+                    Text(validityWord(key.validity)).foregroundStyle(.secondary)
                     if key.canCertify {
                         Button(L("Verify…")) { certifying = key }
                             .controlSize(.small)
@@ -581,18 +602,23 @@ struct OthersView: View {
     }
 
     @ViewBuilder private func menuItems(_ key: Key) -> some View {
+        Button(L("Details…")) { showing = key }
         Button(L("Mark as Verified…")) { certifying = key }
             .disabled(!key.canCertify)
+        Divider()
+        Button(L("Delete Public Key…"), role: .destructive) { deleting = key }
     }
 
-    /// 有効性は記号ではなく言葉で（docs/ui.md）。
-    private func validityWord(_ key: Key) -> String {
-        switch key.validity {
-        case .revoked: L("Revoked")
-        case .expired: L("Expired")
-        case .full, .ultimate: L("Verified")
-        case .marginal: L("Partly verified")
-        default: L("Not verified")
+    /// 公開鍵を消す（確かめたあと）。秘密鍵のある鍵は gpg が拒む。
+    private func delete(_ key: Key) {
+        let fingerprint = key.fingerprint
+        let name = key.primaryUserId?.text ?? key.fingerprint
+        Task {
+            switch await model.perform({ try $0.deletePublicKey(fingerprint: fingerprint) }) {
+            case .success: break
+            case let .failure(error):
+                notify(Notice(title: L("Cannot delete %@", name), message: describe(error)))
+            }
         }
     }
 }
