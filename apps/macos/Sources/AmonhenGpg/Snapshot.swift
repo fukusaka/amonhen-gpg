@@ -3,7 +3,8 @@ import SwiftUI
 
 /// 画面を窓に出さずに PNG に書き出す（見た目の確認用）。
 enum Snapshot {
-    static func write(_ view: some View, size: CGSize, to url: URL, prepare: () -> Void) {
+    /// `cleanup` は書き出したあと、終わる前に呼ぶ（一時保管を捨てる）。
+    static func write(_ view: some View, size: CGSize, to url: URL, prepare: () -> Void, cleanup: () -> Void = {}) {
         let app = NSApplication.shared
         app.setActivationPolicy(.prohibited)
         prepare()
@@ -20,16 +21,21 @@ enum Snapshot {
         }
         guard let content = window.contentView,
             let bitmap = content.bitmapImageRepForCachingDisplay(in: content.bounds)
-        else { exit(1) }
+        else { finish(1, cleanup) }
         content.cacheDisplay(in: content.bounds, to: bitmap)
-        guard let png = bitmap.representation(using: .png, properties: [:]) else { exit(1) }
+        guard let png = bitmap.representation(using: .png, properties: [:]) else { finish(1, cleanup) }
         do {
             try png.write(to: url)
         } catch {
             FileHandle.standardError.write(Data("\(error)\n".utf8))
-            exit(1)
+            finish(1, cleanup)
         }
-        exit(0)
+        finish(0, cleanup)
+    }
+
+    private static func finish(_ status: Int32, _ cleanup: () -> Void) -> Never {
+        cleanup()
+        exit(status)
     }
 }
 

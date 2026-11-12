@@ -340,3 +340,56 @@ func passphrasesThroughPinentry() throws {
     try home.gpg.backUpSecretKey(fpr, to: file)
     #expect(FileManager.default.fileExists(atPath: file.path))
 }
+
+@Test func readsStagingQueries() {
+    #expect(StagingQuery("alice@example.com") == .email("alice@example.com"))
+    #expect(StagingQuery(" Alice@Example.org ") == .email("Alice@Example.org"))
+    let fpr = "5DDA16B5FFEADD5E944BD9DFBB8F6AF01166B837"
+    #expect(StagingQuery(fpr.lowercased()) == .fingerprint(fpr))
+    #expect(StagingQuery("5DDA 16B5 FFEA DD5E 944B  D9DF BB8F 6AF0 1166 B837") == .fingerprint(fpr))
+    #expect(StagingQuery("0x" + fpr) == .fingerprint(fpr))
+    // 短い鍵 ID・名前・壊れたメールアドレスは受け付けない
+    #expect(StagingQuery("1166B837") == nil)
+    #expect(StagingQuery("BB8F6AF01166B837") == nil)
+    #expect(StagingQuery("Alice Example") == nil)
+    #expect(StagingQuery("alice@") == nil)
+    #expect(StagingQuery("Alice <alice@example.com>") == nil)
+    #expect(StagingQuery("") == nil)
+}
+
+@Test(.enabled(if: gpgAvailable()))
+func stagingKeepsKeysApartUntilImported() throws {
+    let bob = try TemporaryKeyring()
+    let bobFpr = try bob.gpg.generateKey(
+        request: GenerateKey(userId: "Bob <bob@example.org>", algorithm: nil, capabilities: nil, expires: .never))
+    let carolFpr = try bob.gpg.generateKey(
+        request: GenerateKey(userId: "Carol <carol@example.net>", algorithm: nil, capabilities: nil, expires: .never))
+
+    let home = try TemporaryKeyring()
+    let dir = home.dir.deletingLastPathComponent().appendingPathComponent("amonhen-staging-\(UUID().uuidString.prefix(8))")
+    let staging = Staging(main: home.gpg, dir: dir)
+    defer { try? staging.discardAll() }
+    #expect(try staging.keys().isEmpty)
+
+    // 秘密鍵を含むファイルでも、一時保管には公開鍵だけが入る
+    try staging.add(try bob.gpg.exportSecretKey(fingerprint: bobFpr, armor: true))
+    try staging.add(try bob.gpg.exportPublicKeys(fingerprints: [carolFpr], armor: true))
+    let staged = try staging.keys()
+    #expect(Set(staged.map(\.fingerprint)) == [bobFpr, carolFpr])
+    #expect(staged.allSatisfy { $0.secret == .none })
+    #expect(try home.gpg.listKeys().isEmpty)
+    // 鍵サーバーを決めてある
+    let conf = try String(contentsOf: dir.appendingPathComponent("dirmngr.conf"), encoding: .utf8)
+    #expect(conf == "keyserver hkps://keys.openpgp.org\n")
+
+    // 取り込むと本来の鍵束に移り、一時保管からは消える。捨てた鍵は本来の鍵束に入らない
+    try staging.importKey(bobFpr)
+    try staging.discard(carolFpr)
+    #expect(try home.gpg.listKeys().map(\.fingerprint) == [bobFpr])
+    #expect(try home.gpg.listKeys().first?.secret == SecretState.none)
+    #expect(try staging.keys().isEmpty)
+
+    try staging.discardAll()
+    #expect(!FileManager.default.fileExists(atPath: dir.path))
+    #expect(try home.gpg.listKeys().map(\.fingerprint) == [bobFpr])
+}

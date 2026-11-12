@@ -25,6 +25,7 @@ enum Place: String, Hashable, CaseIterable {
 
 struct ContentView: View {
     let model: KeyringModel
+    let staging: StagingModel
     @State var place: Place = .mine
     /// 使えた鍵（履歴）を開いておくか。
     var showsHistory = false
@@ -62,10 +63,7 @@ struct ContentView: View {
                                 createRevocationCertificate: createRevocationCertificate),
                             create: { creating = true }, importKeys: importKeys)
                     case .others: OthersView(keys: model.keyring.others, importKeys: importKeys)
-                    case .staging:
-                        ContentUnavailableView(
-                            L("Staging"), systemImage: "tray",
-                            description: Text(L("Keys found on keyservers or through WKD will be kept here until you import them.")))
+                    case .staging: StagingView(model: staging)
                     }
                 }
             }
