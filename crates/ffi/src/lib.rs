@@ -249,6 +249,8 @@ pub enum GpgError {
     Canceled,
     /// パスフレーズが違った。
     BadPassphrase,
+    /// パスフレーズを聞く画面（pinentry）を出せなかった。`flavor` は端末用の pinentry の種類（`curses`・`tty`）。
+    NoPinentry { flavor: Option<String> },
     /// gpg-agent が要求を断った。
     Agent { code: u32, message: String },
     /// gpg の出力を解釈できなかった。
@@ -290,6 +292,7 @@ impl From<amonhen_core::Error> for GpgError {
             },
             E::Canceled => GpgError::Canceled,
             E::BadPassphrase => GpgError::BadPassphrase,
+            E::NoPinentry { flavor } => GpgError::NoPinentry { flavor },
             E::Agent { code, message } => GpgError::Agent { code, message },
             E::Parse { line, message } => GpgError::Parse {
                 line: line as u64,

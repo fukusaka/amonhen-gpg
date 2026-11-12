@@ -55,6 +55,8 @@ gpg 本体には JSON / XML 出力がなく、GnuPG プロジェクトは `--wit
 
 入力を取り消したときは `Error::Canceled`、パスフレーズが違ったときは `Error::BadPassphrase` を返す（gpg の `ERROR` 行の種類 99・11 で見分ける）。秘密鍵の書き出しの取り消しと、失効証明書を作るときの取り消し・パスフレーズ違いは gpg が `ERROR` を出さないので、`LC_ALL=C` のメッセージで見分ける。FE は取り消しを失敗として知らせなくてよい。
 
+pinentry を出せないときは `Error::NoPinentry` を返す。設定した pinentry がない（種類 85）ときと、端末用の pinentry（`PINENTRY_LAUNCHED` の種類が `curses`・`tty`）が失敗したときで、どちらも端末のない FE からはパスフレーズを聞けない。後者は端末がないと ENOTTY か取り消しとして報告されるので、取り消しより先に見分ける（取り消しと取り違えると、FE は何も知らせずに止まる）。Homebrew の gpg は既定で pinentry-curses を使うので、FE は gpg-agent.conf の `pinentry-program` に GUI の pinentry（macOS なら pinentry-mac）を設定するよう案内する。
+
 ### 自分の鍵を失わない
 
 自分の秘密鍵を誤って消す・管理できなくなることを最も避ける。

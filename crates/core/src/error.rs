@@ -24,6 +24,10 @@ pub enum Error {
     Canceled,
     /// パスフレーズが違った（gpg-agent が何度か聞き直したうえで諦めた）。
     BadPassphrase,
+    /// gpg-agent がパスフレーズを聞く画面（pinentry）を出せなかった。設定した pinentry がない、または端末用の
+    /// pinentry（`flavor` が `curses`・`tty`）で、端末のない FE からは出せない。FE は GUI の pinentry
+    /// （gpg-agent.conf の `pinentry-program`）を設定するよう案内する。
+    NoPinentry { flavor: Option<String> },
     /// gpg-agent が要求を断った（`ERR` の応答）。`code` は gpg-error のコード（下位 16 ビットが種類）。
     Agent { code: u32, message: String },
     /// gpg の出力を解釈できなかった。`line` は 1 始まり（出力全体の問題で、行を決められないときは 0）。
@@ -55,6 +59,12 @@ impl fmt::Display for Error {
             } => write!(f, "gpg was terminated: {}", stderr.trim()),
             Error::Canceled => write!(f, "passphrase entry was canceled"),
             Error::BadPassphrase => write!(f, "bad passphrase"),
+            Error::NoPinentry {
+                flavor: Some(flavor),
+            } => {
+                write!(f, "pinentry ({flavor}) cannot ask for the passphrase here")
+            }
+            Error::NoPinentry { flavor: None } => write!(f, "no usable pinentry"),
             Error::Agent { code, message } => write!(f, "gpg-agent refused ({code}): {message}"),
             Error::Parse { line, message } => {
                 write!(f, "unexpected gpg output at line {line}: {message}")

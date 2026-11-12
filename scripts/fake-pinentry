@@ -3,6 +3,7 @@
 # 鍵束（--homedir）に写し、gpg-agent.conf の pinentry-program で指して使う。
 # 答えは同じディレクトリの pinentry-answer の中身。ファイルがなければ入力を取り消したことにする。
 # 答えを変えたら gpgconf --reload gpg-agent で gpg-agent が覚えたパスフレーズを忘れさせる。
+# pinentry-flavor があれば、その種類（curses・tty など）の pinentry だと名乗る。
 dir=$(dirname "$0")
 echo "OK fake pinentry"
 repeat=
@@ -11,6 +12,12 @@ while IFS= read -r line; do
     SETREPEAT*)
         # 新しいパスフレーズ（鍵の作成）では、2 回目の入力も一致したと答える
         repeat=1
+        echo OK
+        ;;
+    "GETINFO flavor")
+        if [ -f "$dir/pinentry-flavor" ]; then
+            printf 'D %s\n' "$(cat "$dir/pinentry-flavor")"
+        fi
         echo OK
         ;;
     GETPIN)

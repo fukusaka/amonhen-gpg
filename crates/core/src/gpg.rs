@@ -52,6 +52,22 @@ impl Run {
 
     pub(crate) fn into_error(self) -> Error {
         let failures = Failure::from_status(&self.status);
+        // 端末用の pinentry は、端末がないと失敗する（curses は ENOTTY、tty は取り消しとして報告する）。
+        // 取り消しと見分けないと、FE は何も知らせずに止まってしまう
+        let flavor = self
+            .status
+            .iter()
+            .find(|s| s.keyword == "PINENTRY_LAUNCHED")
+            .and_then(|s| s.arg(1))
+            .map(str::to_owned);
+        if let Some(flavor) = flavor.filter(|f| TERMINAL_PINENTRIES.contains(&f.as_str())) {
+            return Error::NoPinentry {
+                flavor: Some(flavor),
+            };
+        }
+        if failures.iter().any(|f| f.kind() == GPG_ERR_NO_PIN_ENTRY) {
+            return Error::NoPinentry { flavor: None };
+        }
         // 秘密鍵の書き出しの取り消しと、失効証明書を作るときの取り消し・パスフレーズ違いは ERROR が出ず、
         // メッセージ（LC_ALL=C）にしか現れない
         if failures.iter().any(|f| f.kind() == GPG_ERR_CANCELED)
@@ -74,7 +90,11 @@ impl Run {
 
 /// gpg-error の種類（`Failure::kind`）。
 const GPG_ERR_BAD_PASSPHRASE: u32 = 11;
+const GPG_ERR_NO_PIN_ENTRY: u32 = 85;
 const GPG_ERR_CANCELED: u32 = 99;
+
+/// 端末に出す pinentry の種類（`GETINFO flavor`）。GUI の FE からは使えない。
+const TERMINAL_PINENTRIES: [&str; 2] = ["curses", "tty"];
 
 impl Gpg {
     /// `PATH` の `gpg` と、既定の鍵の置き場所（`GNUPGHOME` または `~/.gnupg`）。

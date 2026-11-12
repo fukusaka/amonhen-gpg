@@ -275,6 +275,36 @@ fn own_keys_show_keys_and_revocation_certificates() {
 }
 
 #[test]
+fn reports_an_unusable_pinentry() {
+    // 設定した pinentry がない
+    let Some(home) = Home::with_pinentry(Some("passphrase")) else {
+        return;
+    };
+    std::fs::write(
+        home.path().join("gpg-agent.conf"),
+        "pinentry-program /nonexistent/pinentry\n",
+    )
+    .unwrap();
+    home.answer(Some("passphrase"));
+    let gpg = Gpg::new().with_homedir(home.path());
+    assert!(matches!(
+        gpg.generate_key(&alice()),
+        Err(Error::NoPinentry { flavor: None })
+    ));
+
+    // 端末用の pinentry は、端末がないと取り消しとして報告する（pinentry-tty）。取り消しと取り違えない
+    let Some(home) = Home::with_pinentry(None) else {
+        return;
+    };
+    std::fs::write(home.path().join("pinentry-flavor"), "tty").unwrap();
+    let gpg = Gpg::new().with_homedir(home.path());
+    match gpg.generate_key(&alice()) {
+        Err(Error::NoPinentry { flavor }) => assert_eq!(flavor.as_deref(), Some("tty")),
+        other => panic!("expected NoPinentry, got {other:?}"),
+    }
+}
+
+#[test]
 fn saves_a_missing_revocation_certificate() {
     let Some(home) = Home::new() else {
         return;
