@@ -110,3 +110,24 @@ public final class Staging: @unchecked Sendable {
         return try gpg.exportPublicKeys(fingerprints: fingerprints, armor: false)
     }
 }
+
+/// 探した結果を、一時保管に何が起きたかで分けたもの。
+public enum StagingOutcome: Equatable, Sendable {
+    /// 鍵が入った（新しく、または既にあって更新された）。
+    case found
+    /// 鍵はあったが、名前もメールアドレスもないので gpg が取り込まなかった。keys.openpgp.org は、持ち主がメールで
+    /// 確かめた UID しか公開しないので、フィンガープリントで探すとこうなることがある。
+    case withoutUserIds
+    /// 何もなかった。
+    case nothing
+
+    public init(_ result: ImportResult) {
+        if !result.keys.isEmpty || result.unchanged > 0 {
+            self = .found
+        } else if result.noUserId > 0 {
+            self = .withoutUserIds
+        } else {
+            self = .nothing
+        }
+    }
+}

@@ -21,8 +21,12 @@ final class StagingModel {
 
     func find(_ query: StagingQuery) async {
         await run { staging in
-            let result = try staging.find(query)
-            return result.keys.isEmpty && result.unchanged == 0 ? L("No key was found.") : nil
+            switch StagingOutcome(try staging.find(query)) {
+            case .found: return nil
+            case .withoutUserIds:
+                return L("The keyserver has this key, but without any name or email address, so it cannot be imported. keys.openpgp.org publishes them only after the owner confirms them by mail. Try searching by email address, or get the key from its owner.")
+            case .nothing: return L("No key was found.")
+            }
         }
     }
 

@@ -499,3 +499,20 @@ func deletesSecretKeyOnlyAfterBackup() throws {
     let elsewhere = try #require(Keyring(keys: try other.gpg.listKeys(), sshKeys: [], now: 0).own(fpr))
     #expect(elsewhere.canDelete)
 }
+
+@Test func classifiesStagingOutcomes() {
+    func result(considered: UInt32, noUserId: UInt32 = 0, unchanged: UInt32 = 0, keys: [ImportedKey] = []) -> ImportResult {
+        ImportResult(
+            considered: considered, noUserId: noUserId, imported: UInt32(keys.count), unchanged: unchanged, newUserIds: 0,
+            newSubkeys: 0, newSignatures: 0, newRevocations: 0, secretRead: 0, secretImported: 0, secretUnchanged: 0,
+            notImported: 0, keys: keys)
+    }
+    let key = ImportedKey(
+        fingerprint: "ABAF11C65A2970B130ABE3C479BE3E4300411886", newKey: true, newUserIds: false, newSignatures: false,
+        newSubkeys: false, secret: false)
+    #expect(StagingOutcome(result(considered: 1, keys: [key])) == .found)
+    #expect(StagingOutcome(result(considered: 1, unchanged: 1)) == .found)
+    // keys.openpgp.org で、持ち主が UID を確かめていない鍵
+    #expect(StagingOutcome(result(considered: 1, noUserId: 1)) == .withoutUserIds)
+    #expect(StagingOutcome(result(considered: 0)) == .nothing)
+}
