@@ -443,6 +443,26 @@ fn locate_external_key_through_wkd() {
         .receive_keys(&[&fpr], Some("hkps://keys.openpgp.org"))
         .unwrap();
     assert!(r.considered >= 1);
+    // どこにもない鍵は NotFound（WKD も鍵サーバーも探したうえで）
+    std::fs::write(
+        home.path().join("staging/dirmngr.conf"),
+        "keyserver hkps://keys.openpgp.org\n",
+    )
+    .unwrap();
+    let _ = command("gpgconf")
+        .arg("--homedir")
+        .arg(home.path().join("staging"))
+        .args(["--reload", "dirmngr"])
+        .status();
+    let r = staging.locate_external_key("nobody-amonhen-test@example.com");
+    assert!(matches!(r, Err(Error::NotFound)), "{r:?}");
+    assert!(matches!(
+        staging.receive_keys(
+            &["0123456789ABCDEF0123456789ABCDEF01234567"],
+            Some("hkps://keys.openpgp.org")
+        ),
+        Err(Error::NotFound)
+    ));
     staging.discard_staging().unwrap();
 }
 

@@ -128,7 +128,7 @@ apps/
 | 失効（鍵全体・サブ鍵） | `--edit-key` を `--command-fd` で駆動し `revkey`（`--gen-revoke` はバッチで動かない）。答え方がずれても気づけるよう、終わったあとに鍵一覧で失効を確かめる。手元の失効証明書（`openpgp-revocs.d`）は、秘密鍵を失ったときのためのもの |
 | 失効証明書の作成 | `--gen-revoke` を `--batch` なしで（`--no-tty` と `--command-fd` で答える）。ない鍵には作り直して `openpgp-revocs.d/<FPR>.rev` に置く（gpg と同じく先頭に `:` を入れ、誤って取り込んでも失効しないようにする） |
 | 削除 | `--delete-secret-and-public-key`（フィンガープリント指定） |
-| 鍵サーバー / WKD | `--receive-keys` / `--send-keys` / `--locate-external-keys`。送ったものは取り消せないので、FE が送る鍵と送り先を確かめる |
+| 鍵サーバー / WKD | `--receive-keys` / `--send-keys` / `--locate-external-keys`。送ったものは取り消せないので、FE が送る鍵と送り先を確かめる。メールアドレスで探すときは WKD と鍵サーバーを分けて試す（`--auto-key-locate wkd,keyserver` とまとめると、gpg は WKD がエラーのとき（iCloud のドメインは応答が大きすぎる）鍵サーバーへ進まない）。鍵がないことは `: No data` のメッセージか、何も取り込まない成功でしか分からないので、`Error::NotFound` にする |
 | パスフレーズ変更 | `--passwd`（入力は pinentry） |
 | 既存の SSH 秘密鍵の取り込み | `ssh-add`（`SSH_AUTH_SOCK` を gpg-agent の SSH ソケットに）。鍵ファイルのパスフレーズは ssh-add が `SSH_ASKPASS` で聞くので、gpg-agent の `GET_PASSPHRASE`（pinentry）で聞く小さなスクリプトを一時ディレクトリに置いて渡す。パスフレーズはスクリプトから ssh-add に直に渡り、アプリは触れない。ssh-add は取り消しや間違いの理由を伝えず、間違えると何度でも聞き直すので、スクリプトが印を残し、3 回で打ち切る |
 

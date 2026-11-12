@@ -88,7 +88,7 @@ impl Gpg {
         for f in fingerprints {
             args.push(check_fingerprint(f)?);
         }
-        self.run_import(&args, None)
+        self.run_import(&args, None).map_err(not_found)
     }
 
     /// 鍵の公開鍵を鍵サーバーに送る（失効させた自分の鍵を知らせる、署名した他者の鍵を返すなど）。秘密鍵は送らない。
@@ -114,18 +114,34 @@ impl Gpg {
     }
 
     /// メールアドレスで鍵を探して取ってくる。WKD（そのドメインが自分で公開している鍵）を先に、なければ鍵サーバー。
+    /// 見つからなければ `Error::NotFound`。
     pub fn locate_external_key(&self, email: &str) -> Result<ImportResult> {
         let email = check_email(email)?;
-        self.run_import(
-            &[
-                "--auto-key-locate",
-                "clear,nodefault,wkd,keyserver",
-                "--locate-external-keys",
-                "--",
-                email,
-            ],
-            None,
-        )
+        // `wkd,keyserver` とまとめて渡すと、gpg は WKD がエラー（見つからないのではなく、ドメインの応答が大きすぎる
+        // などの失敗）のときに鍵サーバーへ進まない。分けて試し、WKD で取れなければ理由を問わず鍵サーバーで探す
+        let locate = |method: &str| {
+            self.run_import(
+                &[
+                    "--auto-key-locate",
+                    &format!("clear,nodefault,{method}"),
+                    "--locate-external-keys",
+                    "--",
+                    email,
+                ],
+                None,
+            )
+        };
+        locate("wkd").or_else(|_| locate("keyserver").map_err(not_found))
+    }
+}
+
+/// 鍵サーバーや WKD に鍵がなかった失敗を `Error::NotFound` にする。gpg は `ERROR` を出さず、メッセージ（LC_ALL=C）の
+/// `: No data` にしか現れないか、何も取り込まずに成功で終わる。ネットワークの失敗などは、そのまま返す。
+fn not_found(error: Error) -> Error {
+    match &error {
+        Error::Gpg { stderr, .. } if stderr.contains(": No data") => Error::NotFound,
+        Error::Gpg { code: Some(0), .. } => Error::NotFound,
+        _ => error,
     }
 }
 
