@@ -410,6 +410,7 @@ struct OwnKeyRow: View {
                         Text(email).foregroundStyle(.secondary)
                     }
                 }
+                OtherUserIdLines(key: own.key)
                 switch own.status.tier {
                 case .usable:
                     HStack(spacing: 14) {
@@ -609,6 +610,7 @@ struct OthersView: View {
                                 Text(email).foregroundStyle(.secondary)
                             }
                         }
+                        OtherUserIdLines(key: key)
                         Text(Fingerprint.grouped(key.fingerprint))
                             .font(.caption.monospaced())
                             .foregroundStyle(.tertiary)
@@ -680,4 +682,19 @@ enum Fingerprint {
 struct IdentifiedKey: Identifiable {
     let key: Key
     var id: String { key.fingerprint }
+}
+
+/// 一覧の行で、主な名前の下に出すほかの名前とメールアドレス。失効したものは出さない（詳細で見る）。
+/// 主と同じ名前なら、メールアドレスだけを出す。
+struct OtherUserIdLines: View {
+    let key: Key
+
+    var body: some View {
+        let primary = key.primaryUserId.map { UserIdParts($0.text).name }
+        ForEach(key.namedUserIds.filter { $0.validity != .revoked && $0 != key.primaryUserId }, id: \.self) { uid in
+            let other = UserIdParts(uid.text)
+            Text(other.name == primary ? other.email ?? uid.text : uid.text)
+                .foregroundStyle(.secondary)
+        }
+    }
 }
