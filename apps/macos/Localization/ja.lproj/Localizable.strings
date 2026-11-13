@@ -248,3 +248,12 @@
 "Others who get the updated public key see that you no longer use it. This cannot be undone." = "更新した公開鍵を受け取った人には、もう使っていないことが伝わります。元に戻せません。";
 "Names and email addresses changed" = "名前とメールアドレスを変えました";
 "Others see the change only when they get the updated public key, from a keyserver or from you." = "ほかの人に変更が届くのは、鍵サーバーやあなたから更新した公開鍵を受け取ったときです。";
+
+/* パスフレーズの変更 */
+"Change Passphrase…" = "パスフレーズを変える…";
+"Change the passphrase?" = "パスフレーズを変えますか？";
+"Change" = "変える";
+"gpg will ask for the current passphrase, then the new one twice. Backups you made earlier stay protected by the current passphrase, so remember it as long as you keep them." = "gpg が今のパスフレーズを聞き、続けて新しいパスフレーズを 2 回聞きます。これまでに取ったバックアップは今のパスフレーズで守られたままなので、それを持っている間は今のパスフレーズも覚えておいてください。";
+"Passphrase changed" = "パスフレーズを変えました";
+"Backups you made earlier still need the old passphrase. Make a new backup protected by the new one." = "これまでのバックアップには、古いパスフレーズが要るままです。新しいパスフレーズで守ったバックアップを取り直してください。";
+"Cannot change the passphrase" = "パスフレーズを変えられません";

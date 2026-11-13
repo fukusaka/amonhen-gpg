@@ -247,3 +247,9 @@ extension Gpg {
         }
     }
 }
+
+extension OwnKey {
+    /// パスフレーズを変えられるか。秘密鍵（主鍵かサブ鍵）がこの PC にあること。カード上の鍵は PIN で守られ、
+    /// パスフレーズはない。失効・期限切れの鍵でも、昔のものの復号に使うので変えられる。
+    public var canChangePassphrase: Bool { canBackUp }
+}

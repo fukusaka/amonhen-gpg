@@ -41,6 +41,10 @@ struct ContentView: View {
     @State private var revoked: OwnKey?
     /// 名前とメールアドレスを変えたばかりの鍵（更新した公開鍵を渡すよう勧める）。
     @State private var userIdsChanged: OwnKey?
+    /// パスフレーズを変えるか確かめている鍵。
+    @State private var changingPassphrase: OwnKey?
+    /// パスフレーズを変えたばかりの鍵（バックアップを取り直すよう勧める）。
+    @State private var passphraseChanged: OwnKey?
 
     var body: some View {
         NavigationSplitView {
@@ -62,7 +66,7 @@ struct ContentView: View {
                                 notify: { notice = $0 }, revoked: { revoked = $0 }, userIdsChanged: { userIdsChanged = $0 },
                                 backUp: backUp,
                                 markBackedUp: { markingBackedUp = $0 }, exportPublicKey: exportPublicKey,
-                                sendToKeyserver: { sending = $0 },
+                                sendToKeyserver: { sending = $0 }, changePassphrase: { changingPassphrase = $0 },
                                 createRevocationCertificate: createRevocationCertificate),
                             create: { creating = true }, importKeys: importKeys)
                     case .others: OthersView(model: model, importKeys: importKeys, notify: { notice = $0 })
@@ -137,6 +141,26 @@ struct ContentView: View {
             Button(L("Later"), role: .cancel) {}
         } message: { own in
             Text(Notice(revoked: own).message)
+        }
+        .alert(
+            L("Change the passphrase?"),
+            isPresented: Binding(get: { changingPassphrase != nil }, set: { if !$0 { changingPassphrase = nil } }),
+            presenting: changingPassphrase
+        ) { own in
+            Button(L("Change")) { changePassphrase(own) }
+            Button(L("Cancel"), role: .cancel) {}
+        } message: { _ in
+            Text(L("gpg will ask for the current passphrase, then the new one twice. Backups you made earlier stay protected by the current passphrase, so remember it as long as you keep them."))
+        }
+        .alert(
+            L("Passphrase changed"),
+            isPresented: Binding(get: { passphraseChanged != nil }, set: { if !$0 { passphraseChanged = nil } }),
+            presenting: passphraseChanged
+        ) { own in
+            Button(L("Back Up…")) { backUp(own) }
+            Button(L("Later"), role: .cancel) {}
+        } message: { _ in
+            Text(L("Backups you made earlier still need the old passphrase. Make a new backup protected by the new one."))
         }
         .alert(
             L("Names and email addresses changed"),
@@ -222,6 +246,20 @@ struct ContentView: View {
         }
     }
 
+    /// パスフレーズを変える。今のものと新しいものは pinentry が聞く（アプリは触れない）。取り消したときは何も言わない。
+    private func changePassphrase(_ own: OwnKey) {
+        let fingerprint = own.key.fingerprint
+        Task {
+            switch await model.perform({ try $0.changePassphrase(fingerprint: fingerprint) }) {
+            case .success:
+                passphraseChanged = model.keyring.own(fingerprint) ?? own
+            case let .failure(error) where isCanceled(error): break
+            case let .failure(error):
+                notice = Notice(title: L("Cannot change the passphrase"), message: describe(error))
+            }
+        }
+    }
+
     /// 失効証明書を作り、gpg が置く場所（`openpgp-revocs.d`）に置く。パスフレーズは gpg が聞く。
     private func createRevocationCertificate(_ own: OwnKey) {
         let fingerprint = own.key.fingerprint
@@ -259,6 +297,7 @@ struct OwnKeyActions {
     var markBackedUp: (OwnKey) -> Void = { _ in }
     var exportPublicKey: (OwnKey) -> Void = { _ in }
     var sendToKeyserver: (OwnKey) -> Void = { _ in }
+    var changePassphrase: (OwnKey) -> Void = { _ in }
     var createRevocationCertificate: (OwnKey) -> Void = { _ in }
 }
 
@@ -476,6 +515,8 @@ struct OwnKeyRow: View {
             .disabled(!own.canExtendExpiry)
         Button(L("Names and Email Addresses…")) { actions.editUserIds(own) }
             .disabled(!own.canEditUserIds)
+        Button(L("Change Passphrase…")) { actions.changePassphrase(own) }
+            .disabled(!own.canChangePassphrase)
         Button(L("Back Up Secret Key…")) { actions.backUp(own) }
             .disabled(!own.canBackUp)
         Button(L("Mark as Backed Up…")) { actions.markBackedUp(own) }

@@ -150,6 +150,7 @@ func cannotExtendWithoutPrimarySecret() throws {
     try home.gpg.setOwnerTrust(fingerprint: mine, trust: .ultimate)
     let ring = Keyring(keys: try home.gpg.listKeys(), sshKeys: [], now: UInt64(Date().timeIntervalSince1970))
     #expect(ring.notOnThisDevice.first?.canExtendExpiry == false)
+    #expect(ring.notOnThisDevice.first?.canChangePassphrase == false)
 }
 
 @Test(.enabled(if: gpgAvailable()))
@@ -254,6 +255,7 @@ func backsUpSecretKeyToPrivateFile() throws {
         request: GenerateKey(userId: "Alice / Work <alice@example.com>", algorithm: nil, capabilities: nil, expires: .never))
     let own = try #require(Keyring(keys: try home.gpg.listKeys(), sshKeys: [], now: UInt64(Date().timeIntervalSince1970)).usable.first)
     #expect(own.canBackUp)
+    #expect(own.canChangePassphrase)
     #expect(own.backupFileName == "Alice - Work \(fpr.suffix(16)) secret.asc")
 
     let file = home.dir.appendingPathComponent(own.backupFileName)
