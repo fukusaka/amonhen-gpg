@@ -463,6 +463,9 @@ struct OwnKeyRow: View {
         }
         .padding(.vertical, 4)
         .listRowSeparator(.hidden)
+        // 行のどこをダブルクリックしても詳細を開く（ボタンの押下は妨げない）
+        .contentShape(Rectangle())
+        .simultaneousGesture(TapGesture(count: 2).onEnded { actions.showDetails(own) })
         .contextMenu { menuItems }
     }
 
@@ -633,6 +636,8 @@ struct OthersView: View {
                 }
                 .padding(.vertical, 4)
                 .listRowSeparator(.hidden)
+                .contentShape(Rectangle())
+                .simultaneousGesture(TapGesture(count: 2).onEnded { showing = key })
                 .contextMenu { menuItems(key) }
             }
         }
