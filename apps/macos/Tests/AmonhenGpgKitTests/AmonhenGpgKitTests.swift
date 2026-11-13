@@ -249,6 +249,32 @@ func editsUserIds() throws {
 }
 
 @Test(.enabled(if: gpgAvailable()))
+func separatesMyCertificationsFromOthers() throws {
+    let home = try TemporaryKeyring()
+    let me = try home.gpg.generateKey(
+        request: GenerateKey(userId: "Alice <alice@example.com>", algorithm: nil, capabilities: nil, expires: .never))
+    // Bob と Carol は別の鍵束で作り、Carol が Bob に署名したものを受け取る
+    let other = try TemporaryKeyring()
+    let bob = try other.gpg.generateKey(
+        request: GenerateKey(userId: "Bob <bob@example.com>", algorithm: nil, capabilities: nil, expires: .never))
+    let carol = try other.gpg.generateKey(
+        request: GenerateKey(userId: "Carol <carol@example.com>", algorithm: nil, capabilities: nil, expires: .never))
+    try other.gpg.signKey(fingerprint: bob, userIds: [], signer: carol, local: false)
+    _ = try home.gpg.import(data: try other.gpg.exportPublicKeys(fingerprints: [bob], armor: false))
+    try home.gpg.signKey(fingerprint: bob, userIds: [], signer: me, local: true)
+
+    let keys = try home.gpg.listKeys()
+    let ring = Keyring(keys: keys, sshKeys: [], now: UInt64(Date().timeIntervalSince1970))
+    let key = try #require(keys.first { $0.fingerprint == bob })
+    let split = ring.certifications(try home.gpg.certifications(fingerprint: bob), for: try #require(key.primaryUserId))
+    #expect(split.mine.map(\.signerFingerprint) == [me])
+    #expect(split.mine.first?.exportable == false)
+    // Carol の鍵は手元にないので、確かめられない署名として数える
+    #expect(split.others.map(\.signerFingerprint) == [carol])
+    #expect(split.others.first?.check == .missingKey)
+}
+
+@Test(.enabled(if: gpgAvailable()))
 func exportsSshPublicKey() throws {
     let home = try TemporaryKeyring()
     let fpr = try home.gpg.generateKey(

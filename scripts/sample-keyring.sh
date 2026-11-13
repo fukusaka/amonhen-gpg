@@ -32,7 +32,10 @@ printf 'revkey\ny\n2\n\ny\nsave\n' | g --command-fd 0 --edit-key "$D"
 # 他者の鍵: 署名して確認済みにしたものと、未確認のもの
 o --quick-gen-key 'Bob Builder <bob@example.org>' ed25519 default never
 o --quick-gen-key 'Carol <carol@example.net>' ed25519 default never
-gpg --homedir "$O" --batch --no-tty --export 2>/dev/null | g --import
+# Bob の鍵には、手元にない人（Dave）の署名も付けておく（詳細の「ほかに何人の署名」）
+o --quick-gen-key 'Dave <dave@example.com>' ed25519 default never
+o --local-user dave@example.com --quick-sign-key "$(gpg --homedir "$O" --with-colons --list-keys bob@example.org 2>/dev/null | awk -F: '/^fpr/{print $10; exit}')" >/dev/null
+gpg --homedir "$O" --batch --no-tty --export bob@example.org carol@example.net 2>/dev/null | g --import
 BOB=$(fpr bob@example.org)
 g --local-user "$A" --quick-lsign-key "$BOB"
 gpgconf --homedir "$O" --kill all

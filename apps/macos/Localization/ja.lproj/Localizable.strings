@@ -268,3 +268,11 @@
 "Saved the SSH public key to %@." = "SSH の公開鍵を %@ に保存しました。";
 "Cannot export the SSH public key" = "SSH の公開鍵を書き出せません";
 "To log in with it, gpg-agent must also offer this key to ssh. It does not yet: the row does not show SSH ✓." = "これでログインするには、gpg-agent がこの鍵を ssh に出している必要もあります。いまは出していません（行に「SSH ✓」がありません）。";
+
+/* 誰が確認したか */
+"Verified with your key %@ on %@" = "あなたの鍵（%1$@）で %2$@に確認";
+"Signed by %ld other people" = "ほかに %ld 人の署名があります";
+"This signature does not check out." = "この署名は正しくありません。";
+"You withdrew this signature." = "この署名は取り消しました。";
+"Published with the key" = "鍵と一緒に公開する署名";
+"Kept only in your keyring" = "書き出さない署名（自分の鍵束だけ）";

@@ -2,23 +2,32 @@ import AmonhenGpgKit
 import SwiftUI
 
 /// 鍵の詳細。UID ごとの有効性と、主鍵・サブ鍵の方式・用途・期限を出す（一覧では主鍵とサブ鍵の違いを出さないので）。
+/// UID ごとに、自分の鍵でいつ確認したか（署名）を出す。ほかの人の署名は、知らない人のものは本物の保証にならないので数だけ。
 struct KeyDetailSheet: View {
+    let model: KeyringModel
     let key: Key
+    /// 先に読んだ署名（画像に書き出すとき。なければ開いてから裏で読む）。
+    var preloaded: [Certification]?
     /// 確認済みにする（未確認の他者の鍵のとき。このシートを閉じてから、確認のシートを出す）。
     var certify: ((Key) -> Void)?
     @Environment(\.dismiss) private var dismiss
+    @State private var loaded: [Certification]?
 
     var body: some View {
+        let certifications = preloaded ?? loaded ?? []
         VStack(alignment: .leading, spacing: 16) {
             Text(key.primaryUserId?.text ?? key.fingerprint).font(.title2.bold())
             FingerprintView(fingerprint: key.fingerprint)
             Section {
                 ForEach(Array(key.userIds.filter { !$0.attribute }.enumerated()), id: \.offset) { _, uid in
-                    HStack {
-                        Text(uid.text)
-                            .strikethrough(uid.validity == .revoked)
-                        Spacer()
-                        Text(validityWord(uid.validity)).foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text(uid.text)
+                                .strikethrough(uid.validity == .revoked)
+                            Spacer()
+                            Text(validityWord(uid.validity)).foregroundStyle(.secondary)
+                        }
+                        CertificationLines(split: model.keyring.certifications(certifications, for: uid))
                     }
                 }
             } header: {
@@ -57,6 +66,12 @@ struct KeyDetailSheet: View {
         }
         .padding(20)
         .frame(width: 560)
+        .task {
+            guard preloaded == nil else { return }
+            let gpg = model.gpg
+            let fingerprint = key.fingerprint
+            loaded = await Task.detached { try? gpg.certifications(fingerprint: fingerprint) }.value
+        }
     }
 
     private func row(
@@ -115,5 +130,46 @@ struct FingerprintView: View {
             .padding(10)
             .frame(maxWidth: .infinity)
             .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+/// UID の下に出す署名。自分の鍵の署名は 1 つずつ（どの鍵で・いつ・公開するか）、ほかの人の署名は数だけ。
+struct CertificationLines: View {
+    let split: UserIdCertifications
+
+    var body: some View {
+        ForEach(Array(split.mine.enumerated()), id: \.offset) { _, c in
+            Label {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(L("Verified with your key %@ on %@", signer(c), date(c)))
+                        .strikethrough(c.revoked)
+                    Text(note(c)).foregroundStyle(c.check == .bad ? .orange : .secondary)
+                }
+            } icon: {
+                Image(systemName: c.revoked || c.check == .bad ? "xmark.seal" : "checkmark.seal.fill")
+                    .foregroundStyle(c.revoked || c.check == .bad ? Color.secondary : Color.green)
+            }
+            .font(.callout)
+        }
+        if !split.others.isEmpty {
+            Text(L("Signed by %ld other people", split.others.count))
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .help(split.others.map(signer).joined(separator: "\n"))
+        }
+    }
+
+    private func signer(_ c: Certification) -> String {
+        c.signerUserId.map { UserIdParts($0).name } ?? c.signerKeyId
+    }
+
+    private func date(_ c: Certification) -> String {
+        c.created.map { Date(timeIntervalSince1970: TimeInterval($0)).formatted(date: .long, time: .omitted) } ?? "—"
+    }
+
+    private func note(_ c: Certification) -> String {
+        if c.check == .bad { return L("This signature does not check out.") }
+        if c.revoked { return L("You withdrew this signature.") }
+        return c.exportable ? L("Published with the key") : L("Kept only in your keyring")
     }
 }

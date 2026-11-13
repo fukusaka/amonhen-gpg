@@ -406,7 +406,7 @@ struct OwnKeysView: View {
             .sheet(item: $extending) { own in
                 ExtendExpirySheet(model: model, own: own) { actions.notify(Notice(extended: $0)) }
             }
-            .sheet(item: $showing) { KeyDetailSheet(key: $0.key) }
+            .sheet(item: $showing) { KeyDetailSheet(model: model, key: $0.key) }
             .sheet(item: $deleting) { own in
                 DeleteKeySheet(model: model, own: own, backUp: actions.backUp, revoke: { revoking = $0 }) { name in
                     actions.notify(Notice(title: L("Key deleted"), message: L("Deleted %@ from this Mac.", name)))
@@ -664,7 +664,7 @@ struct OthersView: View {
                 }
             }
             .sheet(item: Binding(get: { showing.map(IdentifiedKey.init) }, set: { showing = $0?.key })) {
-                KeyDetailSheet(key: $0.key) { certifying = $0 }
+                KeyDetailSheet(model: model, key: $0.key) { certifying = $0 }
             }
             .alert(
                 L("Delete the public key of %@?", deleting?.primaryUserId?.text ?? ""),
