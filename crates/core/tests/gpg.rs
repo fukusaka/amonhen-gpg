@@ -466,6 +466,63 @@ fn locate_external_key_through_wkd() {
     staging.discard_staging().unwrap();
 }
 
+/// 試験用の鍵サーバー（`scripts/test-keyserver.sh up`）を使う。
+/// `AMONHEN_TEST_KEYSERVER=hkp://127.0.0.1:11371 cargo test -- --ignored test_keyserver`
+#[test]
+#[ignore]
+fn test_keyserver_sends_and_receives() {
+    let Ok(server) = std::env::var("AMONHEN_TEST_KEYSERVER") else {
+        eprintln!("AMONHEN_TEST_KEYSERVER not set; skipped");
+        return;
+    };
+    let Some(home) = Home::new() else {
+        eprintln!("gpg not found; skipped");
+        return;
+    };
+    let gpg = Gpg::new().with_homedir(home.path());
+    // 試験のたびに新しい鍵なので、前の試験で送った鍵と混ざらない
+    let fpr = gpg.generate_key(&alice()).unwrap();
+    gpg.send_keys(&[&fpr], Some(&server)).unwrap();
+
+    let staging = gpg.staging(home.path().join("staging")).unwrap();
+    let r = staging.receive_keys(&[&fpr], Some(&server)).unwrap();
+    assert!(r.considered >= 1);
+    let keys = staging.list_keys().unwrap();
+    assert_eq!(keys.len(), 1);
+    assert_eq!(keys[0].fingerprint, fpr);
+    assert_eq!(keys[0].secret, SecretState::None);
+    assert!(keys[0]
+        .user_ids
+        .iter()
+        .any(|u| u.text.contains("alice@example.com")));
+
+    // メールアドレスで探す（WKD は example.com にないので、鍵サーバーで見つかる）
+    staging.delete_public_key(&fpr).unwrap();
+    std::fs::write(
+        home.path().join("staging/dirmngr.conf"),
+        format!("keyserver {server}\n"),
+    )
+    .unwrap();
+    let _ = command("gpgconf")
+        .arg("--homedir")
+        .arg(home.path().join("staging"))
+        .args(["--reload", "dirmngr"])
+        .status();
+    staging.locate_external_key("alice@example.com").unwrap();
+    assert!(staging
+        .list_keys()
+        .unwrap()
+        .iter()
+        .any(|k| k.fingerprint == fpr));
+
+    // 鍵サーバーにない鍵は NotFound
+    assert!(matches!(
+        staging.receive_keys(&["0123456789ABCDEF0123456789ABCDEF01234567"], Some(&server)),
+        Err(Error::NotFound)
+    ));
+    staging.discard_staging().unwrap();
+}
+
 #[test]
 fn edit_own_key() {
     use amonhen_core::{OwnerTrust, RevocationReason, Tier};
