@@ -116,7 +116,7 @@ struct ContentView: View {
             Text(L("Do this only if you already keep a backup of this secret key somewhere other than this Mac. The app will stop warning about it."))
         }
         .alert(
-            L("Send to %@?", Keyserver.name(Keyserver.default)),
+            L("Send to %@?", Keyserver.name(Keyserver.current)),
             isPresented: Binding(get: { sending != nil }, set: { if !$0 { sending = nil } }),
             presenting: sending
         ) { own in
@@ -199,9 +199,9 @@ struct ContentView: View {
     private func send(_ own: OwnKey) {
         let fingerprint = own.key.fingerprint
         Task {
-            switch await model.perform({ try $0.sendKeys(fingerprints: [fingerprint], keyserver: Keyserver.default) }) {
+            switch await model.perform({ try $0.sendKeys(fingerprints: [fingerprint], keyserver: Keyserver.current) }) {
             case .success:
-                notice = Notice(title: L("Sent"), message: L("Sent the public key to %@.", Keyserver.name(Keyserver.default)))
+                notice = Notice(title: L("Sent"), message: L("Sent the public key to %@.", Keyserver.name(Keyserver.current)))
             case let .failure(error):
                 notice = Notice(title: L("Cannot send the public key"), message: describe(error))
             }

@@ -123,6 +123,8 @@ extension Gpg {
 /// 公開鍵を送る鍵サーバー。送り先を確かめさせるので、gpg の既定に任せずに決めて渡す。
 public enum Keyserver {
     public static let `default` = "hkps://keys.openpgp.org"
+    /// 送る・探す鍵サーバー。起動の引数で変えられる（試験用の鍵サーバーに向ける）。起動のときに一度だけ決める。
+    nonisolated(unsafe) public static var current = `default`
 
     /// 画面に出す名前（`keys.openpgp.org`）。
     public static func name(_ url: String) -> String {

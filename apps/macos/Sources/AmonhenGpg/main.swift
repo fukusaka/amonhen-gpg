@@ -9,6 +9,7 @@ import SwiftUI
 /// - `--place mine|others|staging`: 書き出す場所
 /// - `--sheet extend|create|revoke|certify|details|delete`: 一覧の代わりに、シートを書き出す（最初の自分の鍵で）
 /// - `--stage <file>`: 鍵のファイルを一時保管に入れてから書き出す（一時保管の見た目の確認用）
+/// - `--keyserver <url>`: 送る・探す鍵サーバー（既定は keys.openpgp.org。試験用の鍵サーバーは `scripts/test-keyserver.sh`）
 struct Options {
     var gpg: String?
     var homedir: String?
@@ -16,6 +17,7 @@ struct Options {
     var place = Place.mine
     var sheet: SheetPreview.Kind?
     var stage: String?
+    var keyserver: String?
 
     init(_ arguments: [String]) {
         var rest = arguments.dropFirst().makeIterator()
@@ -27,6 +29,7 @@ struct Options {
             case "--place": place = rest.next().flatMap(Place.init(rawValue:)) ?? .mine
             case "--sheet": sheet = rest.next().flatMap(SheetPreview.Kind.init(rawValue:))
             case "--stage": stage = rest.next()
+            case "--keyserver": keyserver = rest.next()
             default: break
             }
         }
@@ -34,6 +37,9 @@ struct Options {
 }
 
 let options = Options(CommandLine.arguments)
+if let keyserver = options.keyserver {
+    Keyserver.current = keyserver
+}
 let model = KeyringModel(gpg: Gpg(program: options.gpg, homedir: options.homedir))
 /// 一時保管は起動ごとに一時ディレクトリに作り、終わるときに捨てる。落ちて残った前の一時保管は、起動したときに捨てる。
 let staging = StagingModel(main: model, dir: Staging.directory(in: FileManager.default.temporaryDirectory))

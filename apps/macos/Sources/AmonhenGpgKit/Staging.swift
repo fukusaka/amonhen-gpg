@@ -78,7 +78,7 @@ public final class Staging: @unchecked Sendable {
         let made = try main.staging(dir: dir.path)
         let conf = dir.appendingPathComponent("dirmngr.conf")
         if !FileManager.default.fileExists(atPath: conf.path) {
-            try "keyserver \(Keyserver.default)\n".write(to: conf, atomically: true, encoding: .utf8)
+            try "keyserver \(Keyserver.current)\n".write(to: conf, atomically: true, encoding: .utf8)
         }
         gpg = made
         return made
@@ -89,7 +89,7 @@ public final class Staging: @unchecked Sendable {
     public func find(_ query: StagingQuery) throws -> ImportResult {
         switch query {
         case let .email(email): try staging().locateExternalKey(email: email)
-        case let .fingerprint(fpr): try staging().receiveKeys(fingerprints: [fpr], keyserver: Keyserver.default)
+        case let .fingerprint(fpr): try staging().receiveKeys(fingerprints: [fpr], keyserver: Keyserver.current)
         }
     }
 
