@@ -661,6 +661,23 @@ fn sign_others_key() {
     gpg.sign_key(&bob, &[], None, true).unwrap();
     assert_eq!(uid("Bob Work <bob@work.example>"), Validity::Full);
 
+    // 誰がどの UID に署名したか（Bob 自身の署名は入らない）
+    let certs = gpg.certifications(&bob).unwrap();
+    assert_eq!(certs.len(), 2, "{certs:?}");
+    for c in &certs {
+        assert_eq!(c.signer_fingerprint.as_deref(), Some(me.as_str()));
+        assert_eq!(c.check, amonhen_core::SignatureCheck::Good);
+        assert!(
+            c.signer_user_id
+                .as_deref()
+                .unwrap()
+                .contains("alice@example.com")
+        );
+    }
+    let exportable = |u: &str| certs.iter().find(|c| c.user_id == u).unwrap().exportable;
+    assert!(exportable("Bob <bob@example.com>"));
+    assert!(!exportable("Bob Work <bob@work.example>"));
+
     assert!(
         gpg.sign_key(&bob, &["Nobody <x@example.com>"], None, false)
             .is_err()

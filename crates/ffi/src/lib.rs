@@ -11,9 +11,9 @@ use std::sync::Arc;
 
 use amonhen_core::status::Failure;
 use amonhen_core::{
-    Availability, Capabilities, Card, Expiry, GenerateKey, ImportResult, ImportedKey, Key,
-    KeyStatus, OwnerTrust, RevocationReason, SecretState, SshControl, SshKey, SshSupport, Subkey,
-    Tier, UserId, Validity, Version,
+    Availability, Capabilities, Card, Certification, Expiry, GenerateKey, ImportResult,
+    ImportedKey, Key, KeyStatus, OwnerTrust, RevocationReason, SecretState, SignatureCheck,
+    SshControl, SshKey, SshSupport, Subkey, Tier, UserId, Validity, Version,
 };
 
 uniffi::setup_scaffolding!();
@@ -68,6 +68,27 @@ pub struct UserId {
     pub expires: Option<u64>,
     pub hash: Option<String>,
     pub attribute: bool,
+}
+
+#[uniffi::remote(Record)]
+pub struct Certification {
+    pub user_id: String,
+    pub signer_fingerprint: Option<String>,
+    pub signer_key_id: String,
+    pub signer_user_id: Option<String>,
+    pub created: Option<u64>,
+    pub expires: Option<u64>,
+    pub exportable: bool,
+    pub check: SignatureCheck,
+    pub revoked: bool,
+}
+
+#[uniffi::remote(Enum)]
+pub enum SignatureCheck {
+    Good,
+    Bad,
+    MissingKey,
+    Error,
 }
 
 #[uniffi::remote(Enum)]
@@ -563,6 +584,10 @@ impl Gpg {
         Ok(self
             .inner
             .sign_key(&fingerprint, &strs(&user_ids), signer.as_deref(), local)?)
+    }
+
+    pub fn certifications(&self, fingerprint: String) -> Result<Vec<Certification>> {
+        Ok(self.inner.certifications(&fingerprint)?)
     }
 
     // SSH
