@@ -228,6 +228,9 @@ func editsUserIds() throws {
     // 足すときに主にもできる
     try home.gpg.addUserId("Alice <alice@new.example>", to: key, makePrimary: true)
     #expect(try own().key.primaryUserId?.text == "Alice <alice@new.example>")
+    // 主の印があるときに足しても、主は変わらない（すでに主のものを主にし直して gpg に断られない）
+    try home.gpg.addUserId("Alice <alice@club.example>", to: try own().key, makePrimary: false)
+    #expect(try own().key.primaryUserId?.text == "Alice <alice@new.example>")
 
     // 古いほうを失効させる。失効した UID は残るが、主にも失効にもできない。最後の 1 つは失効させられない
     try home.gpg.revokeUserId(fingerprint: fpr, userId: "Alice <alice@example.com>")
@@ -238,6 +241,7 @@ func editsUserIds() throws {
     #expect(!key.canRevoke(revoked))
     #expect(!key.hasActiveUserId(revoked.text))
     try home.gpg.revokeUserId(fingerprint: fpr, userId: work.text)
+    try home.gpg.revokeUserId(fingerprint: fpr, userId: "Alice <alice@club.example>")
     key = try own().key
     #expect(key.primaryUserId?.text == "Alice <alice@new.example>")
     #expect(!key.canRevoke(try #require(key.primaryUserId)))

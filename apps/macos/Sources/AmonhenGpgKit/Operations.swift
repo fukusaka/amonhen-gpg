@@ -234,13 +234,16 @@ extension Key {
 
 extension Gpg {
     /// UID を足す。どの UID にも主の印がなければ gpg は新しい自己署名の UID（足したもの）を主にし、印があれば
-    /// 主は変わらない。どちらでも結果が決まるよう、足したあとで主を付け直す（一覧の名前が知らないうちに変わらないように）。
-    /// パスフレーズを続けて 2 度聞くことがある。
+    /// 主は変わらない。どちらでも結果が決まるよう、足したあとで主が望みと違えば付け直す（一覧の名前が知らないうちに
+    /// 変わらないように）。すでに主の UID を主にしようとすると gpg は「General error」で断るので、違うときだけ。
+    /// 付け直すときは、パスフレーズを続けて 2 度聞くことがある。
     public func addUserId(_ text: String, to key: Key, makePrimary: Bool) throws {
         let previous = key.primaryUserId.flatMap { $0.validity == .revoked ? nil : $0.text }
         try addUserId(fingerprint: key.fingerprint, userId: text)
-        if let primary = makePrimary ? text : previous {
-            try setPrimaryUserId(fingerprint: key.fingerprint, userId: primary)
+        guard let wanted = makePrimary ? text : previous else { return }
+        let added = try listKeys().first { $0.fingerprint == key.fingerprint }
+        if added?.primaryUserId?.text != wanted {
+            try setPrimaryUserId(fingerprint: key.fingerprint, userId: wanted)
         }
     }
 }
