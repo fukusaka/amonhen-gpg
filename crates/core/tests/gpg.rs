@@ -491,10 +491,12 @@ fn test_keyserver_sends_and_receives() {
     assert_eq!(keys.len(), 1);
     assert_eq!(keys[0].fingerprint, fpr);
     assert_eq!(keys[0].secret, SecretState::None);
-    assert!(keys[0]
-        .user_ids
-        .iter()
-        .any(|u| u.text.contains("alice@example.com")));
+    assert!(
+        keys[0]
+            .user_ids
+            .iter()
+            .any(|u| u.text.contains("alice@example.com"))
+    );
 
     // メールアドレスで探す（WKD は example.com にないので、鍵サーバーで見つかる）
     staging.delete_public_key(&fpr).unwrap();
@@ -509,11 +511,13 @@ fn test_keyserver_sends_and_receives() {
         .args(["--reload", "dirmngr"])
         .status();
     staging.locate_external_key("alice@example.com").unwrap();
-    assert!(staging
-        .list_keys()
-        .unwrap()
-        .iter()
-        .any(|k| k.fingerprint == fpr));
+    assert!(
+        staging
+            .list_keys()
+            .unwrap()
+            .iter()
+            .any(|k| k.fingerprint == fpr)
+    );
 
     // 鍵サーバーにない鍵は NotFound
     assert!(matches!(
@@ -850,6 +854,30 @@ fn passphrases_through_pinentry() {
         .generate_revocation_certificate(&fpr, Unspecified, "")
         .unwrap();
     assert!(certificate.starts_with(b"-----BEGIN PGP PUBLIC KEY BLOCK-----"));
+
+    // パスフレーズの変更: 今のものを取り消す・間違える、正しければ新しいものに変わる
+    home.answer(None);
+    let r = gpg.change_passphrase(&fpr);
+    assert!(matches!(r, Err(Error::Canceled)), "{r:?}");
+    home.answer(Some("wrong"));
+    assert!(matches!(
+        gpg.change_passphrase(&fpr),
+        Err(Error::BadPassphrase)
+    ));
+    const NEW: &str = "another horse battery staple";
+    std::fs::write(home.path().join("pinentry-new"), NEW).unwrap();
+    home.answer(Some(PASSPHRASE));
+    gpg.change_passphrase(&fpr).unwrap();
+    std::fs::remove_file(home.path().join("pinentry-new")).unwrap();
+    // 古いパスフレーズでは使えず、新しいもので使える
+    home.answer(Some(PASSPHRASE));
+    assert!(matches!(
+        gpg.generate_revocation_certificate(&fpr, Unspecified, ""),
+        Err(Error::BadPassphrase)
+    ));
+    home.answer(Some(NEW));
+    gpg.generate_revocation_certificate(&fpr, Unspecified, "")
+        .unwrap();
 
     // 秘密鍵は守られたまま入るので、取り込みではパスフレーズを聞かない
     let Some(other) = Home::with_pinentry(None) else {

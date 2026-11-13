@@ -160,9 +160,14 @@ impl Gpg {
     }
 
     /// パスフレーズを変える。今のものと新しいものは pinentry が聞く。
+    /// 今のものを取り消すと、gpg は `ERROR keyedit.passwd` を出すだけで 0 で終わるので、ERROR があれば失敗にする
+    /// （変わっていないのに変わったと知らせないように）。
     pub fn change_passphrase(&self, fingerprint: &str) -> Result<()> {
         let fingerprint = check_fingerprint(fingerprint)?;
-        self.run(&["--passwd", "--", fingerprint], None)?;
+        let run = self.run_raw(&["--passwd", "--", fingerprint], None)?;
+        if !run.success() || run.status.iter().any(|s| s.keyword == "ERROR") {
+            return Err(run.into_error());
+        }
         Ok(())
     }
 

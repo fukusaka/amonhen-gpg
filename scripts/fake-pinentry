@@ -4,6 +4,7 @@
 # 答えは同じディレクトリの pinentry-answer の中身。ファイルがなければ入力を取り消したことにする。
 # 答えを変えたら gpgconf --reload gpg-agent で gpg-agent が覚えたパスフレーズを忘れさせる。
 # pinentry-flavor があれば、その種類（curses・tty など）の pinentry だと名乗る。
+# pinentry-new があれば、新しいパスフレーズ（2 回入れさせるもの）にはその中身を答える（パスフレーズの変更）。
 dir=$(dirname "$0")
 echo "OK fake pinentry"
 repeat=
@@ -21,7 +22,11 @@ while IFS= read -r line; do
         echo OK
         ;;
     GETPIN)
-        if [ -f "$dir/pinentry-answer" ]; then
+        if [ -n "$repeat" ] && [ -f "$dir/pinentry-new" ]; then
+            printf 'D %s\n' "$(cat "$dir/pinentry-new")"
+            echo "S PIN_REPEATED"
+            echo OK
+        elif [ -f "$dir/pinentry-answer" ]; then
             printf 'D %s\n' "$(cat "$dir/pinentry-answer")"
             if [ -n "$repeat" ]; then
                 echo "S PIN_REPEATED"
