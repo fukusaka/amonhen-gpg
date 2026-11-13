@@ -684,17 +684,21 @@ struct IdentifiedKey: Identifiable {
     var id: String { key.fingerprint }
 }
 
-/// 一覧の行で、主な名前の下に出すほかの名前とメールアドレス。失効したものは出さない（詳細で見る）。
-/// 主と同じ名前なら、メールアドレスだけを出す。
+/// 一覧の行で、主な名前の下に出すほかの名前とメールアドレス。失効したものは、消えたのではないと分かるよう
+/// 後ろに薄く取り消し線で出す。主と同じ名前なら、メールアドレスだけを出す。
 struct OtherUserIdLines: View {
     let key: Key
 
     var body: some View {
         let primary = key.primaryUserId.map { UserIdParts($0.text).name }
-        ForEach(key.namedUserIds.filter { $0.validity != .revoked && $0 != key.primaryUserId }, id: \.self) { uid in
+        let others = key.namedUserIds.filter { $0 != key.primaryUserId }
+        ForEach(others.filter { $0.validity != .revoked } + others.filter { $0.validity == .revoked }, id: \.self) { uid in
             let other = UserIdParts(uid.text)
+            let revoked = uid.validity == .revoked
             Text(other.name == primary ? other.email ?? uid.text : uid.text)
-                .foregroundStyle(.secondary)
+                .strikethrough(revoked)
+                .foregroundStyle(revoked ? .tertiary : .secondary)
+                .help(revoked ? L("Revoked") : "")
         }
     }
 }
