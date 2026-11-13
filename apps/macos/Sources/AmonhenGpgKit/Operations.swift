@@ -203,3 +203,44 @@ public enum Pinentry {
         macCandidates.first(where: isExecutable)
     }
 }
+
+extension OwnKey {
+    /// 名前とメールアドレス（UID）を足したり、失効させたり、主にしたりできるか。主鍵の秘密鍵で署名するので、
+    /// 期限の延長と同じ条件（失効していない、主鍵の秘密鍵がこの PC かカードにある）。
+    public var canEditUserIds: Bool { canExtendExpiry }
+}
+
+extension Key {
+    /// 画像（写真 ID）でない UID。gpg は主な UID を先に並べる。
+    public var namedUserIds: [UserId] {
+        userIds.filter { !$0.attribute }
+    }
+
+    /// 主にできるか。失効しておらず、いまの主でないこと。
+    public func canMakePrimary(_ uid: UserId) -> Bool {
+        uid.validity != .revoked && uid != primaryUserId
+    }
+
+    /// 失効させられるか。失効していない UID がほかにも残ること（最後の 1 つは gpg が断る）。
+    public func canRevoke(_ uid: UserId) -> Bool {
+        uid.validity != .revoked && namedUserIds.filter { $0.validity != .revoked }.count > 1
+    }
+
+    /// 足そうとする UID が、失効していない UID と同じでないか（同じものを足しても gpg は何もしない）。
+    public func hasActiveUserId(_ text: String) -> Bool {
+        namedUserIds.contains { $0.validity != .revoked && $0.text == text }
+    }
+}
+
+extension Gpg {
+    /// UID を足す。どの UID にも主の印がなければ gpg は新しい自己署名の UID（足したもの）を主にし、印があれば
+    /// 主は変わらない。どちらでも結果が決まるよう、足したあとで主を付け直す（一覧の名前が知らないうちに変わらないように）。
+    /// パスフレーズを続けて 2 度聞くことがある。
+    public func addUserId(_ text: String, to key: Key, makePrimary: Bool) throws {
+        let previous = key.primaryUserId.flatMap { $0.validity == .revoked ? nil : $0.text }
+        try addUserId(fingerprint: key.fingerprint, userId: text)
+        if let primary = makePrimary ? text : previous {
+            try setPrimaryUserId(fingerprint: key.fingerprint, userId: primary)
+        }
+    }
+}

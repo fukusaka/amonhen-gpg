@@ -233,3 +233,18 @@
 "Unexpected output from gpg: %@" = "gpg の出力を解釈できません: %@";
 "Invalid %@: %@" = "%@ が正しくありません: %@";
 "The key was not found." = "鍵が見つかりません。";
+
+/* 名前とメールアドレス（UID） */
+"Names and Email Addresses…" = "名前とメールアドレス…";
+"Names and Email Addresses" = "名前とメールアドレス";
+"Add a Name and Email Address" = "名前とメールアドレスを追加";
+"Use as the primary name" = "主な名前にする";
+"This key already has this name and email address." = "この鍵には、すでにこの名前とメールアドレスがあります。";
+"Others see the change only after they get the updated public key. A name and email address cannot be deleted once others have it; revoke it instead. gpg will ask for the passphrase of this key." = "ほかの人に変更が届くのは、更新した公開鍵を受け取ってからです。一度渡した名前とメールアドレスは消せないので、使わなくなったものは失効させます。gpg がこの鍵のパスフレーズを聞きます。";
+"Primary" = "主な名前";
+"Make Primary" = "主にする";
+"Add" = "追加";
+"Done" = "完了";
+"Others who get the updated public key see that you no longer use it. This cannot be undone." = "更新した公開鍵を受け取った人には、もう使っていないことが伝わります。元に戻せません。";
+"Names and email addresses changed" = "名前とメールアドレスを変えました";
+"Others see the change only when they get the updated public key, from a keyserver or from you." = "ほかの人に変更が届くのは、鍵サーバーやあなたから更新した公開鍵を受け取ったときです。";

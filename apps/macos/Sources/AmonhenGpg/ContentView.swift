@@ -39,6 +39,8 @@ struct ContentView: View {
     @State private var sending: OwnKey?
     /// 失効させたばかりの鍵（ほかの人に知らせるよう勧める）。
     @State private var revoked: OwnKey?
+    /// 名前とメールアドレスを変えたばかりの鍵（更新した公開鍵を渡すよう勧める）。
+    @State private var userIdsChanged: OwnKey?
 
     var body: some View {
         NavigationSplitView {
@@ -57,7 +59,8 @@ struct ContentView: View {
                         OwnKeysView(
                             model: model, showsHistory: showsHistory,
                             actions: OwnKeyActions(
-                                notify: { notice = $0 }, revoked: { revoked = $0 }, backUp: backUp,
+                                notify: { notice = $0 }, revoked: { revoked = $0 }, userIdsChanged: { userIdsChanged = $0 },
+                                backUp: backUp,
                                 markBackedUp: { markingBackedUp = $0 }, exportPublicKey: exportPublicKey,
                                 sendToKeyserver: { sending = $0 },
                                 createRevocationCertificate: createRevocationCertificate),
@@ -134,6 +137,17 @@ struct ContentView: View {
             Button(L("Later"), role: .cancel) {}
         } message: { own in
             Text(Notice(revoked: own).message)
+        }
+        .alert(
+            L("Names and email addresses changed"),
+            isPresented: Binding(get: { userIdsChanged != nil }, set: { if !$0 { userIdsChanged = nil } }),
+            presenting: userIdsChanged
+        ) { own in
+            Button(L("Send to Keyserver…")) { sending = own }
+            Button(L("Export Public Key…")) { exportPublicKey(own) }
+            Button(L("Later"), role: .cancel) {}
+        } message: { _ in
+            Text(L("Others see the change only when they get the updated public key, from a keyserver or from you."))
         }
         .alert(item: $notice) { notice in
             Alert(title: Text(notice.title), message: Text(notice.message))
@@ -234,8 +248,11 @@ struct OwnKeyActions {
     var notify: (Notice) -> Void = { _ in }
     /// 失効させたあと（ほかの人に知らせるよう勧める）。
     var revoked: (OwnKey) -> Void = { _ in }
+    /// 名前とメールアドレスを変えたあと（更新した公開鍵を渡すよう勧める）。
+    var userIdsChanged: (OwnKey) -> Void = { _ in }
     var showDetails: (OwnKey) -> Void = { _ in }
     var extendExpiry: (OwnKey) -> Void = { _ in }
+    var editUserIds: (OwnKey) -> Void = { _ in }
     var revoke: (OwnKey) -> Void = { _ in }
     var delete: (OwnKey) -> Void = { _ in }
     var backUp: (OwnKey) -> Void = { _ in }
@@ -302,6 +319,7 @@ struct OwnKeysView: View {
     @State private var revoking: OwnKey?
     @State private var showing: OwnKey?
     @State private var deleting: OwnKey?
+    @State private var editingUserIds: OwnKey?
 
     var body: some View {
         list
@@ -314,6 +332,9 @@ struct OwnKeysView: View {
                     actions.notify(Notice(title: L("Key deleted"), message: L("Deleted %@ from this Mac.", name)))
                 }
             }
+            .sheet(item: $editingUserIds) { own in
+                UserIdsSheet(model: model, own: own, onChanged: actions.userIdsChanged)
+            }
             .sheet(item: $revoking) { own in
                 RevokeKeySheet(model: model, own: own, backUp: actions.backUp, onRevoked: actions.revoked)
             }
@@ -322,6 +343,7 @@ struct OwnKeysView: View {
     private var rowActions: OwnKeyActions {
         var actions = actions
         actions.extendExpiry = { extending = $0 }
+        actions.editUserIds = { editingUserIds = $0 }
         actions.revoke = { revoking = $0 }
         actions.showDetails = { showing = $0 }
         actions.delete = { deleting = $0 }
@@ -448,6 +470,8 @@ struct OwnKeyRow: View {
         Divider()
         Button(L("Extend Expiry…")) { actions.extendExpiry(own) }
             .disabled(!own.canExtendExpiry)
+        Button(L("Names and Email Addresses…")) { actions.editUserIds(own) }
+            .disabled(!own.canEditUserIds)
         Button(L("Back Up Secret Key…")) { actions.backUp(own) }
             .disabled(!own.canBackUp)
         Button(L("Mark as Backed Up…")) { actions.markBackedUp(own) }

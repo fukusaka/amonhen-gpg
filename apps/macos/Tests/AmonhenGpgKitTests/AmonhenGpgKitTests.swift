@@ -200,6 +200,50 @@ func revokesOwnKey() throws {
 }
 
 @Test(.enabled(if: gpgAvailable()))
+func editsUserIds() throws {
+    let home = try TemporaryKeyring()
+    let fpr = try home.gpg.generateKey(
+        request: GenerateKey(userId: "Alice <alice@example.com>", algorithm: nil, capabilities: nil, expires: .never))
+    let now = UInt64(Date().timeIntervalSince1970)
+    func own() throws -> OwnKey { try #require(Keyring(keys: try home.gpg.listKeys(), sshKeys: [], now: now).own(fpr)) }
+    #expect(try own().canEditUserIds)
+    let first = try #require(try own().key.primaryUserId)
+    // 1 つしかない UID は失効させられず、もう主
+    #expect(!(try own().key.canRevoke(first)))
+    #expect(!(try own().key.canMakePrimary(first)))
+
+    // gpg のままだと足した UID が主になるが、主は変えない
+    try home.gpg.addUserId("Alice <alice@work.example>", to: try own().key, makePrimary: false)
+    var key = try own().key
+    #expect(key.namedUserIds.map(\.text) == ["Alice <alice@example.com>", "Alice <alice@work.example>"])
+    #expect(key.hasActiveUserId("Alice <alice@work.example>"))
+    let work = try #require(key.namedUserIds.last)
+    #expect(key.canMakePrimary(work))
+    #expect(key.canRevoke(first))
+
+    // 主にすると、gpg は先に並べる（一覧の名前になる）
+    try home.gpg.setPrimaryUserId(fingerprint: fpr, userId: work.text)
+    key = try own().key
+    #expect(key.primaryUserId?.text == "Alice <alice@work.example>")
+    // 足すときに主にもできる
+    try home.gpg.addUserId("Alice <alice@new.example>", to: key, makePrimary: true)
+    #expect(try own().key.primaryUserId?.text == "Alice <alice@new.example>")
+
+    // 古いほうを失効させる。失効した UID は残るが、主にも失効にもできない。最後の 1 つは失効させられない
+    try home.gpg.revokeUserId(fingerprint: fpr, userId: "Alice <alice@example.com>")
+    key = try own().key
+    let revoked = try #require(key.namedUserIds.first { $0.text == "Alice <alice@example.com>" })
+    #expect(revoked.validity == .revoked)
+    #expect(!key.canMakePrimary(revoked))
+    #expect(!key.canRevoke(revoked))
+    #expect(!key.hasActiveUserId(revoked.text))
+    try home.gpg.revokeUserId(fingerprint: fpr, userId: work.text)
+    key = try own().key
+    #expect(key.primaryUserId?.text == "Alice <alice@new.example>")
+    #expect(!key.canRevoke(try #require(key.primaryUserId)))
+}
+
+@Test(.enabled(if: gpgAvailable()))
 func backsUpSecretKeyToPrivateFile() throws {
     let home = try TemporaryKeyring()
     let fpr = try home.gpg.generateKey(
