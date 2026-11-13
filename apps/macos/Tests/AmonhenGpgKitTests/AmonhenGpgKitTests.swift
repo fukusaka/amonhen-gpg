@@ -77,6 +77,16 @@ private func gpgAvailable() -> Bool {
     #expect(Pinentry.macPath(isExecutable: { _ in true }) == "/opt/homebrew/bin/pinentry-mac")
 }
 
+@Test func findsGpgOutsideTheFinderPath() {
+    // Finder から開いたアプリの PATH には Homebrew がない
+    let finder = "/usr/bin:/bin:/usr/sbin:/sbin"
+    #expect(GpgProgram.locate(path: finder, isExecutable: { $0 == "/opt/homebrew/bin/gpg" }) == "/opt/homebrew/bin/gpg")
+    #expect(GpgProgram.locate(path: finder, isExecutable: { $0 == "/usr/local/MacGPG2/bin/gpg" }) == "/usr/local/MacGPG2/bin/gpg")
+    // PATH にあればそれを先に
+    #expect(GpgProgram.locate(path: "/opt/gnupg/bin:" + finder, isExecutable: { $0.hasSuffix("/gpg") }) == "/opt/gnupg/bin/gpg")
+    #expect(GpgProgram.locate(path: nil, isExecutable: { _ in false }) == nil)
+}
+
 @Test func composesUserIdsForNewKeys() {
     #expect(UserIdParts(name: "Alice ", comment: nil, email: " alice@example.com").text == "Alice <alice@example.com>")
     #expect(UserIdParts(name: "", comment: "", email: "alice@example.com").text == "<alice@example.com>")

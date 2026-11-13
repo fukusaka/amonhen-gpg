@@ -40,7 +40,8 @@ let options = Options(CommandLine.arguments)
 if let keyserver = options.keyserver {
     Keyserver.current = keyserver
 }
-let model = KeyringModel(gpg: Gpg(program: options.gpg, homedir: options.homedir))
+// Finder から開くと PATH に Homebrew がないので、gpg の場所を探して渡す（見つからなければ gpg のまま。読めずに知らせる）
+let model = KeyringModel(gpg: Gpg(program: options.gpg ?? GpgProgram.locate(), homedir: options.homedir))
 /// 一時保管は起動ごとに一時ディレクトリに作り、終わるときに捨てる。落ちて残った前の一時保管は、起動したときに捨てる。
 let staging = StagingModel(main: model, dir: Staging.directory(in: FileManager.default.temporaryDirectory))
 
@@ -48,7 +49,7 @@ struct GpgApp: App {
     @NSApplicationDelegateAdaptor var delegate: AppDelegate
 
     var body: some Scene {
-        Window("amonhen-gpgui", id: "main") {
+        Window("Amonhen GPG", id: "main") {
             ContentView(model: model, staging: staging)
                 .frame(minWidth: 720, minHeight: 420)
                 .task { await model.reload() }

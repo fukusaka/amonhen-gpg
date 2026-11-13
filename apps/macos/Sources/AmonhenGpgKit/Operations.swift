@@ -212,6 +212,21 @@ public enum Pinentry {
     }
 }
 
+public enum GpgProgram {
+    /// PATH になければ探す場所（Homebrew の Apple シリコン・Intel、GPG Suite）。
+    static let fallbackDirectories = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/local/MacGPG2/bin"]
+
+    /// 使う gpg の場所。Finder から開いたアプリの PATH は `/usr/bin:/bin:/usr/sbin:/sbin` だけで、Homebrew の gpg が
+    /// 入らないので、PATH のあとに決まった場所を探す。gpgconf などはコアが gpg の隣から使う。見つからなければ nil。
+    public static func locate(
+        path: String? = ProcessInfo.processInfo.environment["PATH"],
+        isExecutable: (String) -> Bool = FileManager.default.isExecutableFile(atPath:)
+    ) -> String? {
+        let directories = (path ?? "").split(separator: ":").map(String.init) + fallbackDirectories
+        return directories.map { "\($0)/gpg" }.first(where: isExecutable)
+    }
+}
+
 extension OwnKey {
     /// 名前とメールアドレス（UID）を足したり、失効させたり、主にしたりできるか。主鍵の秘密鍵で署名するので、
     /// 期限の延長と同じ条件（失効していない、主鍵の秘密鍵がこの PC かカードにある）。
