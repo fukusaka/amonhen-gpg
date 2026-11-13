@@ -249,6 +249,36 @@ func editsUserIds() throws {
 }
 
 @Test(.enabled(if: gpgAvailable()))
+func exportsSshPublicKey() throws {
+    let home = try TemporaryKeyring()
+    let fpr = try home.gpg.generateKey(
+        request: GenerateKey(userId: "Alice <alice@example.com>", algorithm: nil, capabilities: nil, expires: .never))
+    let now = UInt64(Date().timeIntervalSince1970)
+    func own() throws -> OwnKey { try #require(Keyring(keys: try home.gpg.listKeys(), sshKeys: [], now: now).own(fpr)) }
+    // 認証サブ鍵がなければ渡せない
+    #expect(try own().sshSubkey(now: now) == nil)
+
+    let auth = try home.gpg.addSubkey(
+        fingerprint: fpr, algorithm: "ed25519",
+        capabilities: Capabilities(certify: false, sign: false, encrypt: false, authenticate: true), expires: .never)
+    let subkey = try #require(try own().sshSubkey(now: now))
+    #expect(subkey.fingerprint == auth)
+    #expect(try own().sshPublicKeyFileName == "Alice \(fpr.suffix(16)) ssh.pub")
+
+    let file = home.dir.appendingPathComponent(try own().sshPublicKeyFileName)
+    try home.gpg.exportSshPublicKey(subkey, to: file)
+    let line = try String(contentsOf: file, encoding: .utf8)
+    #expect(line.hasPrefix("ssh-ed25519 "))
+    #expect(line.hasSuffix(" openpgp:0x\(auth.suffix(8))\n"))
+    let attributes = try FileManager.default.attributesOfItem(atPath: file.path)
+    #expect((attributes[.posixPermissions] as? NSNumber)?.intValue == 0o644)
+
+    // 失効させた認証サブ鍵は渡さない
+    try home.gpg.revokeSubkey(fingerprint: fpr, subkey: auth, reason: .retired, description: "")
+    #expect(try own().sshSubkey(now: now) == nil)
+}
+
+@Test(.enabled(if: gpgAvailable()))
 func backsUpSecretKeyToPrivateFile() throws {
     let home = try TemporaryKeyring()
     let fpr = try home.gpg.generateKey(

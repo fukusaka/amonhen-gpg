@@ -257,3 +257,14 @@
 "Passphrase changed" = "パスフレーズを変えました";
 "Backups you made earlier still need the old passphrase. Make a new backup protected by the new one." = "これまでのバックアップには、古いパスフレーズが要るままです。新しいパスフレーズで守ったバックアップを取り直してください。";
 "Cannot change the passphrase" = "パスフレーズを変えられません";
+
+/* SSH の公開鍵 */
+"Copy SSH Public Key" = "SSH の公開鍵をコピー";
+"Export SSH Public Key…" = "SSH の公開鍵を書き出す…";
+"Export SSH Public Key" = "SSH の公開鍵を書き出す";
+"Copied" = "コピーしました";
+"Copied the SSH public key. Paste it as one line into ~/.ssh/authorized_keys on the server." = "SSH の公開鍵をコピーしました。サーバーの ~/.ssh/authorized_keys に 1 行で貼ってください。";
+"Cannot copy the SSH public key" = "SSH の公開鍵をコピーできません";
+"Saved the SSH public key to %@." = "SSH の公開鍵を %@ に保存しました。";
+"Cannot export the SSH public key" = "SSH の公開鍵を書き出せません";
+"To log in with it, gpg-agent must also offer this key to ssh. It does not yet: the row does not show SSH ✓." = "これでログインするには、gpg-agent がこの鍵を ssh に出している必要もあります。いまは出していません（行に「SSH ✓」がありません）。";

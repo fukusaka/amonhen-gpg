@@ -50,10 +50,13 @@ extension OwnKey {
     /// 公開鍵の既定のファイル名（`名前 鍵ID public.asc`）。
     public var publicKeyFileName: String { fileName("public") }
 
-    private func fileName(_ kind: String) -> String {
+    /// SSH の公開鍵の既定のファイル名（`名前 鍵ID ssh.pub`）。
+    public var sshPublicKeyFileName: String { fileName("ssh", extension: "pub") }
+
+    private func fileName(_ kind: String, extension ext: String = "asc") -> String {
         let name = key.primaryUserId.map { UserIdParts($0.text).name } ?? "key"
         let safe = name.map { "/:\\".contains($0) ? "-" : $0 }
-        return "\(String(safe)) \(key.fingerprint.suffix(16)) \(kind).asc"
+        return "\(String(safe)) \(key.fingerprint.suffix(16)) \(kind).\(ext)"
     }
 }
 
@@ -103,6 +106,11 @@ extension Gpg {
     /// 公開鍵を ASCII 形式で `url` に書き出す（渡す相手に読ませるので、ほかの人も読める 0644）。
     public func exportPublicKey(_ fingerprint: String, to url: URL) throws {
         try write(exportPublicKeys(fingerprints: [fingerprint], armor: true), to: url, permissions: 0o644)
+    }
+
+    /// サブ鍵の公開鍵を、`authorized_keys` に書く 1 行の形で `url` に書き出す（0644）。
+    public func exportSshPublicKey(_ subkey: Subkey, to url: URL) throws {
+        try write(Data((exportSshKey(fingerprint: subkey.fingerprint) + "\n").utf8), to: url, permissions: 0o644)
     }
 
     /// 隣に `permissions` で作ってから置き換える（書きかけや、緩い権限のファイルを残さない）。
@@ -252,4 +260,14 @@ extension OwnKey {
     /// パスフレーズを変えられるか。秘密鍵（主鍵かサブ鍵）がこの PC にあること。カード上の鍵は PIN で守られ、
     /// パスフレーズはない。失効・期限切れの鍵でも、昔のものの復号に使うので変えられる。
     public var canChangePassphrase: Bool { canBackUp }
+}
+
+extension OwnKey {
+    /// SSH の公開鍵として渡す認証サブ鍵。失効・期限切れでない認証サブ鍵のうち、いちばん新しいもの
+    /// （gpg-agent も、使える認証サブ鍵が複数あると新しいものを出す）。
+    public func sshSubkey(now: UInt64) -> Subkey? {
+        key.subkeys
+            .filter { $0.capabilities.authenticate && $0.validity != .revoked && $0.validity != .expired && ($0.expires ?? .max) > now }
+            .max { ($0.created ?? 0) < ($1.created ?? 0) }
+    }
 }

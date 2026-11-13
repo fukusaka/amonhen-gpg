@@ -67,6 +67,7 @@ struct ContentView: View {
                                 backUp: backUp,
                                 markBackedUp: { markingBackedUp = $0 }, exportPublicKey: exportPublicKey,
                                 sendToKeyserver: { sending = $0 }, changePassphrase: { changingPassphrase = $0 },
+                                copySshPublicKey: copySshPublicKey, exportSshPublicKey: exportSshPublicKey,
                                 createRevocationCertificate: createRevocationCertificate),
                             create: { creating = true }, importKeys: importKeys)
                     case .others: OthersView(model: model, importKeys: importKeys, notify: { notice = $0 })
@@ -233,6 +234,44 @@ struct ContentView: View {
         }
     }
 
+    /// 認証サブ鍵の公開鍵を、`authorized_keys` に貼る 1 行としてコピーする。
+    private func copySshPublicKey(_ own: OwnKey) {
+        guard let subkey = own.sshSubkey(now: UInt64(Date().timeIntervalSince1970)) else { return }
+        let fingerprint = subkey.fingerprint
+        Task {
+            switch await model.perform({ try $0.exportSshKey(fingerprint: fingerprint) }) {
+            case let .success(line):
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(line, forType: .string)
+                notice = Notice(title: L("Copied"), message: sshNote(own, L("Copied the SSH public key. Paste it as one line into ~/.ssh/authorized_keys on the server.")))
+            case let .failure(error):
+                notice = Notice(title: L("Cannot copy the SSH public key"), message: describe(error))
+            }
+        }
+    }
+
+    /// 認証サブ鍵の公開鍵を、`authorized_keys` の 1 行の形でファイルに書き出す。
+    private func exportSshPublicKey(_ own: OwnKey) {
+        guard let subkey = own.sshSubkey(now: UInt64(Date().timeIntervalSince1970)) else { return }
+        let panel = NSSavePanel()
+        panel.title = L("Export SSH Public Key")
+        panel.nameFieldStringValue = own.sshPublicKeyFileName
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        Task {
+            switch await model.perform({ try $0.exportSshPublicKey(subkey, to: url) }) {
+            case .success:
+                notice = Notice(title: L("Exported"), message: sshNote(own, L("Saved the SSH public key to %@.", url.path)))
+            case let .failure(error):
+                notice = Notice(title: L("Cannot export the SSH public key"), message: describe(error))
+            }
+        }
+    }
+
+    /// gpg-agent がまだこの鍵を SSH に出していなければ、そう添える（公開鍵を置いても、ssh が秘密鍵を使えない）。
+    private func sshNote(_ own: OwnKey, _ message: String) -> String {
+        own.ssh ? message : message + "\n\n" + L("To log in with it, gpg-agent must also offer this key to ssh. It does not yet: the row does not show SSH ✓.")
+    }
+
     /// 公開鍵を鍵サーバーに送る（確かめたあと）。秘密鍵は送らない。
     private func send(_ own: OwnKey) {
         let fingerprint = own.key.fingerprint
@@ -298,6 +337,8 @@ struct OwnKeyActions {
     var exportPublicKey: (OwnKey) -> Void = { _ in }
     var sendToKeyserver: (OwnKey) -> Void = { _ in }
     var changePassphrase: (OwnKey) -> Void = { _ in }
+    var copySshPublicKey: (OwnKey) -> Void = { _ in }
+    var exportSshPublicKey: (OwnKey) -> Void = { _ in }
     var createRevocationCertificate: (OwnKey) -> Void = { _ in }
 }
 
@@ -526,6 +567,10 @@ struct OwnKeyRow: View {
         Divider()
         Button(L("Export Public Key…")) { actions.exportPublicKey(own) }
         Button(L("Send to Keyserver…")) { actions.sendToKeyserver(own) }
+        Button(L("Copy SSH Public Key")) { actions.copySshPublicKey(own) }
+            .disabled(own.sshSubkey(now: now) == nil)
+        Button(L("Export SSH Public Key…")) { actions.exportSshPublicKey(own) }
+            .disabled(own.sshSubkey(now: now) == nil)
         Divider()
         Button(L("Revoke Key…"), role: .destructive) { actions.revoke(own) }
             .disabled(!own.canRevoke)
