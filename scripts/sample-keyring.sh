@@ -1,6 +1,7 @@
 #!/bin/bash
 # 画面の確認用の鍵束を一時ディレクトリに作り、その場所を表示する。利用者の鍵束には触らない。
-# 使い方: (cd apps/macos && .build/debug/AmonhenGpg --homedir "$(../../scripts/sample-keyring.sh)" --snapshot out.png)
+# 使い方: scripts/snapshots.sh（すべての画面を撮る）。1 枚なら
+#   "$(scripts/swift-build.sh --show-bin-path)/AmonhenGpg" --homedir "$(scripts/sample-keyring.sh)" --snapshot out.png
 # 終わったら gpgconf --homedir <場所> --kill all で gpg-agent を止め、ディレクトリを消す。
 set -eu
 H=$(mktemp -d)
