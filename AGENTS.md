@@ -13,16 +13,6 @@ Amonhen GPG: GnuPG の純粋なフロントエンド（自分の GPG・SSH の�
 - 利用者の `~/.gnupg` に触らない。開発・テスト・撮影は一時的な `--homedir` だけで。
 - 鍵は完全なフィンガープリントで指す。パスフレーズは扱わない（pinentry に任せる）。
 - 子プロセスは `amonhen_gpg_core::process::command` で起動する。
-- コミットは機能ごとに分け、それぞれでビルドとテストを通す。
+- コミットは機能ごとに分け、それぞれで `docs/development.md` の確認（ビルド・テスト・画面・ワークフロー）を通す。
 - push・リリース・設定の変更は確かめてから。大事な決定は推測で進めない。
 - 文書は英語が正で、日本語版を `README.ja.md`・`docs/ja/` に置き、両方を直す。
-
-## 確認
-
-```sh
-cargo test --workspace
-cargo clippy --workspace --all-targets -- -D warnings
-scripts/build-core.sh && (cd apps/macos && swift test)
-scripts/snapshots.sh                    # 画面を撮る
-actionlint && zizmor --persona=pedantic .   # ワークフローを変えたとき
-```
