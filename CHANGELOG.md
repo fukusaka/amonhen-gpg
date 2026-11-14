@@ -4,6 +4,15 @@ User-visible changes, by release (`v*` tags). Changes not released yet go under 
 heading becomes `## [x.y.z] - YYYY-MM-DD`, followed by a short summary paragraph that becomes the GitHub Release
 notes.
 
+## Unreleased
+
+### Added
+
+- Key details open in a window of their own (double-click, Details…, or Key > Show Details ⌘I), so keys can be
+  compared side by side. Tabs show an overview (key ID, algorithm and, for your own keys, where the secret key is, its
+  backup, its revocation certificate and SSH use), the names and addresses, and each subkey's fingerprint and keygrip.
+- Press the space bar on others' keys to quick-look the selected key's fingerprint, validity and expiry.
+
 ## [0.1.0] - 2026-11-14
 
 The first release: a GnuPG front end for macOS that keeps your own keys usable and safe. It shows which of your keys
