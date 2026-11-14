@@ -8,6 +8,9 @@ notes.
 
 ### Added
 
+- Search My Keys and Others' Keys by name, email address or fingerprint.
+- Others' Keys is a table: sort by any column, choose and reorder the columns, and filter by verification from the
+  toolbar; the sidebar counts the keys. The columns, sort order and filter are remembered.
 - Key details open in a window of their own (double-click, Details…, or Key > Show Details ⌘I), so keys can be
   compared side by side. Tabs show an overview (key ID, algorithm and, for your own keys, where the secret key is, its
   backup, its revocation certificate and SSH use), the names and addresses, and each subkey's fingerprint and keygrip.
