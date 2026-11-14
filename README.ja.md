@@ -1,6 +1,7 @@
 <h1><img src="docs/images/banner.png" alt="Amonhen GPG"></h1>
 
 [![CI](https://github.com/fukusaka/amonhen-gpg/actions/workflows/ci.yml/badge.svg)](https://github.com/fukusaka/amonhen-gpg/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/fukusaka/amonhen-gpg)](https://github.com/fukusaka/amonhen-gpg/releases/latest)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](#ライセンス)
 
 [English](README.md)
@@ -32,13 +33,12 @@
 Mac（macOS 14.4 以降、Apple シリコン）で、GnuPG 2.4.1 以降（`brew install gnupg pinentry-mac`）を入れたうえで:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/fukusaka/amonhen-gpg/main/scripts/install-app.sh | sh -s -- snapshot
+curl -fsSL https://raw.githubusercontent.com/fukusaka/amonhen-gpg/main/scripts/install-app.sh | sh -s -- stable
 ```
 
-最新の [snapshot](https://github.com/fukusaka/amonhen-gpg/releases/tag/snapshot)（署名はしてあり、まだ公証して
-いない）を `Amonhen GPG Snapshot.app` として `/Applications` に入れます。新しくするときも同じ行を実行します。手で
-取ってくる方法、ほかのフォルダに入れる方法、取ってきたものの確かめ方は、[インストール](docs/ja/install.md)を見て
-ください。
+[最新の正式版](https://github.com/fukusaka/amonhen-gpg/releases/latest)を `Amonhen GPG.app` として
+`/Applications` に入れます。新しくするときも同じ行を実行します。手で取ってくる方法、開発中の snapshot、ほかの
+フォルダに入れる方法、取ってきたものの確かめ方は、[インストール](docs/ja/install.md)を見てください。
 
 ## 文書
 

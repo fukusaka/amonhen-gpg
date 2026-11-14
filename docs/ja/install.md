@@ -4,11 +4,11 @@
 
 配っているものは、すべて [Releases](https://github.com/fukusaka/amonhen-gpg/releases) にあります。リリースは 2 種類です。
 
-- **正式版**: タグは `v<版>`。まだ出していません。
+- **正式版**: タグは `v<版>`。最新のものに Latest の印が付きます。
 - **snapshot**: 開発中の最新版。テストが通るたびに作り直します。
 
 > [!NOTE]
-> 正式版は、macOS で警告なしに開けるようにします。snapshot は署名してありますが、公証していません。下のスクリプトで
+> 正式版は公証してあり、macOS で警告なしに開けます。snapshot は署名してありますが、公証していません。下のスクリプトで
 > 入れるか、取ってきたあとに一度だけシステム設定の「プライバシーとセキュリティ」で許可してください。
 
 ## GnuPG
@@ -36,14 +36,14 @@ brew install gnupg pinentry-mac
 最新のリリースを探して取ってきて、入れます（入っていれば置き換えます）。要るのは `curl` だけです。
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/fukusaka/amonhen-gpg/main/scripts/install-app.sh | sh -s -- snapshot
+curl -fsSL https://raw.githubusercontent.com/fukusaka/amonhen-gpg/main/scripts/install-app.sh | sh -s -- stable
 ```
 
-正式版が出たら、`snapshot` を `stable` にすると正式版が入ります。新しくするときも同じ行を実行します。アプリを
+`stable` を `snapshot` にすると、開発中の最新版が入ります。新しくするときも同じ行を実行します。アプリを
 開いたまま新しくすると、スクリプトがそう知らせ、次に開いたときから新しい版になります。この方法で取ってきたアプリには
 quarantine の印が付かないので、macOS は確かめずに開きます。
 
-入れる先は `/Applications` です。`--user`（`sh -s -- --user snapshot`）を付けると自分のアプリケーションフォルダ
+入れる先は `/Applications` です。`--user`（`sh -s -- --user stable`）を付けると自分のアプリケーションフォルダ
 （`~/Applications`）に、`--system` は `/Applications` に、`--dir <フォルダ>` は好きなフォルダ（なければ作る）に
 入れます。どれも付けなければ、今入っているところを新しくします。
 
