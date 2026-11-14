@@ -432,7 +432,7 @@ struct OwnKeysView: View {
     var importKeys: () -> Void = {}
     @State private var extending: OwnKey?
     @State private var revoking: OwnKey?
-    @State private var showing: OwnKey?
+    @Environment(\.openWindow) private var openWindow
     @State private var deleting: OwnKey?
     @State private var editingUserIds: OwnKey?
 
@@ -441,7 +441,6 @@ struct OwnKeysView: View {
             .sheet(item: $extending) { own in
                 ExtendExpirySheet(model: model, own: own) { actions.notify(Notice(extended: $0)) }
             }
-            .sheet(item: $showing) { KeyDetailSheet(model: model, key: $0.key) }
             .sheet(item: $deleting) { own in
                 DeleteKeySheet(model: model, own: own, backUp: actions.backUp, revoke: { revoking = $0 }) { name in
                     actions.notify(Notice(title: L("Key deleted"), message: L("Deleted %@ from this Mac.", name)))
@@ -460,7 +459,7 @@ struct OwnKeysView: View {
         actions.extendExpiry = { extending = $0 }
         actions.editUserIds = { editingUserIds = $0 }
         actions.revoke = { revoking = $0 }
-        actions.showDetails = { showing = $0 }
+        actions.showDetails = { openWindow(id: "key", value: $0.key.fingerprint) }
         actions.delete = { deleting = $0 }
         return actions
     }
@@ -698,7 +697,7 @@ struct OthersView: View {
     /// 絞り込みを外す（絞り込んで 1 つもないとき）。
     var showAll: () -> Void = {}
     @State private var certifying: Key?
-    @State private var showing: Key?
+    @Environment(\.openWindow) private var openWindow
     @State private var deleting: Key?
     @State private var selection: KeyTableRow.ID?
     /// 行の並べ替えと、列の表示・並び・幅。次に開いたときも同じになるよう覚えておく。
@@ -712,9 +711,6 @@ struct OthersView: View {
                     let name = item.key.primaryUserId?.text ?? item.key.fingerprint
                     notify(Notice(title: L("Marked as verified"), message: L("%@ is now verified in your keyring.", name)))
                 }
-            }
-            .sheet(item: Binding(get: { showing.map(IdentifiedKey.init) }, set: { showing = $0?.key })) {
-                KeyDetailSheet(model: model, key: $0.key) { certifying = $0 }
             }
             .alert(
                 L("Delete the public key of %@?", deleting?.primaryUserId?.text ?? ""),
@@ -824,8 +820,9 @@ struct OthersView: View {
                 menuItems(key)
             }
         } primaryAction: { ids in
-            showing = rows.first { ids.contains($0.id) }?.key
+            if let key = rows.first(where: { ids.contains($0.id) })?.key { openWindow(id: "key", value: key.fingerprint) }
         }
+        .focusedSceneValue(\.selectedKeyFingerprint, selection)
         .onChange(of: sortOrder) { OthersTableSettings.sortOrder = sortOrder }
         .onChange(of: columns) { OthersTableSettings.columns = columns }
     }
@@ -835,7 +832,7 @@ struct OthersView: View {
     }
 
     @ViewBuilder private func menuItems(_ key: Key) -> some View {
-        Button(L("Details…")) { showing = key }
+        Button(L("Details…")) { openWindow(id: "key", value: key.fingerprint) }
         Button(L("Mark as Verified…")) { certifying = key }
             .disabled(!key.canCertify)
         Divider()

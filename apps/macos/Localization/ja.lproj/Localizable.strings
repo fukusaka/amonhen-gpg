@@ -288,3 +288,5 @@
 "Expired or Revoked" = "期限切れ・失効";
 "No %@ Keys" = "「%@」の鍵はありません";
 "Show All" = "すべて表示";
+"This key is no longer in your keyring" = "この鍵はもう鍵束にありません";
+"Show Details" = "詳細を表示";

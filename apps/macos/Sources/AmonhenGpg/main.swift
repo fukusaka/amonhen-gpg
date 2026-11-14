@@ -78,6 +78,15 @@ struct GpgApp: App {
         // 他者の鍵の表の列がすべて入る大きさ
         .defaultSize(width: Snapshot.windowSize.width, height: Snapshot.windowSize.height)
         .windowResizability(options.sheet != nil && options.snapshot != nil ? .contentSize : .automatic)
+        .commands { KeyCommands() }
+
+        // 鍵ごとの窓（詳細）。フィンガープリントで開くので、同じ鍵は同じ窓になる。
+        WindowGroup(id: "key", for: String.self) { $fingerprint in
+            if let fingerprint {
+                KeyWindow(model: model, fingerprint: fingerprint)
+            }
+        }
+        .defaultSize(width: 620, height: 640)
     }
 }
 

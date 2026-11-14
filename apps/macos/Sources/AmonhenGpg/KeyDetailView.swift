@@ -3,14 +3,14 @@ import SwiftUI
 
 /// 鍵の詳細。UID ごとの有効性と、主鍵・サブ鍵の方式・用途・期限を出す（一覧では主鍵とサブ鍵の違いを出さないので）。
 /// UID ごとに、自分の鍵でいつ確認したか（署名）を出す。ほかの人の署名は、知らない人のものは本物の保証にならないので数だけ。
-struct KeyDetailSheet: View {
+/// 鍵ごとの窓（`KeyWindow`）の中身。
+struct KeyDetailView: View {
     let model: KeyringModel
     let key: Key
     /// 先に読んだ署名（画像に書き出すとき。なければ開いてから裏で読む）。
     var preloaded: [Certification]?
-    /// 確認済みにする（未確認の他者の鍵のとき。このシートを閉じてから、確認のシートを出す）。
+    /// 確認済みにする（未確認の他者の鍵のとき。窓の上に確認のシートを出す）。
     var certify: ((Key) -> Void)?
-    @Environment(\.dismiss) private var dismiss
     @State private var loaded: [Certification]?
 
     var body: some View {
@@ -52,20 +52,15 @@ struct KeyDetailSheet: View {
             } header: {
                 Text(L("Keys")).font(.headline)
             }
-            HStack {
-                Spacer()
-                if let certify, key.canCertify {
-                    Button(L("Mark as Verified…")) {
-                        dismiss()
-                        certify(key)
-                    }
+            if let certify, key.canCertify {
+                HStack {
+                    Spacer()
+                    Button(L("Mark as Verified…")) { certify(key) }
                 }
-                Button(L("Close")) { dismiss() }
-                    .keyboardShortcut(.defaultAction)
             }
         }
         .padding(20)
-        .frame(width: 560)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .task {
             guard preloaded == nil else { return }
             let gpg = model.gpg
@@ -171,5 +166,65 @@ struct CertificationLines: View {
         if c.check == .bad { return L("This signature does not check out.") }
         if c.revoked { return L("You withdrew this signature.") }
         return c.exportable ? L("Published with the key") : L("Kept only in your keyring")
+    }
+}
+
+/// 鍵ごとの窓。フィンガープリントで開き、同じ鍵なら同じ窓を前に出す。鍵束から消えた鍵なら、そう出す。
+struct KeyWindow: View {
+    let model: KeyringModel
+    let fingerprint: String
+    @State private var certifying: Key?
+    @State private var notice: Notice?
+
+    var body: some View {
+        if let key = model.keyring.own(fingerprint)?.key
+            ?? model.keyring.others.first(where: { $0.fingerprint.caseInsensitiveCompare(fingerprint) == .orderedSame })
+        {
+            ScrollView {
+                KeyDetailView(model: model, key: key) { certifying = $0 }
+            }
+            .frame(minWidth: 520, minHeight: 360)
+            .navigationTitle(key.primaryUserId.map { UserIdParts($0.text).name } ?? key.fingerprint)
+            .sheet(item: Binding(get: { certifying.map(IdentifiedKey.init) }, set: { certifying = $0?.key })) { item in
+                CertifySheet(model: model, key: item.key) {
+                    let name = item.key.primaryUserId?.text ?? item.key.fingerprint
+                    notice = Notice(title: L("Marked as verified"), message: L("%@ is now verified in your keyring.", name))
+                }
+            }
+            .alert(item: $notice) { notice in
+                Alert(title: Text(notice.title), message: Text(notice.message))
+            }
+        } else {
+            ContentUnavailableView(L("This key is no longer in your keyring"), systemImage: "key.slash")
+                .frame(minWidth: 520, minHeight: 360)
+        }
+    }
+}
+
+/// 選んでいる鍵（メニューの「詳細を表示」で窓を開くため）。
+struct SelectedKeyFingerprint: FocusedValueKey {
+    typealias Value = String
+}
+
+extension FocusedValues {
+    var selectedKeyFingerprint: String? {
+        get { self[SelectedKeyFingerprint.self] }
+        set { self[SelectedKeyFingerprint.self] = newValue }
+    }
+}
+
+/// 「鍵」メニュー。選んでいる鍵の窓を ⌘I で開く。
+struct KeyCommands: Commands {
+    @FocusedValue(\.selectedKeyFingerprint) private var selected
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some Commands {
+        CommandMenu(L("Key")) {
+            Button(L("Show Details")) {
+                if let selected { openWindow(id: "key", value: selected) }
+            }
+            .keyboardShortcut("i")
+            .disabled(selected == nil)
+        }
     }
 }

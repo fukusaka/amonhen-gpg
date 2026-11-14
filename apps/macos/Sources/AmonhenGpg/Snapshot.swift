@@ -73,11 +73,13 @@ struct SheetPreview: View {
             }
         case .details:
             if let own {
-                KeyDetailSheet(model: model, key: own.key, preloaded: try? model.gpg.certifications(fingerprint: own.key.fingerprint))
+                KeyDetailView(model: model, key: own.key, preloaded: try? model.gpg.certifications(fingerprint: own.key.fingerprint))
+                    .frame(width: 560)
             }
         case .otherdetails:
             if let key = model.keyring.others.first {
-                KeyDetailSheet(model: model, key: key, preloaded: try? model.gpg.certifications(fingerprint: key.fingerprint))
+                KeyDetailView(model: model, key: key, preloaded: try? model.gpg.certifications(fingerprint: key.fingerprint))
+                    .frame(width: 560)
             }
         case .certify:
             if let key = model.keyring.others.first(where: \.canCertify) {
