@@ -17,9 +17,10 @@ let package = Package(
         .target(
             name: "AmonhenGpgKit",
             dependencies: ["CAmonhenGpg"],
+            // -l では同じ場所の動的ライブラリ（バインディングの生成に使う）が選ばれ、アプリが target/ を指してしまうので、
+            // 静的ライブラリをじかに渡す。
             linkerSettings: [
-                .unsafeFlags(["-L", coreLibDir]),
-                .linkedLibrary("amonhen_ffi"),
+                .unsafeFlags([coreLibDir + "/libamonhen_ffi.a"])
             ]
         ),
         .executableTarget(

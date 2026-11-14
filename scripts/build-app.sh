@@ -18,6 +18,11 @@ app="dist/$name.app"
 rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp "$bin" "$app/Contents/MacOS/AmonhenGpg"
+# ほかの Mac でも動くよう、OS のもの以外のライブラリを指していないか確かめる。
+if otool -L "$app/Contents/MacOS/AmonhenGpg" | tail -n +2 | grep -vE '^[[:space:]]+(/System/Library/|/usr/lib/)'; then
+    echo "the app links libraries outside the system (above)" >&2
+    exit 1
+fi
 # 画面の文字の訳（apps/macos/Sources/AmonhenGpg/Localization.swift は .app なら Resources から読む）。
 cp -R apps/macos/Localization/*.lproj "$app/Contents/Resources/"
 cat > "$app/Contents/Info.plist" <<PLIST
