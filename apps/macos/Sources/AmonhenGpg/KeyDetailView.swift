@@ -165,6 +165,46 @@ struct KeyDetailView: View {
     }
 }
 
+/// 表の行でスペースを押すと出る、鍵の一瞥（クイックルック）。照らし合わせるフィンガープリントと、有効性・期限。
+struct KeyQuickLook: View {
+    let key: Key
+    let showDetails: () -> Void
+
+    var body: some View {
+        let parts = key.primaryUserId.map { UserIdParts($0.text) }
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(parts?.name ?? key.fingerprint).font(.headline)
+                if let email = parts?.email { Text(email).foregroundStyle(.secondary) }
+            }
+            // 窓より狭いので、文字を少し小さく（大きいままだと 1 行目が収まらない）
+            FingerprintView(fingerprint: key.fingerprint, size: 20)
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 4) {
+                GridRow {
+                    Text(L("Validity")).foregroundStyle(.secondary)
+                    Text(validityWord(key.validity))
+                }
+                GridRow {
+                    Text(L("Expires")).foregroundStyle(.secondary)
+                    Text(key.expires.map { Date(timeIntervalSince1970: TimeInterval($0)).formatted(date: .abbreviated, time: .omitted) }
+                        ?? L("Never"))
+                }
+                GridRow {
+                    Text(L("Algorithm")).foregroundStyle(.secondary)
+                    Text(algorithmName(algorithm: key.algorithm, length: key.length, curve: key.curve))
+                }
+            }
+            .font(.callout)
+            HStack {
+                Spacer()
+                Button(L("Show Details"), action: showDetails)
+            }
+        }
+        .padding(16)
+        .frame(width: 420)
+    }
+}
+
 /// 秘密鍵の場所を言葉で。
 func secretWord(_ secret: SecretState) -> String {
     switch secret {
@@ -189,12 +229,15 @@ func validityWord(_ validity: Validity) -> String {
 /// 持ち主と声に出して照らし合わせるためのフィンガープリント。大きく 2 行に分ける（gpg の表示と同じ切れ目）。
 struct FingerprintView: View {
     let fingerprint: String
+    var size: CGFloat = 24
 
     var body: some View {
         Text(Fingerprint.lines(fingerprint))
-            .font(.system(size: 24, weight: .medium, design: .monospaced))
+            .font(.system(size: size, weight: .medium, design: .monospaced))
             .multilineTextAlignment(.center)
             .lineSpacing(4)
+            // 高さを詰められても（ポップオーバー）2 行のまま
+            .lineLimit(2, reservesSpace: true)
             .textSelection(.enabled)
             .padding(10)
             .frame(maxWidth: .infinity)

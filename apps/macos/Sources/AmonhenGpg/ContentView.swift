@@ -700,6 +700,8 @@ struct OthersView: View {
     @Environment(\.openWindow) private var openWindow
     @State private var deleting: Key?
     @State private var selection: KeyTableRow.ID?
+    /// スペースで覗いている行（クイックルック）。選ぶ行を変えると、ついていく。
+    @State private var peeking: KeyTableRow.ID?
     /// 行の並べ替えと、列の表示・並び・幅。次に開いたときも同じになるよう覚えておく。
     @State private var sortOrder = OthersTableSettings.sortOrder
     @State private var columns = OthersTableSettings.columns
@@ -748,7 +750,7 @@ struct OthersView: View {
         }
     }
 
-    /// 他者の鍵の表。どの列でも並べ替えられる。ダブルクリックで詳細、右クリックで操作。期限切れ・失効の鍵は薄く出す。
+    /// 他者の鍵の表。どの列でも並べ替えられる。ダブルクリックで詳細、スペースでクイックルック、右クリックで操作。期限切れ・失効の鍵は薄く出す。
     private func table(_ rows: [KeyTableRow]) -> some View {
         Table(rows, selection: $selection, sortOrder: $sortOrder, columnCustomization: $columns) {
             TableColumn(L("Name"), value: \.name) { row in
@@ -762,6 +764,15 @@ struct OthersView: View {
                     }
                 }
                 .dimmed(row.isInactive)
+                .popover(
+                    isPresented: Binding(get: { peeking == row.id }, set: { if !$0, peeking == row.id { peeking = nil } }),
+                    arrowEdge: .trailing
+                ) {
+                    KeyQuickLook(key: row.key) {
+                        peeking = nil
+                        openWindow(id: "key", value: row.key.fingerprint)
+                    }
+                }
             }
             .width(min: 90, ideal: 130)
             .customizationID("name")
@@ -823,6 +834,12 @@ struct OthersView: View {
             if let key = rows.first(where: { ids.contains($0.id) })?.key { openWindow(id: "key", value: key.fingerprint) }
         }
         .focusedSceneValue(\.selectedKeyFingerprint, selection)
+        .onKeyPress(.space) {
+            guard let selection else { return .ignored }
+            peeking = peeking == selection ? nil : selection
+            return .handled
+        }
+        .onChange(of: selection) { if peeking != nil { peeking = selection } }
         .onChange(of: sortOrder) { OthersTableSettings.sortOrder = sortOrder }
         .onChange(of: columns) { OthersTableSettings.columns = columns }
     }
