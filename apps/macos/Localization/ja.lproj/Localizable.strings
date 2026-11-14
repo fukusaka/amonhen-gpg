@@ -279,3 +279,6 @@
 "Name, email or fingerprint" = "名前、メールアドレス、フィンガープリント";
 "No Matching Keys" = "合う鍵がありません";
 "No key has a name, email address or fingerprint matching “%@”." = "名前・メールアドレス・フィンガープリントが「%@」に合う鍵はありません。";
+"Verification" = "確認";
+"Key ID" = "鍵 ID";
+"Algorithm" = "方式";

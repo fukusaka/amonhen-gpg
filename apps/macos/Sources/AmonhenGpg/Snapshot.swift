@@ -5,8 +5,8 @@ import SwiftUI
 /// 画面に出さないと描かれないので、画面に出して `screencapture` で撮る。初めは、起動したアプリ（端末など）に
 /// 「画面収録」の許可が要る。
 enum Snapshot {
-    /// 窓の中身の大きさ。
-    static let windowSize = CGSize(width: 960, height: 600)
+    /// 窓の中身の大きさ（窓の既定の大きさと同じ）。
+    static let windowSize = CGSize(width: 1100, height: 640)
 
     /// 窓が出て中身を並べ終えたころに撮り、`cleanup` を呼んで終わる。
     static func capture(to url: URL, cleanup: @escaping () -> Void) {

@@ -75,6 +75,8 @@ struct GpgApp: App {
                     .task { await model.reload() }
             }
         }
+        // 他者の鍵の表の列がすべて入る大きさ
+        .defaultSize(width: Snapshot.windowSize.width, height: Snapshot.windowSize.height)
         .windowResizability(options.sheet != nil && options.snapshot != nil ? .contentSize : .automatic)
     }
 }

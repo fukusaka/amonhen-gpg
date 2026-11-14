@@ -668,6 +668,8 @@ struct OthersView: View {
     @State private var certifying: Key?
     @State private var showing: Key?
     @State private var deleting: Key?
+    @State private var selection: KeyTableRow.ID?
+    @State private var sortOrder = [KeyPathComparator(\KeyTableRow.name)]
 
     var body: some View {
         list
@@ -705,44 +707,79 @@ struct OthersView: View {
                 Button(L("Import…"), action: importKeys)
             }
         } else {
-            List(keys, id: \.fingerprint) { key in
-                let parts = key.primaryUserId.map { UserIdParts($0.text) }
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 6) {
-                            Text(parts?.name ?? key.fingerprint).font(.headline)
-                            if let email = parts?.email {
-                                Text(email).foregroundStyle(.secondary)
-                            }
-                        }
-                        OtherUserIdLines(key: key)
-                        Text(Fingerprint.grouped(key.fingerprint))
-                            .font(.caption.monospaced())
-                            .foregroundStyle(.tertiary)
-                            .textSelection(.enabled)
+            table(keys.map(KeyTableRow.init).sorted(using: sortOrder))
+        }
+    }
+
+    /// 他者の鍵の表。どの列でも並べ替えられる。ダブルクリックで詳細、右クリックで操作。期限切れ・失効の鍵は薄く出す。
+    private func table(_ rows: [KeyTableRow]) -> some View {
+        Table(rows, selection: $selection, sortOrder: $sortOrder) {
+            TableColumn(L("Name"), value: \.name) { row in
+                HStack(spacing: 4) {
+                    Text(row.name).fontWeight(.medium)
+                    if !row.otherUserIds.isEmpty {
+                        Text(verbatim: "+\(row.otherUserIds.count)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .help(row.otherUserIds.map(\.text).joined(separator: "\n"))
                     }
-                    Spacer()
-                    Text(validityWord(key.validity)).foregroundStyle(.secondary)
-                    if key.canCertify {
-                        Button(L("Verify…")) { certifying = key }
+                }
+                .dimmed(row.isInactive)
+            }
+            .width(min: 90, ideal: 130)
+            TableColumn(L("Email"), value: \.email) { row in
+                Text(row.email).dimmed(row.isInactive)
+            }
+            .width(min: 120, ideal: 170)
+            TableColumn(L("Verification"), value: \.verificationOrder) { row in
+                HStack(spacing: 6) {
+                    Text(validityWord(row.key.validity)).foregroundStyle(.secondary)
+                    if row.key.canCertify {
+                        Button(L("Verify…")) { certifying = row.key }
+                            .buttonStyle(.bordered)
                             .controlSize(.small)
                     }
-                    Menu {
-                        menuItems(key)
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                    }
-                    .menuStyle(.borderlessButton)
-                    .menuIndicator(.hidden)
-                    .fixedSize()
                 }
-                .padding(.vertical, 4)
-                .listRowSeparator(.hidden)
-                .contentShape(Rectangle())
-                .simultaneousGesture(TapGesture(count: 2).onEnded { showing = key })
-                .contextMenu { menuItems(key) }
             }
+            .width(min: 130, ideal: 130)
+            TableColumn(L("Key ID"), value: \.keyId) { row in
+                Text(Fingerprint.grouped(row.keyId))
+                    .font(.callout.monospaced())
+                    .textSelection(.enabled)
+                    .dimmed(row.isInactive)
+            }
+            .width(min: 150, ideal: 150)
+            TableColumn(L("Created"), value: \.created) { row in
+                Text(shortDate(row.key.created) ?? "—").dimmed(row.isInactive)
+            }
+            .width(min: 80, ideal: 85)
+            TableColumn(L("Expires"), value: \.expires) { row in
+                Group {
+                    switch row.key.validity {
+                    case .revoked: Text(L("Revoked"))
+                    case .expired: Text(L("Expired"))
+                    default: Text(shortDate(row.key.expires) ?? L("Never"))
+                    }
+                }
+                .dimmed(row.isInactive)
+            }
+            .width(min: 80, ideal: 85)
+            TableColumn(L("Algorithm"), value: \.algorithm) { row in
+                Text(row.algorithm).dimmed(row.isInactive)
+            }
+            .width(min: 70, ideal: 75)
         }
+        .contextMenu(forSelectionType: KeyTableRow.ID.self) { ids in
+            if let key = rows.first(where: { ids.contains($0.id) })?.key {
+                menuItems(key)
+            }
+        } primaryAction: { ids in
+            showing = rows.first { ids.contains($0.id) }?.key
+        }
+    }
+
+    private func shortDate(_ seconds: UInt64?) -> String? {
+        seconds.map { Date(timeIntervalSince1970: TimeInterval($0)).formatted(date: .numeric, time: .omitted) }
     }
 
     @ViewBuilder private func menuItems(_ key: Key) -> some View {
@@ -820,5 +857,12 @@ struct NoSearchResults: View {
         } description: {
             Text(L("No key has a name, email address or fingerprint matching “%@”.", query))
         }
+    }
+}
+
+extension View {
+    /// もう使えない鍵（期限切れ・失効）の行を薄く出す。
+    func dimmed(_ dim: Bool) -> some View {
+        foregroundStyle(dim ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.primary))
     }
 }
