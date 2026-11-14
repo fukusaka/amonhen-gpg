@@ -1,4 +1,5 @@
-# ワークフローの action を新しい版に上げる PR を作る（SHA で固定しているので、自動では上がらない）。
+# ワークフローの action と Rust の crate を新しい版に上げる PR を作る（action は SHA で固定しているので、自動では
+# 上がらない）。脆弱性のある依存を直す PR は、リポジトリの設定（Dependabot security updates）で別に作られる。
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -10,4 +11,13 @@ updates:
       default-days: 7
     groups:
       actions:
+        patterns: ['*']
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      crates:
         patterns: ['*']
