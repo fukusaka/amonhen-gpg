@@ -1,5 +1,5 @@
 [package]
-name = "amonhen-ffi"
+name = "amonhen-gpg-ffi"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -16,7 +16,7 @@ path = "src/bin/uniffi-bindgen.rs"
 required-features = ["bindgen"]
 
 [dependencies]
-amonhen-core.workspace = true
+amonhen-gpg-core.workspace = true
 uniffi = "0.32.2"
 
 [features]

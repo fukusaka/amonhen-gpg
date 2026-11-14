@@ -1,5 +1,5 @@
 [package]
-name = "amonhen-core"
+name = "amonhen-gpg-core"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

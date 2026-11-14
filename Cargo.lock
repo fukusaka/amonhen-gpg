@@ -3,7 +3,7 @@
 version = 4
 
 [[package]]
-name = "amonhen-core"
+name = "amonhen-gpg-core"
 version = "0.1.0"
 dependencies = [
  "libc",
@@ -12,10 +12,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "amonhen-ffi"
+name = "amonhen-gpg-ffi"
 version = "0.1.0"
 dependencies = [
- "amonhen-core",
+ "amonhen-gpg-core",
  "uniffi",
 ]
 

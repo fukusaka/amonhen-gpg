@@ -20,7 +20,7 @@ let package = Package(
             // -l では同じ場所の動的ライブラリ（バインディングの生成に使う）が選ばれ、アプリが target/ を指してしまうので、
             // 静的ライブラリをじかに渡す。
             linkerSettings: [
-                .unsafeFlags([coreLibDir + "/libamonhen_ffi.a"])
+                .unsafeFlags([coreLibDir + "/libamonhen_gpg_ffi.a"])
             ]
         ),
         .executableTarget(

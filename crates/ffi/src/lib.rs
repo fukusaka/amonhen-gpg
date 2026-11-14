@@ -9,8 +9,8 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use amonhen_core::status::Failure;
-use amonhen_core::{
+use amonhen_gpg_core::status::Failure;
+use amonhen_gpg_core::{
     Availability, Capabilities, Card, Certification, Expiry, GenerateKey, ImportResult,
     ImportedKey, Key, KeyStatus, OwnerTrust, RevocationReason, SecretState, SignatureCheck,
     SshControl, SshKey, SshSupport, Subkey, Tier, UserId, Validity, Version,
@@ -255,7 +255,7 @@ pub struct Failure {
     pub code: u32,
 }
 
-/// コアのエラー（`amonhen_core::Error`）。文言は FE が決めるので、種類と材料だけを渡す。
+/// コアのエラー（`amonhen_gpg_core::Error`）。文言は FE が決めるので、種類と材料だけを渡す。
 #[derive(Debug, uniffi::Error)]
 pub enum GpgError {
     /// gpg などを起動できなかった。
@@ -300,9 +300,9 @@ impl std::fmt::Display for GpgError {
 
 impl std::error::Error for GpgError {}
 
-impl From<amonhen_core::Error> for GpgError {
-    fn from(error: amonhen_core::Error) -> Self {
-        use amonhen_core::Error as E;
+impl From<amonhen_gpg_core::Error> for GpgError {
+    fn from(error: amonhen_gpg_core::Error) -> Self {
+        use amonhen_gpg_core::Error as E;
         match error {
             E::Spawn { program, source } => GpgError::Spawn {
                 program,
@@ -375,11 +375,11 @@ pub fn ssh_key_enabled(key: &SshKey) -> bool {
 /// 使う gpg と鍵の置き場所。
 #[derive(uniffi::Object)]
 pub struct Gpg {
-    inner: amonhen_core::Gpg,
+    inner: amonhen_gpg_core::Gpg,
 }
 
 impl Gpg {
-    fn wrap(inner: amonhen_core::Gpg) -> Arc<Self> {
+    fn wrap(inner: amonhen_gpg_core::Gpg) -> Arc<Self> {
         Arc::new(Gpg { inner })
     }
 }
@@ -389,7 +389,7 @@ impl Gpg {
     /// `program` は gpg の実行ファイル（`None` なら `PATH` の gpg）、`homedir` は鍵の置き場所（`None` なら既定）。
     #[uniffi::constructor]
     pub fn new(program: Option<String>, homedir: Option<String>) -> Arc<Self> {
-        let mut gpg = amonhen_core::Gpg::new();
+        let mut gpg = amonhen_gpg_core::Gpg::new();
         if let Some(program) = program {
             gpg = gpg.with_program(program);
         }

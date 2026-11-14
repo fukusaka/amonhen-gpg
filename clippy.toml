@@ -1,5 +1,5 @@
-# 子プロセスは amonhen_core::process::command で起動する。Windows でコンソールの窓を出さず、Unix では子の
+# 子プロセスは amonhen_gpg_core::process::command で起動する。Windows でコンソールの窓を出さず、Unix では子の
 # シグナルマスクを空にする。
 disallowed-methods = [
-    { path = "std::process::Command::new", reason = "use amonhen_core::process::command (no console window on Windows, empty signal mask on Unix)" },
+    { path = "std::process::Command::new", reason = "use amonhen_gpg_core::process::command (no console window on Windows, empty signal mask on Unix)" },
 ]

@@ -4,8 +4,8 @@
 use std::path::Path;
 use std::process::Stdio;
 
-use amonhen_core::process::command;
-use amonhen_core::{Capabilities, Error, Expiry, GenerateKey, Gpg, SecretState, Validity};
+use amonhen_gpg_core::process::command;
+use amonhen_gpg_core::{Capabilities, Error, Expiry, GenerateKey, Gpg, SecretState, Validity};
 
 struct Home {
     dir: tempfile::TempDir,
@@ -226,7 +226,7 @@ fn bad_requests_are_rejected() {
 
 #[test]
 fn own_keys_show_keys_and_revocation_certificates() {
-    use amonhen_core::{Availability, Tier};
+    use amonhen_gpg_core::{Availability, Tier};
 
     let Some(home) = Home::new() else {
         eprintln!("gpg not found; skipped");
@@ -529,7 +529,7 @@ fn test_keyserver_sends_and_receives() {
 
 #[test]
 fn edit_own_key() {
-    use amonhen_core::{OwnerTrust, RevocationReason, Tier};
+    use amonhen_gpg_core::{OwnerTrust, RevocationReason, Tier};
 
     let Some(home) = Home::new() else {
         eprintln!("gpg not found; skipped");
@@ -666,7 +666,7 @@ fn sign_others_key() {
     assert_eq!(certs.len(), 2, "{certs:?}");
     for c in &certs {
         assert_eq!(c.signer_fingerprint.as_deref(), Some(me.as_str()));
-        assert_eq!(c.check, amonhen_core::SignatureCheck::Good);
+        assert_eq!(c.check, amonhen_gpg_core::SignatureCheck::Good);
         assert!(
             c.signer_user_id
                 .as_deref()
@@ -714,7 +714,7 @@ fn send_keys_to_a_keyserver() {
 
 #[test]
 fn ssh_keys_through_gpg_agent() {
-    use amonhen_core::SshControl;
+    use amonhen_gpg_core::SshControl;
 
     let Some(home) = Home::new() else {
         eprintln!("gpg not found; skipped");
@@ -860,7 +860,7 @@ fn passphrases_through_pinentry() {
     let backup = gpg.export_secret_key(&fpr, true).unwrap();
 
     // 失効証明書（`--batch` を外して動かす）
-    use amonhen_core::RevocationReason::Unspecified;
+    use amonhen_gpg_core::RevocationReason::Unspecified;
     home.answer(None);
     assert!(matches!(
         gpg.generate_revocation_certificate(&fpr, Unspecified, ""),
