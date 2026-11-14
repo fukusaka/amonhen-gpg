@@ -724,7 +724,12 @@ fn ssh_keys_through_gpg_agent() {
     let support = gpg.ssh_support().unwrap();
     assert!(!support.enabled);
     let socket = support.socket.unwrap();
-    assert!(socket.starts_with(home.path()));
+    // ふだんの鍵束のソケットではないこと。macOS は homedir の中、Linux は /run/user/<uid>/gnupg/d.<homedir のハッシュ>/ に置く。
+    let hashed = socket
+        .parent()
+        .and_then(|dir| dir.file_name())
+        .is_some_and(|name| name.to_string_lossy().starts_with("d."));
+    assert!(socket.starts_with(home.path()) || hashed, "{socket:?}");
 
     let fpr = gpg.generate_key(&alice()).unwrap();
     let auth = gpg
