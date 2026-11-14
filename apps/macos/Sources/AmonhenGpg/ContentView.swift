@@ -27,6 +27,8 @@ struct ContentView: View {
     let model: KeyringModel
     let staging: StagingModel
     @State var place: Place = .mine
+    /// 一覧の検索の語（自分の鍵と他者の鍵。一時保管には鍵サーバーを探す欄が別にあるので使わない）。
+    @State var query = ""
     /// 使えた鍵（履歴）を開いておくか。
     var showsHistory = false
     @State private var creating = false
@@ -61,7 +63,7 @@ struct ContentView: View {
                     switch place {
                     case .mine:
                         OwnKeysView(
-                            model: model, showsHistory: showsHistory,
+                            model: model, query: query, showsHistory: showsHistory,
                             actions: OwnKeyActions(
                                 notify: { notice = $0 }, revoked: { revoked = $0 }, userIdsChanged: { userIdsChanged = $0 },
                                 backUp: backUp,
@@ -70,7 +72,10 @@ struct ContentView: View {
                                 copySshPublicKey: copySshPublicKey, exportSshPublicKey: exportSshPublicKey,
                                 createRevocationCertificate: createRevocationCertificate),
                             create: { creating = true }, importKeys: importKeys)
-                    case .others: OthersView(model: model, importKeys: importKeys, notify: { notice = $0 })
+                        .searchable(text: $query, placement: .toolbar, prompt: L("Name, email or fingerprint"))
+                    case .others:
+                        OthersView(model: model, query: query, importKeys: importKeys, notify: { notice = $0 })
+                            .searchable(text: $query, placement: .toolbar, prompt: L("Name, email or fingerprint"))
                     case .staging: StagingView(model: staging)
                     }
                 }
@@ -390,6 +395,8 @@ extension Notice {
 
 struct OwnKeysView: View {
     let model: KeyringModel
+    /// 検索の語。空でなければ、合う鍵だけを出し、SSH の段は隠して、使えた鍵の段は開く。
+    var query = ""
     @State var showsHistory = false
     /// 行の操作（期限の延長は、ここでシートを出す）。
     var actions = OwnKeyActions()
@@ -431,9 +438,12 @@ struct OwnKeysView: View {
     }
 
     @ViewBuilder private var list: some View {
-        let keyring = model.keyring
+        let searching = !query.trimmingCharacters(in: .whitespaces).isEmpty
+        let keyring = model.keyring.filtered(by: query)
         let now = UInt64(Date().timeIntervalSince1970)
-        if keyring.usable.isEmpty && keyring.notOnThisDevice.isEmpty && keyring.history.isEmpty {
+        if searching && keyring.usable.isEmpty && keyring.notOnThisDevice.isEmpty && keyring.history.isEmpty {
+            NoSearchResults(query: query)
+        } else if keyring.usable.isEmpty && keyring.notOnThisDevice.isEmpty && keyring.history.isEmpty {
             ContentUnavailableView {
                 Label(L("No keys of your own"), systemImage: "key")
             } description: {
@@ -456,10 +466,12 @@ struct OwnKeysView: View {
                         ForEach(keyring.notOnThisDevice) { OwnKeyRow(own: $0, now: now, actions: rowActions) }
                     }
                 }
-                SshSection(model: model, notify: actions.notify)
+                if !searching {
+                    SshSection(model: model, notify: actions.notify)
+                }
                 if !keyring.history.isEmpty {
                     Section {
-                        DisclosureGroup(isExpanded: $showsHistory) {
+                        DisclosureGroup(isExpanded: searching ? .constant(true) : $showsHistory) {
                             ForEach(keyring.history) { OwnKeyRow(own: $0, now: now, actions: rowActions) }
                         } label: {
                             Text(L("Used before (%ld)", keyring.history.count))
@@ -649,6 +661,8 @@ struct UsageLabel: View {
 
 struct OthersView: View {
     let model: KeyringModel
+    /// 検索の語。空でなければ、合う鍵だけを出す。
+    var query = ""
     var importKeys: () -> Void = {}
     var notify: (Notice) -> Void = { _ in }
     @State private var certifying: Key?
@@ -679,8 +693,10 @@ struct OthersView: View {
     }
 
     @ViewBuilder private var list: some View {
-        let keys = model.keyring.others
-        if keys.isEmpty {
+        let keys = model.keyring.filtered(by: query).others
+        if keys.isEmpty, !query.trimmingCharacters(in: .whitespaces).isEmpty {
+            NoSearchResults(query: query)
+        } else if keys.isEmpty {
             ContentUnavailableView {
                 Label(L("No keys from others"), systemImage: "person.2")
             } description: {
@@ -790,6 +806,19 @@ struct OtherUserIdLines: View {
                 .strikethrough(revoked)
                 .foregroundStyle(revoked ? .tertiary : .secondary)
                 .help(revoked ? L("Revoked") : "")
+        }
+    }
+}
+
+/// 検索に合う鍵がないとき。システムの `ContentUnavailableView.search` はアプリの訳を使わないので、自分で出す。
+struct NoSearchResults: View {
+    let query: String
+
+    var body: some View {
+        ContentUnavailableView {
+            Label(L("No Matching Keys"), systemImage: "magnifyingglass")
+        } description: {
+            Text(L("No key has a name, email address or fingerprint matching “%@”.", query))
         }
     }
 }
