@@ -14,10 +14,13 @@ case "$mode" in
 stable)
     name="Amonhen GPG"
     bundle_id="io.github.fukusaka.amonhen.gpg"
+    icon="AppIcon"
     ;;
 snapshot)
     name="Amonhen GPG Snapshot"
     bundle_id="io.github.fukusaka.amonhen.gpg.snapshot"
+    # 右下にオレンジの帯のあるアイコン（正式版と見分ける）。
+    icon="AppIcon-Snapshot"
     ;;
 *)
     echo "usage: $0 [stable|snapshot]" >&2
@@ -48,6 +51,8 @@ if [ "$built_sdk" != "$(xcrun --sdk macosx --show-sdk-version)" ]; then
 fi
 # 画面の文字の訳（apps/macos/Sources/AmonhenGpg/Localization.swift は .app なら Resources から読む）。
 cp -R apps/macos/Localization/*.lproj "$app/Contents/Resources/"
+# アイコン（scripts/make-icon.swift で描く）。
+cp "apps/macos/Icons/$icon.icns" "$app/Contents/Resources/AppIcon.icns"
 cat > "$app/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -57,6 +62,7 @@ cat > "$app/Contents/Info.plist" <<PLIST
     <key>CFBundleDisplayName</key><string>$name</string>
     <key>CFBundleIdentifier</key><string>$bundle_id</string>
     <key>CFBundleExecutable</key><string>AmonhenGpg</string>
+    <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleDevelopmentRegion</key><string>en</string>
     <key>CFBundleLocalizations</key><array><string>en</string><string>ja</string></array>
