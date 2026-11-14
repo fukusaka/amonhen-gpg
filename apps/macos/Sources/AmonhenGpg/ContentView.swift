@@ -29,6 +29,8 @@ struct ContentView: View {
     @State var place: Place = .mine
     /// 一覧の検索の語（自分の鍵と他者の鍵。一時保管には鍵サーバーを探す欄が別にあるので使わない）。
     @State var query = ""
+    /// 他者の鍵を、確認の状態で絞り込む（次に開いたときも同じ）。
+    @AppStorage("OthersFilter") private var othersFilter = KeyFilter.all
     /// 使えた鍵（履歴）を開いておくか。
     var showsHistory = false
     @State private var creating = false
@@ -52,6 +54,7 @@ struct ContentView: View {
         NavigationSplitView {
             List(Place.allCases, id: \.self, selection: $place) { place in
                 Label(place.title, systemImage: place.symbol)
+                    .badge(count(place))
             }
             .navigationSplitViewColumnWidth(min: 160, ideal: 180)
         } detail: {
@@ -74,7 +77,9 @@ struct ContentView: View {
                             create: { creating = true }, importKeys: importKeys)
                         .searchable(text: $query, placement: .toolbar, prompt: L("Name, email or fingerprint"))
                     case .others:
-                        OthersView(model: model, query: query, importKeys: importKeys, notify: { notice = $0 })
+                        OthersView(
+                            model: model, query: query, filter: othersFilter, importKeys: importKeys, notify: { notice = $0 },
+                            showAll: { othersFilter = .all })
                             .searchable(text: $query, placement: .toolbar, prompt: L("Name, email or fingerprint"))
                     case .staging: StagingView(model: staging)
                     }
@@ -89,6 +94,20 @@ struct ContentView: View {
                         Label(L("New Key…"), systemImage: "plus")
                     }
                     .help(L("New Key…"))
+                }
+                if place == .others {
+                    Menu {
+                        Picker(L("Show"), selection: $othersFilter) {
+                            ForEach(KeyFilter.allCases, id: \.self) { Text($0.title).tag($0) }
+                        }
+                        .pickerStyle(.inline)
+                    } label: {
+                        Label(
+                            L("Filter"),
+                            systemImage: othersFilter == .all
+                                ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+                    }
+                    .help(othersFilter == .all ? L("Filter") : othersFilter.title)
                 }
                 if place != .staging {
                     Button(action: importKeys) {
@@ -185,6 +204,15 @@ struct ContentView: View {
     }
 
     /// 鍵のファイルを選ばせ、取り込む。秘密鍵を含むときはパスフレーズを gpg が聞く。
+    /// サイドバーに出す鍵の数（一時保管は出さない）。
+    private func count(_ place: Place) -> Int {
+        switch place {
+        case .mine: model.keyring.usable.count + model.keyring.notOnThisDevice.count + model.keyring.history.count
+        case .others: model.keyring.others.count
+        case .staging: 0
+        }
+    }
+
     private func importKeys() {
         let panel = NSOpenPanel()
         panel.title = L("Import Keys")
@@ -663,8 +691,12 @@ struct OthersView: View {
     let model: KeyringModel
     /// 検索の語。空でなければ、合う鍵だけを出す。
     var query = ""
+    /// 確認の状態での絞り込み。
+    var filter = KeyFilter.all
     var importKeys: () -> Void = {}
     var notify: (Notice) -> Void = { _ in }
+    /// 絞り込みを外す（絞り込んで 1 つもないとき）。
+    var showAll: () -> Void = {}
     @State private var certifying: Key?
     @State private var showing: Key?
     @State private var deleting: Key?
@@ -697,9 +729,16 @@ struct OthersView: View {
     }
 
     @ViewBuilder private var list: some View {
-        let keys = model.keyring.filtered(by: query).others
-        if keys.isEmpty, !query.trimmingCharacters(in: .whitespaces).isEmpty {
+        let found = model.keyring.filtered(by: query).others
+        let keys = found.filter(filter.includes)
+        if keys.isEmpty, !query.trimmingCharacters(in: .whitespaces).isEmpty, filter == .all || found.isEmpty {
             NoSearchResults(query: query)
+        } else if keys.isEmpty, filter != .all, !found.isEmpty || !model.keyring.others.isEmpty {
+            ContentUnavailableView {
+                Label(L("No %@ Keys", filter.title), systemImage: "line.3.horizontal.decrease.circle")
+            } actions: {
+                Button(L("Show All"), action: showAll)
+            }
         } else if keys.isEmpty {
             ContentUnavailableView {
                 Label(L("No keys from others"), systemImage: "person.2")
@@ -921,6 +960,18 @@ enum OthersTableSettings {
         }
         set {
             UserDefaults.standard.set(try? JSONEncoder().encode(newValue), forKey: columnsKey)
+        }
+    }
+}
+
+extension KeyFilter {
+    /// フィルターのメニューに出す名前。
+    var title: String {
+        switch self {
+        case .all: L("All")
+        case .verified: L("Verified")
+        case .unverified: L("Not verified")
+        case .inactive: L("Expired or Revoked")
         }
     }
 }

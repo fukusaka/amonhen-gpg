@@ -282,3 +282,9 @@
 "Verification" = "確認";
 "Key ID" = "鍵 ID";
 "Algorithm" = "方式";
+"Show" = "表示";
+"Filter" = "絞り込み";
+"All" = "すべて";
+"Expired or Revoked" = "期限切れ・失効";
+"No %@ Keys" = "「%@」の鍵はありません";
+"Show All" = "すべて表示";
