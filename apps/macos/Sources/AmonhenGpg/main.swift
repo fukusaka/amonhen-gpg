@@ -8,7 +8,7 @@ import SwiftUI
 /// - `--snapshot <file.png>`: 窓を開いて、その窓を画像に撮って終わる（見た目の確認用。使えた鍵は開いておく。初めは
 ///   起動したアプリに「画面収録」の許可が要る）
 /// - `--place mine|others|staging`: 開く場所（撮らずに開くときも効く）
-/// - `--sheet extend|create|revoke|certify|details|detailnames|detailkeys|otherdetails|delete|userids`: 一覧の代わりに、シートの中身を撮る（最初の自分の鍵で）
+/// - `--sheet extend|create|revoke|certify|details|detailnames|detailkeys|detailsignatures|otherdetails|delete|userids`: 一覧の代わりに、シートの中身を撮る（最初の自分の鍵で）
 /// - `--appearance light|dark`: 見た目を決める（既定はシステムの設定）
 /// - `--search <text>`: 一覧の検索欄にこの語を入れておく（撮らずに開くときも効く）
 /// - `--stage <file>`: 鍵のファイルを一時保管に入れてから書き出す（一時保管の見た目の確認用）

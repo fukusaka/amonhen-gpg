@@ -3,10 +3,11 @@ import SwiftUI
 
 /// 鍵の詳細。鍵ごとの窓（`KeyWindow`）の中身。上にフィンガープリントを出し、その下をタブに分ける。
 /// - 概要: 鍵 ID・有効性・期限・方式、自分の鍵なら秘密鍵の場所・バックアップ・失効証明書・SSH。
-/// - 名前とメール: UID ごとの有効性と、自分の鍵でいつ確認したか（署名）。ほかの人の署名は、知らない人のものは本物の保証にならないので数だけ。
+/// - 名前とメール: UID ごとの有効性。
+/// - 署名: 自分の鍵か自分が確認済みにした鍵による署名と、そのほかの署名（知らない人のものは本物の保証にならないので、分けて薄く出す）。
 /// - 鍵: 主鍵・サブ鍵ごとの方式・用途・期限・フィンガープリント・keygrip・秘密鍵の場所（一覧では主鍵とサブ鍵の違いを出さないので）。
 struct KeyDetailView: View {
-    enum Tab: String { case overview, names, keys }
+    enum Tab: String { case overview, names, keys, signatures }
 
     let model: KeyringModel
     let key: Key
@@ -33,9 +34,11 @@ struct KeyDetailView: View {
                 scrolling { overview }
                     .tabItem { Text(L("Overview")) }.tag(Tab.overview)
                 scrolling { names }
-                    .tabItem { Text(L("Names and addresses")) }.tag(Tab.names)
+                    .tabItem { Text(L("Names")) }.tag(Tab.names)
                 scrolling { keys }
                     .tabItem { Text(L("Keys")) }.tag(Tab.keys)
+                scrolling { signatures }
+                    .tabItem { Text(L("Signatures")) }.tag(Tab.signatures)
             }
         }
         .padding(20)
@@ -87,19 +90,30 @@ struct KeyDetailView: View {
     // MARK: 名前とメール
 
     private var names: some View {
-        let certifications = preloaded ?? loaded ?? []
-        return VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 12) {
             ForEach(Array(key.userIds.filter { !$0.attribute }.enumerated()), id: \.offset) { _, uid in
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text(uid.text)
-                            .strikethrough(uid.validity == .revoked)
-                            .textSelection(.enabled)
-                        Spacer()
-                        Text(validityWord(uid.validity)).foregroundStyle(.secondary)
-                    }
-                    CertificationLines(split: model.keyring.certifications(certifications, for: uid))
+                HStack {
+                    Text(uid.text)
+                        .strikethrough(uid.validity == .revoked)
+                        .textSelection(.enabled)
+                    Spacer()
+                    Text(validityWord(uid.validity)).foregroundStyle(.secondary)
                 }
+            }
+        }
+    }
+
+    // MARK: 署名
+
+    private var signatures: some View {
+        let groups = model.keyring.signatures(preloaded ?? loaded ?? [], on: key)
+        return Group {
+            if preloaded == nil, loaded == nil {
+                ProgressView().controlSize(.small)
+            } else if groups.trusted.isEmpty, groups.others.isEmpty {
+                Text(L("No signatures from other keys.")).foregroundStyle(.secondary)
+            } else {
+                SignatureGrid(trusted: groups.trusted, others: groups.others)
             }
         }
     }
@@ -245,44 +259,91 @@ struct FingerprintView: View {
     }
 }
 
-/// UID の下に出す署名。自分の鍵の署名は 1 つずつ（どの鍵で・いつ・公開するか）、ほかの人の署名は数だけ。
-struct CertificationLines: View {
-    let split: UserIdCertifications
+/// 署名の表。確認済みの鍵からの署名と、そのほか（薄く出す）を、列を揃えて 1 つの表に。
+/// 列は署名した人・どの名前とメールに・確かめた結果・日付・公開するか。取り消された署名には線を引く。
+struct SignatureGrid: View {
+    let trusted: [SignatureRow]
+    let others: [SignatureRow]
 
     var body: some View {
-        ForEach(Array(split.mine.enumerated()), id: \.offset) { _, c in
-            Label {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(L("Verified with your key %@ on %@", signer(c), date(c)))
-                        .strikethrough(c.revoked)
-                    Text(note(c)).foregroundStyle(c.check == .bad ? .orange : .secondary)
+        Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 6) {
+            GridRow {
+                Label {
+                    Text(L("From keys you verified"))
+                } icon: {
+                    Image(systemName: "checkmark.seal.fill").foregroundStyle(.green)
                 }
-            } icon: {
-                Image(systemName: c.revoked || c.check == .bad ? "xmark.seal" : "checkmark.seal.fill")
-                    .foregroundStyle(c.revoked || c.check == .bad ? Color.secondary : Color.green)
+                .font(.headline)
+                .gridCellColumns(5)
             }
-            .font(.callout)
+            columnHeads
+            if trusted.isEmpty {
+                GridRow { Text(L("None.")).foregroundStyle(.secondary).gridCellColumns(5) }
+            }
+            ForEach(trusted) { row($0) }
+            if !others.isEmpty {
+                GridRow {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(L("Other signatures (%ld)", others.count)).font(.headline)
+                        Text(L("These are from people you haven't verified. They aren't proof that the key is genuine."))
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.top, 14)
+                    .gridCellColumns(5)
+                }
+                columnHeads
+                ForEach(others) { row($0).foregroundStyle(.secondary) }
+            }
         }
-        if !split.others.isEmpty {
-            Text(L("Signed by %ld other people", split.others.count))
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .help(split.others.map(signer).joined(separator: "\n"))
+        .font(.callout)
+    }
+
+    private var columnHeads: some View {
+        GridRow {
+            Text(L("Signed by"))
+            Text(L("Name and address"))
+            Text(L("Result"))
+            Text(L("Date"))
+            Text(L("Kind"))
+        }
+        .foregroundStyle(.secondary)
+    }
+
+    private func row(_ row: SignatureRow) -> some View {
+        let c = row.certification
+        return GridRow {
+            signer(row)
+                .strikethrough(c.revoked)
+                .help(c.signerFingerprint.map(Fingerprint.grouped) ?? Fingerprint.grouped(c.signerKeyId))
+            Text(UserIdParts(c.userId).email ?? c.userId)
+                .lineLimit(1)
+                .help(c.userId)
+            Text(result(c)).foregroundStyle(c.check == .bad ? AnyShapeStyle(.orange) : AnyShapeStyle(.foreground))
+            Text(c.created.map { Date(timeIntervalSince1970: TimeInterval($0)).formatted(date: .numeric, time: .omitted) } ?? "—")
+            Text(c.exportable ? L("Published") : L("Local only"))
         }
     }
 
-    private func signer(_ c: Certification) -> String {
-        c.signerUserId.map { UserIdParts($0).name } ?? c.signerKeyId
+    @ViewBuilder private func signer(_ row: SignatureRow) -> some View {
+        if let name = row.signerName {
+            Text(row.byYou ? L("%@ (you)", name) : name).lineLimit(1)
+        } else {
+            // 鍵束にない鍵は名前が分からないので、鍵 ID だけ
+            HStack(spacing: 4) {
+                Text(L("Key ID"))
+                Text(Fingerprint.grouped(row.certification.signerKeyId)).monospaced()
+            }
+            .lineLimit(1)
+        }
     }
 
-    private func date(_ c: Certification) -> String {
-        c.created.map { Date(timeIntervalSince1970: TimeInterval($0)).formatted(date: .long, time: .omitted) } ?? "—"
-    }
-
-    private func note(_ c: Certification) -> String {
-        if c.check == .bad { return L("This signature does not check out.") }
-        if c.revoked { return L("You withdrew this signature.") }
-        return c.exportable ? L("Published with the key") : L("Kept only in your keyring")
+    private func result(_ c: Certification) -> String {
+        if c.revoked { return L("Withdrawn") }
+        switch c.check {
+        case .good: return L("Good")
+        case .bad: return L("Does not check out")
+        default: return L("Can't check")
+        }
     }
 }
 

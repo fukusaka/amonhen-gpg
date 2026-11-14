@@ -179,7 +179,6 @@
 "The key is verified only in your keyring. Nothing is published." = "確認済みになるのは自分の鍵束の中だけで、何も公開されません。";
 "Marked as verified" = "確認済みにしました";
 "Details…" = "詳細…";
-"Names and addresses" = "名前とメールアドレス";
 "Keys" = "鍵";
 "Key" = "鍵";
 "Use" = "用途";
@@ -270,12 +269,6 @@
 "To log in with it, gpg-agent must also offer this key to ssh. It does not yet: the row does not show SSH ✓." = "これでログインするには、gpg-agent がこの鍵を ssh に出している必要もあります。いまは出していません（行に「SSH ✓」がありません）。";
 
 /* 誰が確認したか */
-"Verified with your key %@ on %@" = "あなたの鍵（%1$@）で %2$@に確認";
-"Signed by %ld other people" = "ほかに %ld 人の署名があります";
-"This signature does not check out." = "この署名は正しくありません。";
-"You withdrew this signature." = "この署名は取り消しました。";
-"Published with the key" = "鍵と一緒に公開する署名";
-"Kept only in your keyring" = "書き出さない署名（自分の鍵束だけ）";
 "Name, email or fingerprint" = "名前、メールアドレス、フィンガープリント";
 "No Matching Keys" = "合う鍵がありません";
 "No key has a name, email address or fingerprint matching “%@”." = "名前・メールアドレス・フィンガープリントが「%@」に合う鍵はありません。";
@@ -306,3 +299,22 @@
 "Not in your keyring" = "鍵束にない";
 "Stored elsewhere" = "別の場所に移してある";
 "On smart card %@" = "スマートカード（%@）";
+"Signatures" = "署名";
+"No signatures from other keys." = "ほかの鍵による署名はありません。";
+"From keys you verified" = "あなたが確認済みにした鍵からの署名";
+"None." = "ありません。";
+"Other signatures (%ld)" = "そのほかの署名（%ld）";
+"These are from people you haven't verified. They aren't proof that the key is genuine." = "あなたが確かめていない人の署名です。本物の保証にはなりません。";
+"Signed by" = "署名した人";
+"Name and address" = "名前とメール";
+"Result" = "結果";
+"Date" = "日付";
+"Kind" = "種類";
+"Published" = "公開";
+"Local only" = "手元だけ";
+"%@ (you)" = "%@（あなた）";
+"Withdrawn" = "取り消し済み";
+"Good" = "正しい";
+"Does not check out" = "正しくない";
+"Can't check" = "確かめられない";
+"Names" = "名前とメール";

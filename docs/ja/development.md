@@ -49,7 +49,7 @@ scripts/snapshots.sh [dist/snapshots] [light|dark]
 ```
 
 起動の引数: `--homedir <dir>`、`--gpg <path>`、`--keyserver <url>`、`--snapshot <file.png>`（窓を撮って終わる）、
-`--place mine|others|staging`、`--sheet extend|create|revoke|certify|details|detailnames|detailkeys|otherdetails|delete|userids`、
+`--place mine|others|staging`、`--sheet extend|create|revoke|certify|details|detailnames|detailkeys|detailsignatures|otherdetails|delete|userids`、
 `--stage <file>`（先に鍵のファイルを一時保管に入れる）、`--appearance light|dark`、`--search <text>`（検索欄に入れておく）。
 `--place`・`--search`・`--appearance` は `--snapshot` なしでも効く。窓を開いて、ほかの方法で操作して撮るため
 （`screencapture` には画面収録の許可が要り、ssh からのセッションにはない）。
