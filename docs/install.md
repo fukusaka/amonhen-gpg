@@ -5,12 +5,12 @@
 Everything is on the [Releases](https://github.com/fukusaka/amonhen-gpg/releases) page. There are two kinds of
 release:
 
-- **Stable** releases, tagged `v<version>`. None yet.
+- **Stable** releases, tagged `v<version>`. The latest is marked Latest.
 - **Snapshot**: the latest development build, updated whenever the code passes its tests.
 
 > [!NOTE]
-> Stable releases will open without a security warning on macOS. Snapshots are signed but not notarized: install them
-> with the script below, or allow them once in System Settings > Privacy & Security after downloading.
+> Stable releases are notarized and open without a security warning on macOS. Snapshots are signed but not notarized:
+> install them with the script below, or allow them once in System Settings > Privacy & Security after downloading.
 
 ## GnuPG
 
@@ -38,14 +38,14 @@ This script finds the latest release, downloads it and installs it (or replaces 
 `curl`:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/fukusaka/amonhen-gpg/main/scripts/install-app.sh | sh -s -- snapshot
+curl -fsSL https://raw.githubusercontent.com/fukusaka/amonhen-gpg/main/scripts/install-app.sh | sh -s -- stable
 ```
 
-Replace `snapshot` with `stable` for a stable release, once there is one. Run the same line again to update. If the
+Replace `stable` with `snapshot` for the latest development build. Run the same line again to update. If the
 app is open while you update it, the script tells you, and the new version is used the next time you open the app.
 Downloaded this way, the app carries no quarantine flag, so macOS opens it without asking.
 
-The app goes into `/Applications`. Add `--user` (`sh -s -- --user snapshot`) to put it in your own Applications folder
+The app goes into `/Applications`. Add `--user` (`sh -s -- --user stable`) to put it in your own Applications folder
 (`~/Applications`) instead, `--system` for `/Applications`, or `--dir <folder>` for any folder (created if missing).
 Without any of them, an update replaces the app where it is already installed.
 

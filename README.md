@@ -1,6 +1,7 @@
 <h1><img src="docs/images/banner.png" alt="Amonhen GPG"></h1>
 
 [![CI](https://github.com/fukusaka/amonhen-gpg/actions/workflows/ci.yml/badge.svg)](https://github.com/fukusaka/amonhen-gpg/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/fukusaka/amonhen-gpg)](https://github.com/fukusaka/amonhen-gpg/releases/latest)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](#license)
 
 [日本語](README.ja.md)
@@ -35,12 +36,12 @@ and log in with, and where (this Mac or a smart card), and warns before a key ex
 On a Mac (macOS 14.4 or later, Apple silicon), with GnuPG 2.4.1 or later (`brew install gnupg pinentry-mac`):
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/fukusaka/amonhen-gpg/main/scripts/install-app.sh | sh -s -- snapshot
+curl -fsSL https://raw.githubusercontent.com/fukusaka/amonhen-gpg/main/scripts/install-app.sh | sh -s -- stable
 ```
 
-This installs the latest [snapshot](https://github.com/fukusaka/amonhen-gpg/releases/tag/snapshot) (signed, not
-notarized yet) as `Amonhen GPG Snapshot.app` in `/Applications`. Run it again to update. For downloading by hand,
-other folders and checking a download, see [Installation](docs/install.md).
+This installs the [latest release](https://github.com/fukusaka/amonhen-gpg/releases/latest) as `Amonhen GPG.app` in
+`/Applications`. Run it again to update. For downloading by hand, the development snapshot, other folders and checking
+a download, see [Installation](docs/install.md).
 
 ## Documents
 
