@@ -276,3 +276,6 @@
 "You withdrew this signature." = "この署名は取り消しました。";
 "Published with the key" = "鍵と一緒に公開する署名";
 "Kept only in your keyring" = "書き出さない署名（自分の鍵束だけ）";
+"Name, email or fingerprint" = "名前、メールアドレス、フィンガープリント";
+"No Matching Keys" = "合う鍵がありません";
+"No key has a name, email address or fingerprint matching “%@”." = "名前・メールアドレス・フィンガープリントが「%@」に合う鍵はありません。";

@@ -7,9 +7,10 @@ import SwiftUI
 /// - `--homedir <dir>`: 鍵の置き場所（既定は `GNUPGHOME` か `~/.gnupg`）
 /// - `--snapshot <file.png>`: 窓を開いて、その窓を画像に撮って終わる（見た目の確認用。使えた鍵は開いておく。初めは
 ///   起動したアプリに「画面収録」の許可が要る）
-/// - `--place mine|others|staging`: 書き出す場所
+/// - `--place mine|others|staging`: 開く場所（撮らずに開くときも効く）
 /// - `--sheet extend|create|revoke|certify|details|otherdetails|delete|userids`: 一覧の代わりに、シートの中身を撮る（最初の自分の鍵で）
 /// - `--appearance light|dark`: 見た目を決める（既定はシステムの設定）
+/// - `--search <text>`: 一覧の検索欄にこの語を入れておく（撮らずに開くときも効く）
 /// - `--stage <file>`: 鍵のファイルを一時保管に入れてから書き出す（一時保管の見た目の確認用）
 /// - `--keyserver <url>`: 送る・探す鍵サーバー（既定は keys.openpgp.org。試験用の鍵サーバーは `scripts/test-keyserver.sh`）
 struct Options {
@@ -21,6 +22,7 @@ struct Options {
     var stage: String?
     var keyserver: String?
     var appearance: NSAppearance?
+    var search: String?
 
     init(_ arguments: [String]) {
         var rest = arguments.dropFirst().makeIterator()
@@ -33,6 +35,7 @@ struct Options {
             case "--sheet": sheet = rest.next().flatMap(SheetPreview.Kind.init(rawValue:))
             case "--stage": stage = rest.next()
             case "--keyserver": keyserver = rest.next()
+            case "--search": search = rest.next()
             case "--appearance":
                 appearance = switch rest.next() {
                 case "light": NSAppearance(named: .aqua)
@@ -63,10 +66,11 @@ struct GpgApp: App {
                 SheetPreview(model: model, kind: sheet)
             } else if options.snapshot != nil {
                 // 鍵束は起動する前に読んである
-                ContentView(model: model, staging: staging, place: options.place, showsHistory: true)
+                ContentView(model: model, staging: staging, place: options.place, query: options.search ?? "", showsHistory: true)
                     .frame(minWidth: 720, minHeight: 420)
             } else {
-                ContentView(model: model, staging: staging)
+                // --place・--search は撮らずに開くときも効く（別の Mac で画面を操作して確かめるため）
+                ContentView(model: model, staging: staging, place: options.place, query: options.search ?? "")
                     .frame(minWidth: 720, minHeight: 420)
                     .task { await model.reload() }
             }
