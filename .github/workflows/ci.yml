@@ -73,6 +73,8 @@ jobs:
       contents: read # コミットを取ってくる
     with:
       mode: snapshot
+    # 署名と公証の鍵は環境 release の secret。渡さないと、環境を指定した build.yml のジョブの中でも空になる。
+    secrets: inherit # zizmor: ignore[secrets-inherit]
 
   snapshot-publish:
     name: Snapshot publish
