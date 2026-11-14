@@ -1,6 +1,7 @@
 name: Release
 
-# 正式版（v0.1.0 など）。タグのコミットで CI が通っていることを確かめ、build.yml で作って公証し、Release を作る。
+# 正式版（v0.1.0 など）。タグのコミットで CI が通っていることを確かめ、build.yml で作って公証し、CHANGELOG の要約を
+# 説明にして Release を作る。
 on:
   push:
     tags: ['v[0-9]*']
@@ -26,6 +27,8 @@ jobs:
           persist-credentials: false
       - name: タグと Cargo.toml の version が一致するか
         run: test "${GITHUB_REF_NAME#v}" = "$(scripts/version.sh stable)"
+      - name: CHANGELOG にこの版の要約があるか
+        run: scripts/changelog-notes.sh "${GITHUB_REF_NAME#v}" >/dev/null
       - name: このコミットで CI が通っているか
         env:
           GH_TOKEN: ${{ github.token }}
@@ -56,6 +59,10 @@ jobs:
       id-token: write # 証明に署名する
       attestations: write # 証明を載せる
     steps:
+      # リリースノート（CHANGELOG の要約）を取り出すため。
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: app
@@ -68,4 +75,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/*.zip --title "$GITHUB_REF_NAME" --generate-notes --verify-tag
+          scripts/changelog-notes.sh "${GITHUB_REF_NAME#v}" > notes.md
+          gh release create "$GITHUB_REF_NAME" dist/*.zip --title "$GITHUB_REF_NAME" --notes-file notes.md --verify-tag

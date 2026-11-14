@@ -16,3 +16,4 @@ Amonhen GPG: GnuPG の純粋なフロントエンド（自分の GPG・SSH の�
 - コミットは機能ごとに分け、それぞれで `docs/development.md` の確認（ビルド・テスト・画面・ワークフロー）を通す。
 - push・リリース・設定の変更は確かめてから。大事な決定は推測で進めない。
 - 文書は英語が正で、日本語版を `README.ja.md`・`docs/ja/` に置き、両方を直す。
+- 利用者から見える変更は `CHANGELOG.md`（英語だけ）の `Unreleased` に書く。
