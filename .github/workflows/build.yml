@@ -1,0 +1,61 @@
+name: Build
+
+# 配る Amonhen GPG.app を作る（snapshot.yml・release.yml から呼ぶ）。署名して zip にし、notarize なら公証に出して
+# 結果を綴じ込む。成果物 app: dist/ の zip。
+on:
+  workflow_call:
+    inputs:
+      # 版（scripts/version.sh の stable か snapshot）。アプリの名前とバンドル ID も変わる。
+      mode:
+        type: string
+        required: true
+      # 作るコミット（空ならワークフローを起こしたコミット）。
+      ref:
+        type: string
+        default: ''
+      # 公証に出すか（正式版だけ）。
+      notarize:
+        type: boolean
+        default: false
+    outputs:
+      version:
+        value: ${{ jobs.package.outputs.version }}
+      zip:
+        value: ${{ jobs.package.outputs.zip }}
+
+jobs:
+  package:
+    # 署名と公証の鍵は、環境 release の secret に置く（この仕事だけが読める）。
+    environment: release
+    runs-on: macos-latest
+    env:
+      AMONHEN_CERT_P12: ${{ secrets.AMONHEN_CERT_P12 }}
+      AMONHEN_CERT_PASSWORD: ${{ secrets.AMONHEN_CERT_PASSWORD }}
+      AMONHEN_CERT_NAME: ${{ secrets.AMONHEN_CERT_NAME }}
+      # 公証は正式版だけ（snapshot は自分用で、curl で入れれば quarantine の印が付かないので要らない）。
+      AMONHEN_NOTARY_KEY: ${{ inputs.notarize && secrets.AMONHEN_NOTARY_KEY || '' }}
+      AMONHEN_NOTARY_KEY_ID: ${{ inputs.notarize && secrets.AMONHEN_NOTARY_KEY_ID || '' }}
+      AMONHEN_NOTARY_ISSUER: ${{ inputs.notarize && secrets.AMONHEN_NOTARY_ISSUER || '' }}
+    outputs:
+      version: ${{ steps.package.outputs.version }}
+      zip: ${{ steps.package.outputs.zip }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ inputs.ref }}
+          # snapshot の版は、前のリリースからのコミット数を数える。
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - run: scripts/import-signing-certificate.sh
+      # 正式版は Developer ID の署名がなければ止める（ad-hoc のものを配らない）。
+      - if: inputs.notarize
+        run: test -n "${AMONHEN_SIGN_IDENTITY:-}"
+      - id: package
+        run: |
+          echo "version=$(scripts/version.sh "${{ inputs.mode }}")" >> "$GITHUB_OUTPUT"
+          echo "zip=$(scripts/build-app.sh "${{ inputs.mode }}" | tail -1)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: app
+          path: dist/*.zip

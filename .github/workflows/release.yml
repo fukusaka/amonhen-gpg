@@ -1,0 +1,52 @@
+name: Release
+
+# 正式版（v0.1.0 など）。タグのコミットで CI が通っていることを確かめ、build.yml で作って公証し、Release を作る。
+on:
+  push:
+    tags: ['v[0-9]*']
+
+permissions:
+  contents: write
+  # ビルドの由来の証明（artifact attestations）。gh attestation verify で確かめられる。
+  id-token: write
+  attestations: write
+  # CI の結果を読む。
+  actions: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: タグと Cargo.toml の version が一致するか
+        run: test "${GITHUB_REF_NAME#v}" = "$(scripts/version.sh stable)"
+      - name: このコミットで CI が通っているか
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/require-ci.sh "$GITHUB_SHA"
+
+  build:
+    needs: check
+    uses: ./.github/workflows/build.yml
+    with:
+      mode: stable
+      notarize: true
+    secrets: inherit
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: app
+          path: dist
+      # リリースに載せるファイルに、このタグのこの CI で作ったことの証明を付ける。
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/*.zip
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/*.zip --title "$GITHUB_REF_NAME" --generate-notes --verify-tag
