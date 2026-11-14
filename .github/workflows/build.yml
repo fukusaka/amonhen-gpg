@@ -75,6 +75,9 @@ jobs:
       - run: scripts/import-signing-certificate.sh
       # Developer ID の署名がなければ止める（ad-hoc のものを配らない。secret が渡っていないのに気づけるように）。
       - run: test -n "${AMONHEN_SIGN_IDENTITY:-}"
+      # 公証するときは、公証の鍵が 3 つともそろっていなければ止める（欠けていると、公証しないまま進んでしまう）。
+      - if: inputs.notarize
+        run: test -n "${AMONHEN_NOTARY_KEY:-}" && test -n "${AMONHEN_NOTARY_KEY_ID:-}" && test -n "${AMONHEN_NOTARY_ISSUER:-}"
       - id: package
         run: |
           echo "version=$(scripts/version.sh "$MODE")" >> "$GITHUB_OUTPUT"
