@@ -28,12 +28,8 @@ esac
 build_number=$(echo "$version" | sed -E 's/-snapshot\.([0-9]+).*/.\1/')
 
 scripts/build-core.sh >&2
-# Swift 6.4 はリンクで clang に SDK を --sysroot で渡し、clang は SDK の版を読まないので、アプリに記録される SDK の版が
-# 最低の版（14.4）になる。macOS はそれを古い SDK で作ったアプリとみなして昔の見た目で出すので、-isysroot で渡し直す。
-sdk=$(xcrun --sdk macosx --show-sdk-path)
-set -- -c release -Xswiftc -Xclang-linker -Xswiftc -isysroot -Xswiftc -Xclang-linker -Xswiftc "$sdk"
-(cd apps/macos && swift build "$@" --product AmonhenGpg >&2)
-bin=$(cd apps/macos && swift build "$@" --show-bin-path)/AmonhenGpg
+scripts/swift-build.sh -c release --product AmonhenGpg >&2
+bin=$(scripts/swift-build.sh -c release --show-bin-path)/AmonhenGpg
 
 app="dist/$name.app"
 rm -rf "$app"
