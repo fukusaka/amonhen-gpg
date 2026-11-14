@@ -159,6 +159,22 @@ private func sampleKey(_ fingerprint: String, subkey: String, userIds: [String],
     #expect(rows.sorted { $0.created < $1.created }.map(\.name) == ["Dave", "Carol", "Bob Builder"])
 }
 
+@Test func filtersKeysByVerification() {
+    func key(_ validity: Validity) -> Key {
+        var key = sampleKey(
+            "1111111111111111111111111111111111111111", subkey: "2222222222222222222222222222222222222222", userIds: ["A <a@example.org>"])
+        key.validity = validity
+        return key
+    }
+    let all: [Validity] = [.ultimate, .full, .marginal, .unknown, .never, .new, .expired, .revoked, .invalid, .disabled]
+    func pick(_ filter: KeyFilter) -> [Validity] { all.filter { filter.includes(key($0)) } }
+    #expect(pick(.all) == all)
+    #expect(pick(.verified) == [.ultimate, .full])
+    // 一部確認はまだ確認できるので未確認に
+    #expect(pick(.unverified) == [.marginal, .unknown, .never, .new])
+    #expect(pick(.inactive) == [.expired, .revoked, .invalid, .disabled])
+}
+
 @Test func splitsUserIds() {
     #expect(UserIdParts("Alice (work) <alice@example.com>") == UserIdParts(name: "Alice", comment: "work", email: "alice@example.com"))
     #expect(UserIdParts("<bob@example.com>").name == "bob@example.com")

@@ -48,3 +48,23 @@ public struct KeyTableRow: Identifiable, Hashable, Sendable {
         }
     }
 }
+
+/// 他者の鍵の表を、確認の状態で絞り込む。
+public enum KeyFilter: String, CaseIterable, Sendable {
+    case all
+    /// 確認済み（完全に確かめた鍵）。
+    case verified
+    /// まだ確認していない鍵。一部だけ確認した鍵も、まだ確認できるのでここに入れる。
+    case unverified
+    /// 期限切れ・失効・無効の、もう使えない鍵。
+    case inactive
+
+    public func includes(_ key: Key) -> Bool {
+        switch self {
+        case .all: true
+        case .verified: key.validity == .full || key.validity == .ultimate
+        case .inactive: [.expired, .revoked, .invalid, .disabled].contains(key.validity)
+        case .unverified: !KeyFilter.verified.includes(key) && !KeyFilter.inactive.includes(key)
+        }
+    }
+}
