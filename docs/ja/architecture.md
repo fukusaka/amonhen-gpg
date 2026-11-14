@@ -100,6 +100,9 @@ apps/
               AmonhenGpg      SwiftUI のアプリ
   gtk/      GTK4 (gtk4-rs)   まだ
   windows/  WinUI 3 (C#)     まだ
+scripts/    ビルド、署名と公証、インストール、画面の確認、アイコンとバナーの描画、試験の道具（development.md を参照）
+.github/    CI、リリース、CodeQL、Dependabot
+docs/       英語の文書。日本語版は docs/ja/
 ```
 
 ### バインディング

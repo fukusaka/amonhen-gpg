@@ -16,6 +16,13 @@ scripts/build-core.sh && (cd apps/macos && swift test)
 scripts/build-app.sh snapshot               # dist/Amonhen GPG Snapshot.app とその zip
 ```
 
+`.github/workflows` のワークフローを変えたら、[actionlint](https://github.com/rhysd/actionlint) と
+[zizmor](https://docs.zizmor.sh)（`brew install actionlint zizmor`）で確かめます。
+
+```sh
+actionlint && zizmor --persona=pedantic .
+```
+
 - `scripts/build-core.sh` は Rust のコアを静的ライブラリとしてビルドし、Swift のバインディングを生成します（生成物は
   コミットしません）。
 - `scripts/swift-build.sh` は `apps/macos` で `swift build` を実行し、アプリに本当の SDK の版を記録させます（Swift 6.4

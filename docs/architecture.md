@@ -100,6 +100,10 @@ apps/
               AmonhenGpg      SwiftUI app
   gtk/      GTK4 (gtk4-rs)   not yet
   windows/  WinUI 3 (C#)     not yet
+scripts/    building, signing and notarizing, installing, checking the screens, drawing the icon and banner, test helpers
+            (see development.md)
+.github/    CI, releases, CodeQL and Dependabot
+docs/       documents in English; the Japanese versions are in docs/ja/
 ```
 
 ### Bindings

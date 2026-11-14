@@ -17,6 +17,14 @@ scripts/build-core.sh && (cd apps/macos && swift test)
 scripts/build-app.sh snapshot               # dist/Amonhen GPG Snapshot.app and its zip
 ```
 
+After changing a workflow in `.github/workflows`, check it with
+[actionlint](https://github.com/rhysd/actionlint) and [zizmor](https://docs.zizmor.sh)
+(`brew install actionlint zizmor`):
+
+```sh
+actionlint && zizmor --persona=pedantic .
+```
+
 - `scripts/build-core.sh` builds the Rust core as a static library and generates the Swift bindings (not committed).
 - `scripts/swift-build.sh` runs `swift build` in `apps/macos` so that the app records the real SDK version (Swift 6.4
   otherwise records the deployment target, and macOS shows the app with the old look).
