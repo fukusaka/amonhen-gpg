@@ -28,8 +28,12 @@ esac
 build_number=$(echo "$version" | sed -E 's/-snapshot\.([0-9]+).*/.\1/')
 
 scripts/build-core.sh >&2
-(cd apps/macos && swift build -c release --product AmonhenGpg >&2)
-bin=$(cd apps/macos && swift build -c release --show-bin-path)/AmonhenGpg
+# Swift 6.4 はリンクで clang に SDK を --sysroot で渡し、clang は SDK の版を読まないので、アプリに記録される SDK の版が
+# 最低の版（14.4）になる。macOS はそれを古い SDK で作ったアプリとみなして昔の見た目で出すので、-isysroot で渡し直す。
+sdk=$(xcrun --sdk macosx --show-sdk-path)
+set -- -c release -Xswiftc -Xclang-linker -Xswiftc -isysroot -Xswiftc -Xclang-linker -Xswiftc "$sdk"
+(cd apps/macos && swift build "$@" --product AmonhenGpg >&2)
+bin=$(cd apps/macos && swift build "$@" --show-bin-path)/AmonhenGpg
 
 app="dist/$name.app"
 rm -rf "$app"
@@ -38,6 +42,12 @@ cp "$bin" "$app/Contents/MacOS/AmonhenGpg"
 # ほかの Mac でも動くよう、OS のもの以外のライブラリを指していないか確かめる。
 if otool -L "$app/Contents/MacOS/AmonhenGpg" | tail -n +2 | grep -vE '^[[:space:]]+(/System/Library/|/usr/lib/)'; then
     echo "the app links libraries outside the system (above)" >&2
+    exit 1
+fi
+# 記録された SDK の版が、ビルドに使った SDK の版と同じか（違えば macOS が古い見た目で出す）。
+built_sdk=$(otool -l "$app/Contents/MacOS/AmonhenGpg" | awk '/LC_BUILD_VERSION/ { found = 1 } found && $1 == "sdk" { print $2; exit }')
+if [ "$built_sdk" != "$(xcrun --sdk macosx --show-sdk-version)" ]; then
+    echo "the app records SDK $built_sdk, not $(xcrun --sdk macosx --show-sdk-version)" >&2
     exit 1
 fi
 # 画面の文字の訳（apps/macos/Sources/AmonhenGpg/Localization.swift は .app なら Resources から読む）。
