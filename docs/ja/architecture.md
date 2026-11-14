@@ -1,5 +1,7 @@
 # amonhen-gpgui アーキテクチャ（初版）
 
+[English](../architecture.md)
+
 ## 要件
 
 - GnuPG の**純粋なフロントエンド**とする。暗号処理・鍵の保管は GnuPG が行い、本アプリは独自に暗号を実装しない。
@@ -18,10 +20,10 @@
 └──────┬──────┘ └──────┬──────┘ └──────┬──────┘
        │ UniFFI        │ Rust API      │ UniFFI (C#)
 ┌──────┴───────────────┴───────────────┴──────┐
-│ amonhen-ffi    バインディング層 (薄い)          │
+│ amonhen-gpg-ffi  バインディング層 (薄い)        │
 ├─────────────────────────────────────────────┤
-│ amonhen-core   ドメインモデル / ユースケース      │
-│                gpg エンジン (プロセス実行・解析)  │
+│ amonhen-gpg-core ドメインモデル / ユースケース    │
+│                  gpg エンジン (プロセス実行・解析)│
 └──────┬───────────────────────┬──────────────┘
        │ gpg / gpgconf          │ Assuan (gpg-connect-agent)
 ┌──────┴───────────────────────┴──────────────┐
@@ -33,7 +35,7 @@
 
 - UI は core の公開 API（ユースケースとデータ型）しか知らない。gpg コマンドや colon 形式は UI に一切漏らさない。
 - core は UI を知らない。表示文言・ローカライズは UI 側の責務とし、core はエラーを**種別コード＋構造化データ**で返す。
-- 3 つの UI は同じ API 境界を通る。GTK4 版は Rust なので core を直接リンクできるが、その場合も `amonhen-ffi` と同じ公開 API だけを使う。
+- 3 つの UI は同じ API 境界を通る。GTK4 版は Rust なので core を直接リンクできるが、その場合も `amonhen-gpg-ffi` と同じ公開 API だけを使う。
 - API は「コマンド → 結果」の形に揃え、データ型はすべてシリアライズ可能にする。将来、core を別プロセス化（IPC）したくなっても API を変えずに移せる。
 
 ## core の設計
@@ -89,8 +91,8 @@ pinentry を出せないときは `Error::NoPinentry` を返す。設定した p
 
 ```
 crates/
-  core/     amonhen-core   ドメインモデルと gpg・gpgconf・gpg-connect-agent の起動・解析（UI も FFI も知らない）
-  ffi/      amonhen-ffi    UniFFI の窓口（Swift・C# 向け）。uniffi-bindgen もここ（feature `bindgen`）
+  core/     amonhen-gpg-core ドメインモデルと gpg・gpgconf・gpg-connect-agent の起動・解析（UI も FFI も知らない）
+  ffi/      amonhen-gpg-ffi  UniFFI の窓口（Swift・C# 向け）。uniffi-bindgen もここ（feature `bindgen`）
 apps/
   macos/    SwiftPM のパッケージ
               CAmonhenGpg     UniFFI が生成する C のヘッダー（systemLibrary）
@@ -103,7 +105,7 @@ apps/
 ### バインディング
 
 - Swift: UniFFI（`crates/ffi`）。
-  - コアは UniFFI を知らない。コアの型は `amonhen-ffi` で `#[uniffi::remote]` として形を書き写す（コアの型を変えると、合わせるまでコンパイルが通らない）。パス（`PathBuf`）は文字列で渡す。
+  - コアは UniFFI を知らない。コアの型は `amonhen-gpg-ffi` で `#[uniffi::remote]` として形を書き写す（コアの型を変えると、合わせるまでコンパイルが通らない）。パス（`PathBuf`）は文字列で渡す。
   - エラーは OS のエラーなど FFI に載らないものを持つので、`GpgError` に移す（種類と材料だけ。文言は FE）。
   - gpg を待つ呼び出し（pinentry を含む）は同期のまま出し、FE が裏のスレッドから呼ぶ。
   - `scripts/build-core.sh` が静的ライブラリをビルドし、Swift のバインディングを `apps/macos` に生成する。生成物はコミットしない。
@@ -143,7 +145,7 @@ apps/
 | GPG の認証 (A) サブ鍵を SSH 鍵として使う | `--quick-add-key <FPR> ed25519 auth` で作り、SSH に出す設定をする |
 | SSH に出す・出さない | 出すときは秘密鍵の属性 `Use-for-ssh: true`（`KEYATTR`。利用者のファイルを書き換えない）。出さないときは属性を消し、`sshcontrol` で有効な行があれば `!` を付ける（属性を偽にしても `sshcontrol` が勝つ）。終わったあとに gpg-agent に聞き直して確かめる |
 | SSH 公開鍵の出力（authorized_keys 用） | `gpg --export-ssh-key <FPR>!`（指した鍵そのもの） |
-| 既存の SSH 秘密鍵の取り込み | `ssh-add` で gpg-agent に登録（パスフレーズは pinentry）。まだ |
+| 既存の SSH 秘密鍵の取り込み | `ssh-add` で gpg-agent に登録（パスフレーズは pinentry） |
 
 ## 未決事項
 

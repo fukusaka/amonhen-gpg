@@ -1,5 +1,7 @@
 # GPG GUI 調査
 
+[English](../gpg-gui-survey.md)
+
 調査日: 2026-11-11。各ツールの公式サイト・ドキュメントをもとにまとめた。
 未読: Kleopatra / KGpg のハンドブック、GpgFrontend の詳細ガイド（鍵生成・スマートカード・失効など）、GPG Keychain FAQ の記事本文。そのため一部の項目は「不明」のまま。
 
