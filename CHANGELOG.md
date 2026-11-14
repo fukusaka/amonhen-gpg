@@ -4,7 +4,7 @@ User-visible changes, by release (`v*` tags). Changes not released yet go under 
 heading becomes `## [x.y.z] - YYYY-MM-DD`, followed by a short summary paragraph that becomes the GitHub Release
 notes.
 
-## Unreleased
+## [0.1.0] - 2026-11-14
 
 The first release: a GnuPG front end for macOS that keeps your own keys usable and safe. It shows which of your keys
 can sign, decrypt and log in over SSH, and where; warns about keys without a backup or a revocation certificate and
