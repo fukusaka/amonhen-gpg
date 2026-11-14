@@ -3,7 +3,18 @@ name: Build
 # 配る Amonhen GPG.app を作る（ci.yml の snapshot と release.yml から呼ぶ）。署名して zip にし、notarize なら公証に出して
 # 結果を綴じ込む。成果物 app: dist/ の zip。
 # 配るものなので、キャッシュは使わない（ほかの実行が書いたキャッシュを読むと、それに中身を左右されうる）。
+# タグを打つ前の確認に、手でも起動できる（main で。署名と公証の secret は main と v* タグからしか使えない）。
+# 正式版と同じく署名して公証し、zip を成果物に残すが、Release は作らない。
 on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        options: [stable, snapshot]
+        default: stable
+      notarize:
+        type: boolean
+        default: true
   workflow_call:
     inputs:
       # 版（scripts/version.sh の stable か snapshot）。アプリの名前とバンドル ID も変わる。
@@ -25,6 +36,11 @@ on:
         value: ${{ jobs.package.outputs.zip }}
 
 permissions: {}
+
+# 同じワークフロー（呼ぶ側か手動）・同じ ref のビルドは 1 つずつ。途中で止めると公証が宙に浮くので、止めずに待たせる。
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   package:

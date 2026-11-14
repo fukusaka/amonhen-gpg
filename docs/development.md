@@ -75,4 +75,7 @@ commit. To release:
 1. In `CHANGELOG.md`, change `## Unreleased` to `## [x.y.z] - YYYY-MM-DD` and make sure a short summary paragraph
    follows it: it becomes the Release notes (`scripts/changelog-notes.sh x.y.z`), and the release stops without it.
 2. Set `version` in `Cargo.toml` to `x.y.z`, merge to `main` and wait for CI.
-3. Tag that commit `vx.y.z` and push the tag.
+3. Optionally, check signing and notarization first: run the Build workflow by hand on `main`
+   (`gh workflow run build.yml --ref main`). It builds, signs and notarizes the stable app like a release and keeps the
+   zip as an artifact for a week, without making a Release.
+4. Tag that commit `vx.y.z` and push the tag.

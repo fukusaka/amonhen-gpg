@@ -74,4 +74,7 @@ snapshot を作り、`snapshot` の pre-release を置き換えます。`Cargo.t
 1. `CHANGELOG.md` の `## Unreleased` を `## [x.y.z] - YYYY-MM-DD` に改め、そのすぐ下に短い要約の段落があることを
    確かめる。要約は Release の説明になり（`scripts/changelog-notes.sh x.y.z`）、なければリリースが止まる。
 2. `Cargo.toml` の `version` を `x.y.z` にし、`main` にマージして CI を待つ。
-3. そのコミットに `vx.y.z` のタグを打って push する。
+3. 必要なら、先に署名と公証を確かめる: `main` で Build のワークフローを手で起動する
+   （`gh workflow run build.yml --ref main`）。正式版と同じく app を作って署名・公証し、zip を 1 週間、成果物に残す。
+   Release は作らない。
+4. そのコミットに `vx.y.z` のタグを打って push する。
