@@ -1,14 +1,31 @@
 #!/bin/sh
-# 手元で Amonhen GPG.app を作る（Rust のコア → Swift のリリースビルド → 組み立てと署名）。
-#   scripts/build-app.sh
-# 出力: dist/Amonhen GPG.app（最後の行にその場所）。
-# 署名: AMONHEN_SIGN_IDENTITY にキーチェーンの証明書の名前があればそれで、なければ ad-hoc。
+# Amonhen GPG.app を作る（Rust のコア → Swift のリリースビルド → 組み立てと署名 → zip → 公証）。
+#   scripts/build-app.sh [stable|snapshot]
+# 出力: dist/<アプリ名>.app と dist/<アプリ名>-<版>.zip（最後の行に zip の場所）。
+# snapshot は正式版と並べて入れられるように、名前とバンドル ID を変える。
+# 署名: AMONHEN_SIGN_IDENTITY にキーチェーンの証明書の名前があればそれで、なければ ad-hoc（scripts/codesign.sh）。
+# 公証: 公証の鍵（scripts/notarize.sh）があれば公証して結果を綴じ込む。
 # gpg は入っていない。アプリは PATH と Homebrew・GPG Suite の場所から探す（GpgProgram.locate）。
 set -eu
 cd "$(dirname "$0")/.."
-name="Amonhen GPG"
-bundle_id="io.github.fukusaka.amonhen.gpg"
-version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+mode=${1:-stable}
+version=$(scripts/version.sh "$mode")
+case "$mode" in
+stable)
+    name="Amonhen GPG"
+    bundle_id="io.github.fukusaka.amonhen.gpg"
+    ;;
+snapshot)
+    name="Amonhen GPG Snapshot"
+    bundle_id="io.github.fukusaka.amonhen.gpg.snapshot"
+    ;;
+*)
+    echo "usage: $0 [stable|snapshot]" >&2
+    exit 2
+    ;;
+esac
+# CFBundleVersion は数字とピリオドだけ。snapshot は「次の patch」＋コミット数にする。
+build_number=$(echo "$version" | sed -E 's/-snapshot\.([0-9]+).*/.\1/')
 
 scripts/build-core.sh >&2
 (cd apps/macos && swift build -c release --product AmonhenGpg >&2)
@@ -38,17 +55,19 @@ cat > "$app/Contents/Info.plist" <<PLIST
     <key>CFBundleDevelopmentRegion</key><string>en</string>
     <key>CFBundleLocalizations</key><array><string>en</string><string>ja</string></array>
     <key>CFBundleShortVersionString</key><string>$version</string>
-    <key>CFBundleVersion</key><string>$version</string>
+    <key>CFBundleVersion</key><string>$build_number</string>
     <key>LSMinimumSystemVersion</key><string>14.4</string>
     <key>NSHighResolutionCapable</key><true/>
     <key>NSPrincipalClass</key><string>NSApplication</string>
 </dict>
 </plist>
 PLIST
-identity=${AMONHEN_SIGN_IDENTITY:--}
-case $identity in
-"Developer ID Application"*) codesign --force --sign "$identity" --options runtime --timestamp "$app" ;;
-*) codesign --force --sign "$identity" --timestamp=none "$app" ;;
-esac
+scripts/codesign.sh "$app"
 codesign --verify --strict "$app"
-echo "$app"
+
+zip="dist/$(echo "$name" | tr ' ' '-')-$version.zip"
+rm -f "$zip"
+ditto -c -k --keepParent "$app" "$zip"
+# 出力は標準エラーへ（最後の行は zip の場所）。
+scripts/notarize.sh "$app" "$zip" >&2
+echo "$zip"
