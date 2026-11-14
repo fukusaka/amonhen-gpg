@@ -64,6 +64,57 @@ private func gpgAvailable() -> Bool {
     (try? Gpg(program: nil, homedir: nil).version()) != nil
 }
 
+private func sampleKey(_ fingerprint: String, subkey: String, userIds: [String], revoked: Set<String> = []) -> Key {
+    let none = Capabilities(certify: false, sign: false, encrypt: false, authenticate: false)
+    return Key(
+        fingerprint: fingerprint, keyId: String(fingerprint.suffix(16)), keygrip: nil, validity: .full, ownerTrust: .unknown,
+        algorithm: 22, length: 255, curve: "ed25519", created: nil, expires: nil, capabilities: none, usable: none,
+        disabled: false, secret: .none,
+        subkeys: [
+            Subkey(
+                fingerprint: subkey, keyId: String(subkey.suffix(16)), keygrip: nil, validity: .full, algorithm: 18,
+                length: 255, curve: "cv25519", created: nil, expires: nil, capabilities: none, secret: .none)
+        ],
+        userIds: userIds.map {
+            UserId(text: $0, validity: revoked.contains($0) ? .revoked : .full, created: nil, expires: nil, hash: nil, attribute: false)
+        })
+}
+
+@Test func searchesNamesEmailsAndFingerprints() {
+    let bob = sampleKey(
+        "632DF0CFE483AB636C529CE921F0F4C7E693133C", subkey: "AAAA1111BBBB2222CCCC3333DDDD4444EEEE5555",
+        userIds: ["Bob Builder <bob@example.org>", "Robert B. <robert@work.example>"], revoked: ["Robert B. <robert@work.example>"])
+    #expect(bob.matches(""))
+    #expect(bob.matches("  "))
+    // 名前・メールアドレスは大文字小文字を区別しない部分一致。主でない UID と失効した UID も探す
+    #expect(bob.matches("builder"))
+    #expect(bob.matches("BOB@EXAMPLE"))
+    #expect(bob.matches("work.example"))
+    #expect(!bob.matches("carol"))
+    // 語はすべて合わなければならない
+    #expect(bob.matches("bob example.org"))
+    #expect(!bob.matches("bob carol"))
+    // 4 文字以上の 16 進の語はフィンガープリント（サブ鍵も）
+    #expect(bob.matches("E693133C"))
+    #expect(bob.matches("e693"))
+    #expect(bob.matches("EEEE5555"))
+    #expect(!bob.matches("133"))
+    // 区切りの空白ごと貼り付けたフィンガープリント
+    #expect(bob.matches("632D F0CF E483 AB63 6C52"))
+    #expect(!bob.matches("632D F0CF 0000 0000"))
+}
+
+@Test func filtersTheKeyring() {
+    var ring = Keyring()
+    ring.others = [
+        sampleKey("1111111111111111111111111111111111111111", subkey: "2222222222222222222222222222222222222222", userIds: ["Bob <bob@example.org>"]),
+        sampleKey("3333333333333333333333333333333333333333", subkey: "4444444444444444444444444444444444444444", userIds: ["Carol <carol@example.net>"]),
+    ]
+    #expect(ring.filtered(by: "").others.count == 2)
+    #expect(ring.filtered(by: "carol").others.map(\.fingerprint) == ["3333333333333333333333333333333333333333"])
+    #expect(ring.filtered(by: "dave").others.isEmpty)
+}
+
 @Test func splitsUserIds() {
     #expect(UserIdParts("Alice (work) <alice@example.com>") == UserIdParts(name: "Alice", comment: "work", email: "alice@example.com"))
     #expect(UserIdParts("<bob@example.com>").name == "bob@example.com")
