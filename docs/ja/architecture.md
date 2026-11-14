@@ -81,7 +81,7 @@ pinentry を出せないときは `Error::NoPinentry` を返す。設定した p
 - シェルを経由せず引数配列で起動する。ユーザー入力（UID・ファイル名）は検証し、オプションとの間に `--` を入れる。鍵の指定は常に完全なフィンガープリントで行う。
 - 結果の判定は終了コードではなく **status 行**（`KEY_CREATED`, `IMPORT_OK`, `IMPORT_RES`, `ERROR`, `FAILURE` など）で行う。
 - タイムアウトとキャンセルに対応する（pinentry 待ちは長時間になり得る）。
-- 起動時に `gpgconf --list-dirs` / `gpg --version` で環境と最低バージョン（2.2 以上、推奨 2.4 以上）を確認する。
+- GnuPG は 2.4.1 以降を求める。鍵を SSH に出す・出さないの切り替えに使う秘密鍵の属性 `Use-for-ssh` が、gpg-agent の 2.4.1 からのため。`--quick-set-ownertrust` は 2.4.6 からなので、所有者信頼を画面に出す前に、最低の版を上げるか `--edit-key` で代わりに設定するかを決める。起動時の版の確認（`gpg --version`）はまだ。
 - テスト:
   - colon / status パーサーは単体テストとファズテスト。
   - 一時ディレクトリの `GNUPGHOME` と loopback pinentry を使い、実際の gpg に対する結合テスト。
@@ -157,4 +157,3 @@ docs/       英語の文書。日本語版は docs/ja/
 3. **スマートカード:** 第 1 段階に含めるか。表示（カード上の鍵の識別）だけは最初から対応しておく。
 4. **macOS の配布:** App Sandbox 下では `~/.gnupg` へのアクセスや gpg の起動が制限される。App Store 外で配布（Developer ID + Notarization）する前提にするか。
 5. **GnuPG の同梱:** GnuPG をアプリに同梱するか、既存のインストール（Homebrew、GPG Suite、Gpg4win、ディストリのパッケージ）を使うか。
-6. **最低バージョン:** 2.2 系を切って 2.4 以上に絞るか。

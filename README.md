@@ -32,7 +32,7 @@ and log in with, and where (this Mac or a smart card), and warns before a key ex
 
 ## Installation
 
-On a Mac (macOS 14.4 or later, Apple silicon), with GnuPG 2.2 or later (`brew install gnupg pinentry-mac`):
+On a Mac (macOS 14.4 or later, Apple silicon), with GnuPG 2.4.1 or later (`brew install gnupg pinentry-mac`):
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/fukusaka/amonhen-gpg/main/scripts/install-app.sh | sh -s -- snapshot

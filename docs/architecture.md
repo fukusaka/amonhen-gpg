@@ -81,7 +81,7 @@ The thing to avoid most is deleting your own secret key by mistake, or losing th
 - Launch with an argument array, not through a shell. User input (UIDs, file names) is validated, and `--` is placed between it and the options. Keys are always specified by full fingerprint.
 - Results are judged by **status lines** (`KEY_CREATED`, `IMPORT_OK`, `IMPORT_RES`, `ERROR`, `FAILURE` etc.), not by the exit code.
 - Support timeouts and cancellation (waiting for pinentry can take a long time).
-- At startup, check the environment and the minimum version (2.2 or later, 2.4 or later recommended) with `gpgconf --list-dirs` / `gpg --version`.
+- Require GnuPG 2.4.1 or later: turning SSH on and off for a key uses the private-key attribute `Use-for-ssh`, which gpg-agent has since 2.4.1. `--quick-set-ownertrust` needs 2.4.6, so before owner trust appears in the UI, either raise the minimum or fall back to `--edit-key`. Checking the version at startup (`gpg --version`) is still to do.
 - Tests:
   - Unit tests and fuzz tests for the colon / status parsers.
   - Integration tests against the real gpg, using a `GNUPGHOME` in a temporary directory and loopback pinentry.
@@ -158,4 +158,3 @@ As "a pure FE", the SSH keys handled are also **the ones gpg-agent manages**.
 3. **Smart cards:** Whether to include them in stage 1. Display (identifying keys on a card) is supported from the start.
 4. **macOS distribution:** Under App Sandbox, access to `~/.gnupg` and launching gpg are restricted. Whether to assume distribution outside the App Store (Developer ID + Notarization).
 5. **Bundling GnuPG:** Whether to bundle GnuPG with the app, or use an existing installation (Homebrew, GPG Suite, Gpg4win, distribution packages).
-6. **Minimum version:** Whether to drop the 2.2 series and require 2.4 or later.
