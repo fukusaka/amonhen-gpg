@@ -663,7 +663,7 @@ fn sign_others_key() {
 
     // 誰がどの UID に署名したか（Bob 自身の署名は入らない）
     let certs = gpg.certifications(&bob).unwrap();
-    assert_eq!(certs.len(), 2, "{certs:?}");
+    assert_eq!(certs.len(), 2);
     for c in &certs {
         assert_eq!(c.signer_fingerprint.as_deref(), Some(me.as_str()));
         assert_eq!(c.check, amonhen_gpg_core::SignatureCheck::Good);
@@ -879,8 +879,7 @@ fn passphrases_through_pinentry() {
 
     // パスフレーズの変更: 今のものを取り消す・間違える、正しければ新しいものに変わる
     home.answer(None);
-    let r = gpg.change_passphrase(&fpr);
-    assert!(matches!(r, Err(Error::Canceled)), "{r:?}");
+    assert!(matches!(gpg.change_passphrase(&fpr), Err(Error::Canceled)));
     home.answer(Some("wrong"));
     assert!(matches!(
         gpg.change_passphrase(&fpr),
