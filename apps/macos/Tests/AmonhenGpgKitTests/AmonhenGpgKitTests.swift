@@ -115,6 +115,32 @@ private func sampleKey(_ fingerprint: String, subkey: String, userIds: [String],
     #expect(ring.filtered(by: "dave").others.isEmpty)
 }
 
+@Test func makesTableRowsThatSort() {
+    var bob = sampleKey(
+        "1111111111111111111111111111111111111111", subkey: "2222222222222222222222222222222222222222",
+        userIds: ["Bob Builder <bob@example.org>", "Bob <bob@work.example>"])
+    bob.created = 200
+    var carol = sampleKey("3333333333333333333333333333333333333333", subkey: "4444444444444444444444444444444444444444", userIds: ["Carol <carol@example.net>"])
+    carol.validity = .unknown
+    carol.created = 100
+    carol.expires = 1_000
+    var dave = sampleKey("5555555555555555555555555555555555555555", subkey: "6666666666666666666666666666666666666666", userIds: ["Dave <dave@example.com>"])
+    dave.validity = .revoked
+    let rows = [bob, carol, dave].map(KeyTableRow.init)
+
+    #expect(rows[0].name == "Bob Builder")
+    #expect(rows[0].email == "bob@example.org")
+    #expect(rows[0].otherUserIds.map(\.text) == ["Bob <bob@work.example>"])
+    #expect(rows[0].keyId == "1111111111111111")
+    #expect(rows[0].algorithm == "ed25519")
+    #expect(!rows[0].isInactive && rows[2].isInactive)
+    // 確認済み・未確認・失効の順
+    #expect(rows.sorted { $0.verificationOrder < $1.verificationOrder }.map(\.name) == ["Bob Builder", "Carol", "Dave"])
+    // 期限のない鍵は最後
+    #expect(rows.sorted { $0.expires < $1.expires }.first?.name == "Carol")
+    #expect(rows.sorted { $0.created < $1.created }.map(\.name) == ["Dave", "Carol", "Bob Builder"])
+}
+
 @Test func splitsUserIds() {
     #expect(UserIdParts("Alice (work) <alice@example.com>") == UserIdParts(name: "Alice", comment: "work", email: "alice@example.com"))
     #expect(UserIdParts("<bob@example.com>").name == "bob@example.com")
