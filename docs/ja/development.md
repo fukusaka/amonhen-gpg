@@ -1,0 +1,62 @@
+# 開発
+
+[English](../development.md)
+
+ビルド、テスト、画面の確かめ方。設計は [architecture.md](architecture.md) と [ui.md](ui.md) を見てください。
+
+テストも画面の撮影も `~/.gnupg` には触りません。一時的な鍵束を使います。アプリやテストを自分の鍵束に向けないで
+ください。
+
+## ビルドとテスト
+
+```sh
+cargo test --workspace                      # Rust。結合テストは一時的な --homedir で gpg を動かす
+cargo clippy --workspace --all-targets -- -D warnings
+scripts/build-core.sh && (cd apps/macos && swift test)
+scripts/build-app.sh snapshot               # dist/Amonhen GPG Snapshot.app とその zip
+```
+
+- `scripts/build-core.sh` は Rust のコアを静的ライブラリとしてビルドし、Swift のバインディングを生成します（生成物は
+  コミットしません）。
+- `scripts/swift-build.sh` は `apps/macos` で `swift build` を実行し、アプリに本当の SDK の版を記録させます（Swift 6.4
+  のままでは対応する最低の版が記録され、macOS が昔の見た目で出します）。
+- `scripts/build-app.sh [stable|snapshot]` は、`AMONHEN_SIGN_IDENTITY` があればそれで署名し（なければ ad-hoc）、
+  App Store Connect の API キーがあれば公証します（`scripts/notarize.sh`）。
+- 結合テストは `gpg` がなければ飛ばします。鍵サーバーを使うテストは、`scripts/test-keyserver.sh up`（Podman）で
+  手元に鍵サーバーを立て、`AMONHEN_TEST_KEYSERVER=hkp://127.0.0.1:11371` を付けたときだけ動きます。
+
+## 画面を確かめる
+
+```sh
+scripts/snapshots.sh [dist/snapshots] [light|dark]
+```
+
+デバッグ版をビルドし、サンプルの鍵束（`scripts/sample-keyring.sh`）を作って、3 つの場所とすべてのシートを撮り、
+最後にその鍵束の gpg-agent を止めます。本物の窓を開いて `screencapture` で撮るので、初めはスクリプトを動かす
+アプリに「画面収録」の許可が要ります。
+
+1 枚だけ撮るとき:
+
+```sh
+"$(scripts/swift-build.sh --show-bin-path)/AmonhenGpg" --homedir "$(scripts/sample-keyring.sh)" --snapshot out.png --place mine
+```
+
+起動の引数: `--homedir <dir>`、`--gpg <path>`、`--keyserver <url>`、`--snapshot <file.png>`（窓を撮って終わる）、
+`--place mine|others|staging`、`--sheet extend|create|revoke|certify|details|otherdetails|delete|userids`、
+`--stage <file>`（先に鍵のファイルを一時保管に入れる）、`--appearance light|dark`。
+
+## アイコンとバナー
+
+どちらもコードで描いています。スクリプトを直して、もう一度実行します。
+
+```sh
+swift scripts/make-icon.swift      # apps/macos/Icons（16・32・64 px を確かめる AppIcon-sizes.png も）
+swift scripts/make-banner.swift    # docs/images/banner.png
+```
+
+## リリース
+
+CI（`.github/workflows/ci.yml`）は、push と pull request のたびにテストを流します。`main` では、通ったら署名した
+snapshot を作り、`snapshot` の pre-release を置き換えます。`Cargo.toml` と同じ版の `v<版>` のタグを打ち、CI が
+通っていれば、ビルドして公証し、正式版を出します（`release.yml`）。署名と公証の secret は、環境 `release` に
+置いてあります。

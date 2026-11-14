@@ -32,37 +32,23 @@ and log in with, and where (this Mac or a smart card), and warns before a key ex
 
 ## Installation
 
-On a Mac (macOS 14.4 or later, Apple silicon), with GnuPG 2.2 or later (2.4 or later recommended) from
-[Homebrew](https://brew.sh) (`brew install gnupg pinentry-mac`), [GPG Suite](https://gpgtools.org) or MacGPG2:
+On a Mac (macOS 14.4 or later, Apple silicon), with GnuPG 2.2 or later (`brew install gnupg pinentry-mac`):
 
-1. Download `Amonhen-GPG-Snapshot-<version>.zip` from the
-   [snapshot](https://github.com/fukusaka/amonhen-gpg/releases/tag/snapshot) pre-release. It is the latest `main`,
-   signed but not notarized yet.
-2. Unzip it and move `Amonhen GPG Snapshot.app` into `/Applications`.
-3. Open it. Downloaded in a browser, macOS stops it the first time; allow it under System Settings > Privacy &
-   Security.
+```sh
+curl -fsSL https://raw.githubusercontent.com/fukusaka/amonhen-gpg/main/scripts/install-app.sh | sh -s -- snapshot
+```
 
-The app finds `gpg` on the `PATH`, in Homebrew and in GPG Suite, and opens your usual keyring (`~/.gnupg`). If no
-passphrase dialog can be shown, it tells you how to set `pinentry-program` to pinentry-mac.
-
-To build it yourself, see [Development](#development).
+This installs the latest [snapshot](https://github.com/fukusaka/amonhen-gpg/releases/tag/snapshot) (signed, not
+notarized yet) as `Amonhen GPG Snapshot.app` in `/Applications`. Run it again to update. For downloading by hand,
+other folders and checking a download, see [Installation](docs/install.md).
 
 ## Documents
 
+- [Installation](docs/install.md)
 - [Screen policy](docs/ui.md): what each place shows, and what the app can do
 - [Architecture](docs/architecture.md): the Rust core, the bindings and how gpg is driven
 - [Survey of GPG GUIs](docs/gpg-gui-survey.md)
-
-## Development
-
-```bash
-cargo test --workspace                      # Rust; integration tests run gpg in a temporary --homedir
-scripts/build-core.sh && (cd apps/macos && swift test)
-scripts/build-app.sh snapshot               # dist/Amonhen GPG Snapshot.app and its zip
-scripts/snapshots.sh                        # capture every screen from a sample keyring into dist/snapshots
-```
-
-Tests and screenshots never touch `~/.gnupg`: they use temporary keyrings (`scripts/sample-keyring.sh`).
+- [Development](docs/development.md): building, testing and checking the screens
 
 ## License
 
