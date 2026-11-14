@@ -29,6 +29,8 @@ struct ContentView: View {
     @State var place: Place = .mine
     /// 一覧の検索の語（自分の鍵と他者の鍵。一時保管には鍵サーバーを探す欄が別にあるので使わない）。
     @State var query = ""
+    /// 他者の鍵を、確認の状態で絞り込む（次に開いたときも同じ）。
+    @AppStorage("OthersFilter") private var othersFilter = KeyFilter.all
     /// 使えた鍵（履歴）を開いておくか。
     var showsHistory = false
     @State private var creating = false
@@ -52,6 +54,7 @@ struct ContentView: View {
         NavigationSplitView {
             List(Place.allCases, id: \.self, selection: $place) { place in
                 Label(place.title, systemImage: place.symbol)
+                    .badge(count(place))
             }
             .navigationSplitViewColumnWidth(min: 160, ideal: 180)
         } detail: {
@@ -74,7 +77,9 @@ struct ContentView: View {
                             create: { creating = true }, importKeys: importKeys)
                         .searchable(text: $query, placement: .toolbar, prompt: L("Name, email or fingerprint"))
                     case .others:
-                        OthersView(model: model, query: query, importKeys: importKeys, notify: { notice = $0 })
+                        OthersView(
+                            model: model, query: query, filter: othersFilter, importKeys: importKeys, notify: { notice = $0 },
+                            showAll: { othersFilter = .all })
                             .searchable(text: $query, placement: .toolbar, prompt: L("Name, email or fingerprint"))
                     case .staging: StagingView(model: staging)
                     }
@@ -89,6 +94,20 @@ struct ContentView: View {
                         Label(L("New Key…"), systemImage: "plus")
                     }
                     .help(L("New Key…"))
+                }
+                if place == .others {
+                    Menu {
+                        Picker(L("Show"), selection: $othersFilter) {
+                            ForEach(KeyFilter.allCases, id: \.self) { Text($0.title).tag($0) }
+                        }
+                        .pickerStyle(.inline)
+                    } label: {
+                        Label(
+                            L("Filter"),
+                            systemImage: othersFilter == .all
+                                ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+                    }
+                    .help(othersFilter == .all ? L("Filter") : othersFilter.title)
                 }
                 if place != .staging {
                     Button(action: importKeys) {
@@ -185,6 +204,15 @@ struct ContentView: View {
     }
 
     /// 鍵のファイルを選ばせ、取り込む。秘密鍵を含むときはパスフレーズを gpg が聞く。
+    /// サイドバーに出す鍵の数（一時保管は出さない）。
+    private func count(_ place: Place) -> Int {
+        switch place {
+        case .mine: model.keyring.usable.count + model.keyring.notOnThisDevice.count + model.keyring.history.count
+        case .others: model.keyring.others.count
+        case .staging: 0
+        }
+    }
+
     private func importKeys() {
         let panel = NSOpenPanel()
         panel.title = L("Import Keys")
@@ -663,11 +691,19 @@ struct OthersView: View {
     let model: KeyringModel
     /// 検索の語。空でなければ、合う鍵だけを出す。
     var query = ""
+    /// 確認の状態での絞り込み。
+    var filter = KeyFilter.all
     var importKeys: () -> Void = {}
     var notify: (Notice) -> Void = { _ in }
+    /// 絞り込みを外す（絞り込んで 1 つもないとき）。
+    var showAll: () -> Void = {}
     @State private var certifying: Key?
     @State private var showing: Key?
     @State private var deleting: Key?
+    @State private var selection: KeyTableRow.ID?
+    /// 行の並べ替えと、列の表示・並び・幅。次に開いたときも同じになるよう覚えておく。
+    @State private var sortOrder = OthersTableSettings.sortOrder
+    @State private var columns = OthersTableSettings.columns
 
     var body: some View {
         list
@@ -693,9 +729,16 @@ struct OthersView: View {
     }
 
     @ViewBuilder private var list: some View {
-        let keys = model.keyring.filtered(by: query).others
-        if keys.isEmpty, !query.trimmingCharacters(in: .whitespaces).isEmpty {
+        let found = model.keyring.filtered(by: query).others
+        let keys = found.filter(filter.includes)
+        if keys.isEmpty, !query.trimmingCharacters(in: .whitespaces).isEmpty, filter == .all || found.isEmpty {
             NoSearchResults(query: query)
+        } else if keys.isEmpty, filter != .all, !found.isEmpty || !model.keyring.others.isEmpty {
+            ContentUnavailableView {
+                Label(L("No %@ Keys", filter.title), systemImage: "line.3.horizontal.decrease.circle")
+            } actions: {
+                Button(L("Show All"), action: showAll)
+            }
         } else if keys.isEmpty {
             ContentUnavailableView {
                 Label(L("No keys from others"), systemImage: "person.2")
@@ -705,44 +748,90 @@ struct OthersView: View {
                 Button(L("Import…"), action: importKeys)
             }
         } else {
-            List(keys, id: \.fingerprint) { key in
-                let parts = key.primaryUserId.map { UserIdParts($0.text) }
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 6) {
-                            Text(parts?.name ?? key.fingerprint).font(.headline)
-                            if let email = parts?.email {
-                                Text(email).foregroundStyle(.secondary)
-                            }
-                        }
-                        OtherUserIdLines(key: key)
-                        Text(Fingerprint.grouped(key.fingerprint))
-                            .font(.caption.monospaced())
-                            .foregroundStyle(.tertiary)
-                            .textSelection(.enabled)
+            table(keys.map(KeyTableRow.init).sorted(using: sortOrder))
+        }
+    }
+
+    /// 他者の鍵の表。どの列でも並べ替えられる。ダブルクリックで詳細、右クリックで操作。期限切れ・失効の鍵は薄く出す。
+    private func table(_ rows: [KeyTableRow]) -> some View {
+        Table(rows, selection: $selection, sortOrder: $sortOrder, columnCustomization: $columns) {
+            TableColumn(L("Name"), value: \.name) { row in
+                HStack(spacing: 4) {
+                    Text(row.name).fontWeight(.medium)
+                    if !row.otherUserIds.isEmpty {
+                        Text(verbatim: "+\(row.otherUserIds.count)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .help(row.otherUserIds.map(\.text).joined(separator: "\n"))
                     }
-                    Spacer()
-                    Text(validityWord(key.validity)).foregroundStyle(.secondary)
-                    if key.canCertify {
-                        Button(L("Verify…")) { certifying = key }
+                }
+                .dimmed(row.isInactive)
+            }
+            .width(min: 90, ideal: 130)
+            .customizationID("name")
+            // 名前は消せない（どの鍵か分からなくなる）
+            .disabledCustomizationBehavior(.visibility)
+            TableColumn(L("Email"), value: \.email) { row in
+                Text(row.email).dimmed(row.isInactive)
+            }
+            .width(min: 120, ideal: 170)
+            .customizationID("email")
+            TableColumn(L("Verification"), value: \.verificationOrder) { row in
+                HStack(spacing: 6) {
+                    Text(validityWord(row.key.validity)).foregroundStyle(.secondary)
+                    if row.key.canCertify {
+                        Button(L("Verify…")) { certifying = row.key }
+                            .buttonStyle(.bordered)
                             .controlSize(.small)
                     }
-                    Menu {
-                        menuItems(key)
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                    }
-                    .menuStyle(.borderlessButton)
-                    .menuIndicator(.hidden)
-                    .fixedSize()
                 }
-                .padding(.vertical, 4)
-                .listRowSeparator(.hidden)
-                .contentShape(Rectangle())
-                .simultaneousGesture(TapGesture(count: 2).onEnded { showing = key })
-                .contextMenu { menuItems(key) }
             }
+            .width(min: 130, ideal: 130)
+            .customizationID("verification")
+            TableColumn(L("Key ID"), value: \.keyId) { row in
+                Text(Fingerprint.grouped(row.keyId))
+                    .font(.callout.monospaced())
+                    .textSelection(.enabled)
+                    .dimmed(row.isInactive)
+            }
+            .width(min: 150, ideal: 150)
+            .customizationID("keyId")
+            TableColumn(L("Created"), value: \.created) { row in
+                Text(shortDate(row.key.created) ?? "—").dimmed(row.isInactive)
+            }
+            .width(min: 80, ideal: 85)
+            .customizationID("created")
+            TableColumn(L("Expires"), value: \.expires) { row in
+                Group {
+                    switch row.key.validity {
+                    case .revoked: Text(L("Revoked"))
+                    case .expired: Text(L("Expired"))
+                    default: Text(shortDate(row.key.expires) ?? L("Never"))
+                    }
+                }
+                .dimmed(row.isInactive)
+            }
+            .width(min: 80, ideal: 85)
+            .customizationID("expires")
+            TableColumn(L("Algorithm"), value: \.algorithm) { row in
+                Text(row.algorithm).dimmed(row.isInactive)
+            }
+            .width(min: 70, ideal: 75)
+            .customizationID("algorithm")
         }
+        .contextMenu(forSelectionType: KeyTableRow.ID.self) { ids in
+            if let key = rows.first(where: { ids.contains($0.id) })?.key {
+                menuItems(key)
+            }
+        } primaryAction: { ids in
+            showing = rows.first { ids.contains($0.id) }?.key
+        }
+        .onChange(of: sortOrder) { OthersTableSettings.sortOrder = sortOrder }
+        .onChange(of: columns) { OthersTableSettings.columns = columns }
+    }
+
+    private func shortDate(_ seconds: UInt64?) -> String? {
+        seconds.map { Date(timeIntervalSince1970: TimeInterval($0)).formatted(date: .numeric, time: .omitted) }
     }
 
     @ViewBuilder private func menuItems(_ key: Key) -> some View {
@@ -819,6 +908,70 @@ struct NoSearchResults: View {
             Label(L("No Matching Keys"), systemImage: "magnifyingglass")
         } description: {
             Text(L("No key has a name, email address or fingerprint matching “%@”.", query))
+        }
+    }
+}
+
+extension View {
+    /// もう使えない鍵（期限切れ・失効）の行を薄く出す。
+    func dimmed(_ dim: Bool) -> some View {
+        foregroundStyle(dim ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.primary))
+    }
+}
+
+/// 他者の鍵の表で覚えておくもの（UserDefaults）。行の並べ替えは、列の名前と向きにして残す。
+enum OthersTableSettings {
+    private static let sortKey = "OthersTableSort"
+    private static let columnsKey = "OthersTableColumns"
+    /// 並べ替えられる列（名前は列の customizationID と同じ）。
+    private static let sortable: [(id: String, comparator: KeyPathComparator<KeyTableRow>)] = [
+        ("name", KeyPathComparator(\.name)), ("email", KeyPathComparator(\.email)),
+        ("verification", KeyPathComparator(\.verificationOrder)), ("keyId", KeyPathComparator(\.keyId)),
+        ("created", KeyPathComparator(\.created)), ("expires", KeyPathComparator(\.expires)),
+        ("algorithm", KeyPathComparator(\.algorithm)),
+    ]
+
+    static var sortOrder: [KeyPathComparator<KeyTableRow>] {
+        get {
+            let saved = UserDefaults.standard.stringArray(forKey: sortKey) ?? []
+            let comparators = saved.compactMap { item -> KeyPathComparator<KeyTableRow>? in
+                let parts = item.split(separator: ":")
+                guard let id = parts.first, var comparator = sortable.first(where: { $0.id == id })?.comparator else { return nil }
+                comparator.order = parts.last == "reverse" ? .reverse : .forward
+                return comparator
+            }
+            return comparators.isEmpty ? [KeyPathComparator(\.name)] : comparators
+        }
+        set {
+            let saved = newValue.compactMap { comparator -> String? in
+                guard let id = sortable.first(where: { $0.comparator.keyPath == comparator.keyPath })?.id else { return nil }
+                return "\(id):\(comparator.order == .reverse ? "reverse" : "forward")"
+            }
+            UserDefaults.standard.set(saved, forKey: sortKey)
+        }
+    }
+
+    static var columns: TableColumnCustomization<KeyTableRow> {
+        get {
+            guard let data = UserDefaults.standard.data(forKey: columnsKey),
+                let columns = try? JSONDecoder().decode(TableColumnCustomization<KeyTableRow>.self, from: data)
+            else { return TableColumnCustomization() }
+            return columns
+        }
+        set {
+            UserDefaults.standard.set(try? JSONEncoder().encode(newValue), forKey: columnsKey)
+        }
+    }
+}
+
+extension KeyFilter {
+    /// フィルターのメニューに出す名前。
+    var title: String {
+        switch self {
+        case .all: L("All")
+        case .verified: L("Verified")
+        case .unverified: L("Not verified")
+        case .inactive: L("Expired or Revoked")
         }
     }
 }

@@ -60,6 +60,24 @@ final class TemporaryKeyring {
     }
 }
 
+/// 試験用の UserDefaults。テストごとに決まった名前を使い、始まりと終わりに空にする。cfprefsd は消した domain も
+/// 空のファイルとして書き戻すので、毎回新しい名前にすると空のファイルが増え続ける（決まった名前なら増えない）。
+/// 並行して動くテストどうしで混ざらないよう、名前はテストごとに変える。
+private final class TemporaryDefaults {
+    let name: String
+    let defaults: UserDefaults
+
+    init(_ test: String) throws {
+        name = "amonhen-gpg-tests-\(test)"
+        defaults = try #require(UserDefaults(suiteName: name))
+        defaults.removePersistentDomain(forName: name)
+    }
+
+    deinit {
+        defaults.removePersistentDomain(forName: name)
+    }
+}
+
 private func gpgAvailable() -> Bool {
     (try? Gpg(program: nil, homedir: nil).version()) != nil
 }
@@ -113,6 +131,48 @@ private func sampleKey(_ fingerprint: String, subkey: String, userIds: [String],
     #expect(ring.filtered(by: "").others.count == 2)
     #expect(ring.filtered(by: "carol").others.map(\.fingerprint) == ["3333333333333333333333333333333333333333"])
     #expect(ring.filtered(by: "dave").others.isEmpty)
+}
+
+@Test func makesTableRowsThatSort() {
+    var bob = sampleKey(
+        "1111111111111111111111111111111111111111", subkey: "2222222222222222222222222222222222222222",
+        userIds: ["Bob Builder <bob@example.org>", "Bob <bob@work.example>"])
+    bob.created = 200
+    var carol = sampleKey("3333333333333333333333333333333333333333", subkey: "4444444444444444444444444444444444444444", userIds: ["Carol <carol@example.net>"])
+    carol.validity = .unknown
+    carol.created = 100
+    carol.expires = 1_000
+    var dave = sampleKey("5555555555555555555555555555555555555555", subkey: "6666666666666666666666666666666666666666", userIds: ["Dave <dave@example.com>"])
+    dave.validity = .revoked
+    let rows = [bob, carol, dave].map(KeyTableRow.init)
+
+    #expect(rows[0].name == "Bob Builder")
+    #expect(rows[0].email == "bob@example.org")
+    #expect(rows[0].otherUserIds.map(\.text) == ["Bob <bob@work.example>"])
+    #expect(rows[0].keyId == "1111111111111111")
+    #expect(rows[0].algorithm == "ed25519")
+    #expect(!rows[0].isInactive && rows[2].isInactive)
+    // 確認済み・未確認・失効の順
+    #expect(rows.sorted { $0.verificationOrder < $1.verificationOrder }.map(\.name) == ["Bob Builder", "Carol", "Dave"])
+    // 期限のない鍵は最後
+    #expect(rows.sorted { $0.expires < $1.expires }.first?.name == "Carol")
+    #expect(rows.sorted { $0.created < $1.created }.map(\.name) == ["Dave", "Carol", "Bob Builder"])
+}
+
+@Test func filtersKeysByVerification() {
+    func key(_ validity: Validity) -> Key {
+        var key = sampleKey(
+            "1111111111111111111111111111111111111111", subkey: "2222222222222222222222222222222222222222", userIds: ["A <a@example.org>"])
+        key.validity = validity
+        return key
+    }
+    let all: [Validity] = [.ultimate, .full, .marginal, .unknown, .never, .new, .expired, .revoked, .invalid, .disabled]
+    func pick(_ filter: KeyFilter) -> [Validity] { all.filter { filter.includes(key($0)) } }
+    #expect(pick(.all) == all)
+    #expect(pick(.verified) == [.ultimate, .full])
+    // 一部確認はまだ確認できるので未確認に
+    #expect(pick(.unverified) == [.marginal, .unknown, .never, .new])
+    #expect(pick(.inactive) == [.expired, .revoked, .invalid, .disabled])
 }
 
 @Test func splitsUserIds() {
@@ -426,10 +486,8 @@ func remembersBackups() throws {
     let home = try TemporaryKeyring()
     let fpr = try home.gpg.generateKey(
         request: GenerateKey(userId: "Alice <alice@example.com>", algorithm: nil, capabilities: nil, expires: .never))
-    let suite = "amonhen-gpg-tests-\(UUID().uuidString)"
-    let defaults = try #require(UserDefaults(suiteName: suite))
-    defer { defaults.removePersistentDomain(forName: suite) }
-    let log = BackupLog(defaults: defaults)
+    let defaults = try TemporaryDefaults("backups")
+    let log = BackupLog(defaults: defaults.defaults)
     func own() throws -> OwnKey {
         try #require(Keyring(keys: try home.gpg.listKeys(), sshKeys: [], now: UInt64(Date().timeIntervalSince1970), backups: log.dates).usable.first)
     }
@@ -440,7 +498,7 @@ func remembersBackups() throws {
     #expect(try own().backedUp == date)
     #expect(try !own().needsBackup)
     // 記録は残り、フィンガープリントで引ける
-    #expect(BackupLog(defaults: defaults).dates.keys.sorted() == [fpr])
+    #expect(BackupLog(defaults: defaults.defaults).dates.keys.sorted() == [fpr])
 }
 
 @Test(.enabled(if: gpgAvailable()))
@@ -639,10 +697,8 @@ func deletesSecretKeyOnlyAfterBackup() throws {
     let home = try TemporaryKeyring()
     let fpr = try home.gpg.generateKey(
         request: GenerateKey(userId: "Alice <alice@example.com>", algorithm: nil, capabilities: nil, expires: .never))
-    let suite = "amonhen-gpg-tests-\(UUID().uuidString)"
-    let defaults = try #require(UserDefaults(suiteName: suite))
-    defer { defaults.removePersistentDomain(forName: suite) }
-    let log = BackupLog(defaults: defaults)
+    let defaults = try TemporaryDefaults("delete")
+    let log = BackupLog(defaults: defaults.defaults)
     func own() throws -> OwnKey {
         try #require(Keyring(keys: try home.gpg.listKeys(), sshKeys: [], now: UInt64(Date().timeIntervalSince1970), backups: log.dates).own(fpr))
     }
