@@ -5,9 +5,11 @@ import SwiftUI
 /// 起動の引数。
 /// - `--gpg <path>`: 使う gpg（既定は `PATH` の gpg）
 /// - `--homedir <dir>`: 鍵の置き場所（既定は `GNUPGHOME` か `~/.gnupg`）
-/// - `--snapshot <file.png>`: 窓を開かずに、画面を画像に書き出して終わる（見た目の確認用。使えた鍵は開いておく）
+/// - `--snapshot <file.png>`: 窓を開いて、その窓を画像に撮って終わる（見た目の確認用。使えた鍵は開いておく。初めは
+///   起動したアプリに「画面収録」の許可が要る）
 /// - `--place mine|others|staging`: 書き出す場所
-/// - `--sheet extend|create|revoke|certify|details|otherdetails|delete|userids`: 一覧の代わりに、シートを書き出す（最初の自分の鍵で）
+/// - `--sheet extend|create|revoke|certify|details|otherdetails|delete|userids`: 一覧の代わりに、シートの中身を撮る（最初の自分の鍵で）
+/// - `--appearance light|dark`: 見た目を決める（既定はシステムの設定）
 /// - `--stage <file>`: 鍵のファイルを一時保管に入れてから書き出す（一時保管の見た目の確認用）
 /// - `--keyserver <url>`: 送る・探す鍵サーバー（既定は keys.openpgp.org。試験用の鍵サーバーは `scripts/test-keyserver.sh`）
 struct Options {
@@ -18,6 +20,7 @@ struct Options {
     var sheet: SheetPreview.Kind?
     var stage: String?
     var keyserver: String?
+    var appearance: NSAppearance?
 
     init(_ arguments: [String]) {
         var rest = arguments.dropFirst().makeIterator()
@@ -30,6 +33,12 @@ struct Options {
             case "--sheet": sheet = rest.next().flatMap(SheetPreview.Kind.init(rawValue:))
             case "--stage": stage = rest.next()
             case "--keyserver": keyserver = rest.next()
+            case "--appearance":
+                appearance = switch rest.next() {
+                case "light": NSAppearance(named: .aqua)
+                case "dark": NSAppearance(named: .darkAqua)
+                default: nil
+                }
             default: break
             }
         }
@@ -50,10 +59,19 @@ struct GpgApp: App {
 
     var body: some Scene {
         Window("Amonhen GPG", id: "main") {
-            ContentView(model: model, staging: staging)
-                .frame(minWidth: 720, minHeight: 420)
-                .task { await model.reload() }
+            if options.snapshot != nil, let sheet = options.sheet {
+                SheetPreview(model: model, kind: sheet)
+            } else if options.snapshot != nil {
+                // 鍵束は起動する前に読んである
+                ContentView(model: model, staging: staging, place: options.place, showsHistory: true)
+                    .frame(minWidth: 720, minHeight: 420)
+            } else {
+                ContentView(model: model, staging: staging)
+                    .frame(minWidth: 720, minHeight: 420)
+                    .task { await model.reload() }
+            }
         }
+        .windowResizability(options.sheet != nil && options.snapshot != nil ? .contentSize : .automatic)
     }
 }
 
@@ -66,6 +84,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // .app に入れずに実行ファイルを起動したときも、普通のアプリとして前に出す
         NSApp.setActivationPolicy(.regular)
         NSApp.activate()
+        if let path = options.snapshot {
+            Snapshot.capture(to: URL(fileURLWithPath: path)) { staging.discardAll() }
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
@@ -75,19 +96,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-if let path = options.snapshot, let sheet = options.sheet {
-    Snapshot.write(SheetPreview(model: model, kind: sheet), size: CGSize(width: 600, height: 560), to: URL(fileURLWithPath: path)) {
-        model.reloadNow()
-    }
-} else if let path = options.snapshot {
-    Snapshot.write(ContentView(model: model, staging: staging, place: options.place, showsHistory: true), size: CGSize(width: 960, height: 600), to: URL(fileURLWithPath: path)) {
-        model.reloadNow()
-        if let stage = options.stage, let data = FileManager.default.contents(atPath: stage) {
-            staging.addNow(data)
-        }
-    } cleanup: {
-        staging.discardAll()
-    }
-} else {
-    GpgApp.main()
+if let appearance = options.appearance {
+    NSApplication.shared.appearance = appearance
 }
+// 撮るときは、窓を出す前に鍵束を読み、一時保管に入れておく（読み終わる前の画面を撮らないように）
+if options.snapshot != nil {
+    model.reloadNow()
+    if let stage = options.stage, let data = FileManager.default.contents(atPath: stage) {
+        staging.addNow(data)
+    }
+}
+GpgApp.main()

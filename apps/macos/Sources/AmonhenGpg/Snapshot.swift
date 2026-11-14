@@ -1,39 +1,43 @@
 import AppKit
 import SwiftUI
 
-/// 画面を窓に出さずに PNG に書き出す（見た目の確認用）。
+/// 本物の窓を開いて、その窓だけを PNG に撮る（見た目の確認用）。macOS 26 のガラス（サイドバー・ツールバー）は窓を
+/// 画面に出さないと描かれないので、画面に出して `screencapture` で撮る。初めは、起動したアプリ（端末など）に
+/// 「画面収録」の許可が要る。
 enum Snapshot {
-    /// `cleanup` は書き出したあと、終わる前に呼ぶ（一時保管を捨てる）。
-    static func write(_ view: some View, size: CGSize, to url: URL, prepare: () -> Void, cleanup: () -> Void = {}) {
-        let app = NSApplication.shared
-        app.setActivationPolicy(.prohibited)
-        prepare()
-        let window = NSWindow(
-            contentRect: CGRect(origin: .zero, size: size), styleMask: [.titled, .fullSizeContentView],
-            backing: .buffered, defer: false)
-        // 窓の背景は画像に入らないので、窓と同じ色を敷く（一覧の外の文字が背景なしで描かれないように）
-        window.contentView = NSHostingView(
-            rootView: view.frame(width: size.width, height: size.height).background(Color(nsColor: .windowBackgroundColor)))
-        // 一覧（NSTableView）などが中身を並べ終えるまで回す
-        for _ in 0..<5 {
-            RunLoop.main.run(until: Date().addingTimeInterval(0.1))
-            window.contentView?.layoutSubtreeIfNeeded()
+    /// 窓の中身の大きさ。
+    static let windowSize = CGSize(width: 960, height: 600)
+
+    /// 窓が出て中身を並べ終えたころに撮り、`cleanup` を呼んで終わる。
+    static func capture(to url: URL, cleanup: @escaping () -> Void) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            guard let window = NSApp.windows.first(where: \.isVisible) else { finish(1, "no window to capture", cleanup) }
+            if window.attachedSheet == nil, window.styleMask.contains(.resizable) {
+                window.setContentSize(windowSize)
+                window.center()
+            }
+            // 一覧などが中身を並べ、ガラスが描かれるまで待つ
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+                // -o: 影を入れない、-x: 音を出さない、-l: この窓だけ
+                process.arguments = ["-o", "-x", "-l", String(window.windowNumber), url.path]
+                do {
+                    try process.run()
+                    process.waitUntilExit()
+                } catch {
+                    finish(1, "\(error)", cleanup)
+                }
+                guard process.terminationStatus == 0, FileManager.default.fileExists(atPath: url.path) else {
+                    finish(1, "screencapture failed; allow Screen Recording for the app that launched this", cleanup)
+                }
+                finish(0, nil, cleanup)
+            }
         }
-        guard let content = window.contentView,
-            let bitmap = content.bitmapImageRepForCachingDisplay(in: content.bounds)
-        else { finish(1, cleanup) }
-        content.cacheDisplay(in: content.bounds, to: bitmap)
-        guard let png = bitmap.representation(using: .png, properties: [:]) else { finish(1, cleanup) }
-        do {
-            try png.write(to: url)
-        } catch {
-            FileHandle.standardError.write(Data("\(error)\n".utf8))
-            finish(1, cleanup)
-        }
-        finish(0, cleanup)
     }
 
-    private static func finish(_ status: Int32, _ cleanup: () -> Void) -> Never {
+    private static func finish(_ status: Int32, _ message: String?, _ cleanup: () -> Void) -> Never {
+        if let message { FileHandle.standardError.write(Data("\(message)\n".utf8)) }
         cleanup()
         exit(status)
     }
