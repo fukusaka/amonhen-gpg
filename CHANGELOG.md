@@ -14,6 +14,8 @@ notes.
 - Key details open in a window of their own (double-click, Details…, or Key > Show Details ⌘I), so keys can be
   compared side by side. Tabs show an overview (key ID, algorithm and, for your own keys, where the secret key is, its
   backup, its revocation certificate and SSH use), the names and addresses, and each subkey's fingerprint and keygrip.
+- A Signatures tab in the key window lists every signature on the key. Signatures from your own keys and from keys
+  you verified come first; the rest are dimmed, since they are no proof that the key is genuine.
 - Press the space bar on others' keys to quick-look the selected key's fingerprint, validity and expiry.
 
 ## [0.1.0] - 2026-11-14
