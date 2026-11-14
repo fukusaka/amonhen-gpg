@@ -46,7 +46,7 @@ enum Snapshot {
 /// シートを単独で書き出すための入れ物（`--sheet`）。鍵束を読んでから中身を決める。
 struct SheetPreview: View {
     enum Kind: String {
-        case extend, create, revoke, certify, details, detailnames, detailkeys, otherdetails, delete, userids
+        case extend, create, revoke, certify, details, detailnames, detailkeys, detailsignatures, otherdetails, delete, userids
     }
 
     let model: KeyringModel
@@ -71,11 +71,11 @@ struct SheetPreview: View {
             if let own {
                 UserIdsSheet(model: model, own: own)
             }
-        case .details, .detailnames, .detailkeys:
+        case .details, .detailnames, .detailkeys, .detailsignatures:
             if let own {
                 KeyDetailView(
                     model: model, key: own.key, preloaded: try? model.gpg.certifications(fingerprint: own.key.fingerprint),
-                    initialTab: kind == .detailnames ? .names : kind == .detailkeys ? .keys : .overview)
+                    initialTab: kind == .detailnames ? .names : kind == .detailkeys ? .keys : kind == .detailsignatures ? .signatures : .overview)
                     .frame(width: 620, height: 600)
             }
         case .otherdetails:

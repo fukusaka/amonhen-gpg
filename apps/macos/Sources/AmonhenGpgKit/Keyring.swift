@@ -175,32 +175,3 @@ public func algorithmName(algorithm: UInt32, length: UInt32, curve: String?) -> 
     }
     return length > 0 ? "\(name) \(length)" : name
 }
-
-/// UID に付いた署名を、自分の鍵によるものとそれ以外に分けたもの。
-public struct UserIdCertifications: Equatable, Sendable {
-    /// 自分の鍵による署名（取り消したものも含む。いつ・どの鍵で確かめたかを出すため）。
-    public var mine: [Certification] = []
-    /// ほかの人の署名のうち、取り消されておらず、正しくないと分かったものでないもの。
-    /// 知らない人の署名は本物の保証にならないので、FE は数だけを出す。
-    public var others: [Certification] = []
-}
-
-extension Keyring {
-    /// `uid` に付いた署名を分ける。署名した鍵が自分の鍵かは、フィンガープリント（なければ鍵 ID）で見る。
-    public func certifications(_ all: [Certification], for uid: UserId) -> UserIdCertifications {
-        let own = usable + notOnThisDevice + history
-        var result = UserIdCertifications()
-        for c in all where c.userId == uid.text {
-            let isMine = own.contains { o in
-                if let f = c.signerFingerprint { return o.key.fingerprint.caseInsensitiveCompare(f) == .orderedSame }
-                return o.key.fingerprint.uppercased().hasSuffix(c.signerKeyId.uppercased())
-            }
-            if isMine {
-                result.mine.append(c)
-            } else if !c.revoked, c.check != .bad {
-                result.others.append(c)
-            }
-        }
-        return result
-    }
-}

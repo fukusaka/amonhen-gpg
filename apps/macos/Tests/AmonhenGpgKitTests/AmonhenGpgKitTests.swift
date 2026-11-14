@@ -370,7 +370,7 @@ func editsUserIds() throws {
 }
 
 @Test(.enabled(if: gpgAvailable()))
-func separatesMyCertificationsFromOthers() throws {
+func groupsRealSignaturesFromAnotherKeyring() throws {
     let home = try TemporaryKeyring()
     let me = try home.gpg.generateKey(
         request: GenerateKey(userId: "Alice <alice@example.com>", algorithm: nil, capabilities: nil, expires: .never))
@@ -387,12 +387,44 @@ func separatesMyCertificationsFromOthers() throws {
     let keys = try home.gpg.listKeys()
     let ring = Keyring(keys: keys, sshKeys: [], now: UInt64(Date().timeIntervalSince1970))
     let key = try #require(keys.first { $0.fingerprint == bob })
-    let split = ring.certifications(try home.gpg.certifications(fingerprint: bob), for: try #require(key.primaryUserId))
-    #expect(split.mine.map(\.signerFingerprint) == [me])
-    #expect(split.mine.first?.exportable == false)
-    // Carol の鍵は手元にないので、確かめられない署名として数える
-    #expect(split.others.map(\.signerFingerprint) == [carol])
-    #expect(split.others.first?.check == .missingKey)
+    let groups = ring.signatures(try home.gpg.certifications(fingerprint: bob), on: key)
+    #expect(groups.trusted.map(\.certification.signerFingerprint) == [me])
+    #expect(groups.trusted.first?.byYou == true)
+    #expect(groups.trusted.first?.certification.exportable == false)
+    // Carol の鍵は手元にないので、そのほかの、確かめられない署名になる
+    #expect(groups.others.map(\.certification.signerFingerprint) == [carol])
+    #expect(groups.others.first?.certification.check == .missingKey)
+    #expect(groups.others.first?.signerName == nil)
+}
+
+@Test func groupsSignaturesByWhetherYouVerifiedTheSigner() {
+    var me = sampleKey("1111111111111111111111111111111111111111", subkey: "1111000011110000111100001111000011110000", userIds: ["Me <me@example.com>"])
+    me.secret = .available
+    me.validity = .ultimate
+    let dave = sampleKey("2222222222222222222222222222222222222222", subkey: "2222000022220000222200002222000022220000", userIds: ["Dave <dave@example.com>"])
+    var erin = sampleKey("3333333333333333333333333333333333333333", subkey: "3333000033330000333300003333000033330000", userIds: ["Erin <erin@example.com>"])
+    erin.validity = .unknown
+    let bob = sampleKey("4444444444444444444444444444444444444444", subkey: "4444000044440000444400004444000044440000",
+                        userIds: ["Bob <bob@example.org>", "Bob <bob@work.example>"])
+    let ring = Keyring(keys: [me, dave, erin, bob], sshKeys: [], now: 0)
+    func cert(_ uid: String, _ signer: String?, keyId: String, created: UInt64, revoked: Bool = false) -> Certification {
+        Certification(userId: uid, signerFingerprint: signer, signerKeyId: keyId, signerUserId: nil, created: created, expires: nil,
+                      exportable: true, check: signer == nil ? .missingKey : .good, revoked: revoked)
+    }
+    let all = [
+        cert("Bob <bob@work.example>", dave.fingerprint, keyId: dave.keyId, created: 5),
+        cert("Bob <bob@example.org>", erin.fingerprint, keyId: erin.keyId, created: 3),
+        cert("Bob <bob@example.org>", nil, keyId: "AAAABBBBCCCCDDDD", created: 2),
+        cert("Bob <bob@example.org>", nil, keyId: me.keyId, created: 4, revoked: true),
+        cert("Bob <bob@example.org>", dave.fingerprint, keyId: dave.keyId, created: 1),
+    ]
+    let groups = ring.signatures(all, on: bob)
+    // 自分の鍵（鍵 ID だけでも見つける。取り消しも残す）と、確認済みの Dave。UID の順、その中は新しい順
+    #expect(groups.trusted.map(\.signerName) == ["Me", "Dave", "Dave"])
+    #expect(groups.trusted.map(\.byYou) == [true, false, false])
+    #expect(groups.trusted.map(\.certification.userId) == ["Bob <bob@example.org>", "Bob <bob@example.org>", "Bob <bob@work.example>"])
+    // 確認していない Erin と、鍵束にない鍵
+    #expect(groups.others.map(\.signerName) == ["Erin", nil])
 }
 
 @Test(.enabled(if: gpgAvailable()))
