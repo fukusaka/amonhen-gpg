@@ -669,7 +669,9 @@ struct OthersView: View {
     @State private var showing: Key?
     @State private var deleting: Key?
     @State private var selection: KeyTableRow.ID?
-    @State private var sortOrder = [KeyPathComparator(\KeyTableRow.name)]
+    /// 行の並べ替えと、列の表示・並び・幅。次に開いたときも同じになるよう覚えておく。
+    @State private var sortOrder = OthersTableSettings.sortOrder
+    @State private var columns = OthersTableSettings.columns
 
     var body: some View {
         list
@@ -713,7 +715,7 @@ struct OthersView: View {
 
     /// 他者の鍵の表。どの列でも並べ替えられる。ダブルクリックで詳細、右クリックで操作。期限切れ・失効の鍵は薄く出す。
     private func table(_ rows: [KeyTableRow]) -> some View {
-        Table(rows, selection: $selection, sortOrder: $sortOrder) {
+        Table(rows, selection: $selection, sortOrder: $sortOrder, columnCustomization: $columns) {
             TableColumn(L("Name"), value: \.name) { row in
                 HStack(spacing: 4) {
                     Text(row.name).fontWeight(.medium)
@@ -727,10 +729,14 @@ struct OthersView: View {
                 .dimmed(row.isInactive)
             }
             .width(min: 90, ideal: 130)
+            .customizationID("name")
+            // 名前は消せない（どの鍵か分からなくなる）
+            .disabledCustomizationBehavior(.visibility)
             TableColumn(L("Email"), value: \.email) { row in
                 Text(row.email).dimmed(row.isInactive)
             }
             .width(min: 120, ideal: 170)
+            .customizationID("email")
             TableColumn(L("Verification"), value: \.verificationOrder) { row in
                 HStack(spacing: 6) {
                     Text(validityWord(row.key.validity)).foregroundStyle(.secondary)
@@ -742,6 +748,7 @@ struct OthersView: View {
                 }
             }
             .width(min: 130, ideal: 130)
+            .customizationID("verification")
             TableColumn(L("Key ID"), value: \.keyId) { row in
                 Text(Fingerprint.grouped(row.keyId))
                     .font(.callout.monospaced())
@@ -749,10 +756,12 @@ struct OthersView: View {
                     .dimmed(row.isInactive)
             }
             .width(min: 150, ideal: 150)
+            .customizationID("keyId")
             TableColumn(L("Created"), value: \.created) { row in
                 Text(shortDate(row.key.created) ?? "—").dimmed(row.isInactive)
             }
             .width(min: 80, ideal: 85)
+            .customizationID("created")
             TableColumn(L("Expires"), value: \.expires) { row in
                 Group {
                     switch row.key.validity {
@@ -764,10 +773,12 @@ struct OthersView: View {
                 .dimmed(row.isInactive)
             }
             .width(min: 80, ideal: 85)
+            .customizationID("expires")
             TableColumn(L("Algorithm"), value: \.algorithm) { row in
                 Text(row.algorithm).dimmed(row.isInactive)
             }
             .width(min: 70, ideal: 75)
+            .customizationID("algorithm")
         }
         .contextMenu(forSelectionType: KeyTableRow.ID.self) { ids in
             if let key = rows.first(where: { ids.contains($0.id) })?.key {
@@ -776,6 +787,8 @@ struct OthersView: View {
         } primaryAction: { ids in
             showing = rows.first { ids.contains($0.id) }?.key
         }
+        .onChange(of: sortOrder) { OthersTableSettings.sortOrder = sortOrder }
+        .onChange(of: columns) { OthersTableSettings.columns = columns }
     }
 
     private func shortDate(_ seconds: UInt64?) -> String? {
@@ -864,5 +877,50 @@ extension View {
     /// もう使えない鍵（期限切れ・失効）の行を薄く出す。
     func dimmed(_ dim: Bool) -> some View {
         foregroundStyle(dim ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.primary))
+    }
+}
+
+/// 他者の鍵の表で覚えておくもの（UserDefaults）。行の並べ替えは、列の名前と向きにして残す。
+enum OthersTableSettings {
+    private static let sortKey = "OthersTableSort"
+    private static let columnsKey = "OthersTableColumns"
+    /// 並べ替えられる列（名前は列の customizationID と同じ）。
+    private static let sortable: [(id: String, comparator: KeyPathComparator<KeyTableRow>)] = [
+        ("name", KeyPathComparator(\.name)), ("email", KeyPathComparator(\.email)),
+        ("verification", KeyPathComparator(\.verificationOrder)), ("keyId", KeyPathComparator(\.keyId)),
+        ("created", KeyPathComparator(\.created)), ("expires", KeyPathComparator(\.expires)),
+        ("algorithm", KeyPathComparator(\.algorithm)),
+    ]
+
+    static var sortOrder: [KeyPathComparator<KeyTableRow>] {
+        get {
+            let saved = UserDefaults.standard.stringArray(forKey: sortKey) ?? []
+            let comparators = saved.compactMap { item -> KeyPathComparator<KeyTableRow>? in
+                let parts = item.split(separator: ":")
+                guard let id = parts.first, var comparator = sortable.first(where: { $0.id == id })?.comparator else { return nil }
+                comparator.order = parts.last == "reverse" ? .reverse : .forward
+                return comparator
+            }
+            return comparators.isEmpty ? [KeyPathComparator(\.name)] : comparators
+        }
+        set {
+            let saved = newValue.compactMap { comparator -> String? in
+                guard let id = sortable.first(where: { $0.comparator.keyPath == comparator.keyPath })?.id else { return nil }
+                return "\(id):\(comparator.order == .reverse ? "reverse" : "forward")"
+            }
+            UserDefaults.standard.set(saved, forKey: sortKey)
+        }
+    }
+
+    static var columns: TableColumnCustomization<KeyTableRow> {
+        get {
+            guard let data = UserDefaults.standard.data(forKey: columnsKey),
+                let columns = try? JSONDecoder().decode(TableColumnCustomization<KeyTableRow>.self, from: data)
+            else { return TableColumnCustomization() }
+            return columns
+        }
+        set {
+            UserDefaults.standard.set(try? JSONEncoder().encode(newValue), forKey: columnsKey)
+        }
     }
 }
