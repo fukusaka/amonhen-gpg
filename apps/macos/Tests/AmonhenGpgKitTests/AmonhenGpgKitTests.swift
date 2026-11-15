@@ -95,7 +95,8 @@ private func sampleKey(_ fingerprint: String, subkey: String, userIds: [String],
         ],
         userIds: userIds.map {
             UserId(text: $0, validity: revoked.contains($0) ? .revoked : .full, created: nil, expires: nil, hash: nil, attribute: false)
-        })
+        },
+        origin: .unknown, originUrl: nil, lastUpdate: nil)
 }
 
 @Test func searchesNamesEmailsAndFingerprints() {

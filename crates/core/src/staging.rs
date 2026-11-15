@@ -61,10 +61,31 @@ impl Gpg {
         std::fs::remove_dir_all(&dir).map_err(|e| io_error(&dir, e))
     }
 
-    /// 鍵の公開鍵を、ほかの鍵束（一時保管から本来の鍵束へ）に移す。秘密鍵は移さない。
+    /// 鍵の公開鍵を、ほかの鍵束（一時保管から本来の鍵束へ）に移す。秘密鍵は移さない。書き出して取り込み直すと
+    /// 入手元（鍵サーバー・WKD・ファイル）が失われるので、一時保管での入手元を `--key-origin` で引き継ぐ。
     pub fn copy_public_keys_to(&self, dest: &Gpg, fingerprints: &[&str]) -> Result<ImportResult> {
-        let data = self.export_public_keys(fingerprints, false)?;
-        dest.import(&data)
+        let keys = self.list_keys()?;
+        let mut result = ImportResult::default();
+        for fingerprint in fingerprints {
+            let data = self.export_public_keys(&[fingerprint], false)?;
+            let key = keys
+                .iter()
+                .find(|k| k.fingerprint.eq_ignore_ascii_case(fingerprint));
+            let origin = key.and_then(|k| {
+                let name = k.origin.option_name()?;
+                Some(match &k.origin_url {
+                    Some(url) => format!("{name},{url}"),
+                    None => name.to_owned(),
+                })
+            });
+            result.add(match origin {
+                Some(origin) => {
+                    dest.run_import(&["--key-origin", &origin, "--import"], Some(&data))?
+                }
+                None => dest.import(&data)?,
+            });
+        }
+        Ok(result)
     }
 
     /// 鍵サーバーから、フィンガープリントで鍵を取ってくる。`keyserver` を決めなければ dirmngr の設定を使う

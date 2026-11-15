@@ -5,7 +5,9 @@ use std::path::Path;
 use std::process::Stdio;
 
 use amonhen_gpg_core::process::command;
-use amonhen_gpg_core::{Capabilities, Error, Expiry, GenerateKey, Gpg, SecretState, Validity};
+use amonhen_gpg_core::{
+    Capabilities, Error, Expiry, GenerateKey, Gpg, KeyOrigin, SecretState, Validity,
+};
 
 struct Home {
     dir: tempfile::TempDir,
@@ -370,8 +372,9 @@ fn staging_keeps_fetched_keys_apart() {
     let main = Gpg::new().with_homedir(home.path());
     let dir = home.path().join("staging");
     let staging = main.staging(&dir).unwrap();
-    let r = staging.import(&data).unwrap();
+    let r = staging.import_from_file(&data).unwrap();
     assert_eq!(r.imported, 1);
+    assert_eq!(staging.list_keys().unwrap()[0].origin, KeyOrigin::File);
     assert!(
         main.list_keys().unwrap().is_empty(),
         "staging must stay apart"
@@ -384,6 +387,8 @@ fn staging_keeps_fetched_keys_apart() {
     let keys = main.list_keys().unwrap();
     assert_eq!(keys[0].fingerprint, fpr);
     assert!(!keys[0].is_mine());
+    // 書き出して取り込み直しても、一時保管での入手元を引き継ぐ
+    assert_eq!(keys[0].origin, KeyOrigin::File);
 
     staging.discard_staging().unwrap();
     assert!(!dir.exists());

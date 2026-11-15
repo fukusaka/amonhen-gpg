@@ -69,6 +69,13 @@ struct KeyDetailView: View {
             fact(L("Created"), Text(date(key.created) ?? "—"))
             fact(L("Expires"), Text(expiry(key.expires, validity: key.validity)))
             fact(L("Algorithm"), Text(algorithmName(algorithm: key.algorithm, length: key.length, curve: key.curve)))
+            // gpg は自分で作った鍵の入手元を記録しないことが多いので、自分の鍵で分からなければ出さない
+            if own == nil || key.origin != .unknown {
+                fact(L("Origin"), Text(originWord(key)).textSelection(.enabled))
+            }
+            if let updated = key.lastUpdate {
+                fact(L("Last refreshed"), Text(date(updated) ?? "—"))
+            }
             if let own {
                 Divider().gridCellUnsizedAxes(.horizontal)
                 fact(L("Secret key"), Text(secretWord(own.key.secret)))
@@ -217,6 +224,21 @@ struct KeyQuickLook: View {
         .padding(16)
         .frame(width: 420)
     }
+}
+
+/// 鍵をどこから取り込んだか。取り込んだ先の URL があれば、そのホスト名を添える。
+func originWord(_ key: Key) -> String {
+    let host = key.originUrl.flatMap { URL(string: $0)?.host() ?? $0 }
+    let word = switch key.origin {
+    case .unknown: L("Unknown")
+    case .keyserver, .preferredKeyserver: L("Keyserver")
+    case .dane: L("DNS (DANE)")
+    case .wkd: L("The email domain (WKD)")
+    case .url: L("A web address")
+    case .file: L("A file")
+    case .generated: L("Created in this keyring")
+    }
+    return host.map { "\(word) · \($0)" } ?? word
 }
 
 /// 秘密鍵の場所を言葉で。
