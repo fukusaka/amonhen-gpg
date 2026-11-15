@@ -327,3 +327,9 @@
 "A web address" = "Web アドレス";
 "A file" = "ファイル";
 "Created in this keyring" = "この鍵束で作成";
+"Revoked because" = "失効の理由";
+"Replaced by a new key" = "新しい鍵に置き換えた";
+"The secret key was exposed" = "秘密鍵が漏れた";
+"No longer used" = "もう使わない";
+"No longer valid" = "もう正しくない";
+"No reason was given" = "理由は示されていない";

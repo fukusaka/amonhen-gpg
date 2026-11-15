@@ -18,6 +18,8 @@ struct KeyDetailView: View {
     /// 確認済みにする（未確認の他者の鍵のとき。窓の上に確認のシートを出す）。
     var certify: ((Key) -> Void)?
     @State private var loaded: [Certification]?
+    /// 失効の理由と説明（鍵・サブ鍵・UID のどれかが失効しているときだけ読む）。
+    @State private var revocations: Revocations?
     @State private var tab: Tab?
 
     var body: some View {
@@ -44,9 +46,14 @@ struct KeyDetailView: View {
         .padding(20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .task {
-            guard preloaded == nil else { return }
             let gpg = model.gpg
             let fingerprint = key.fingerprint
+            if key.validity == .revoked || key.subkeys.contains(where: { $0.validity == .revoked })
+                || key.userIds.contains(where: { $0.validity == .revoked })
+            {
+                revocations = await Task.detached { try? gpg.revocations(fingerprint: fingerprint) }.value
+            }
+            guard preloaded == nil else { return }
             loaded = await Task.detached { try? gpg.certifications(fingerprint: fingerprint) }.value
         }
     }
@@ -68,6 +75,9 @@ struct KeyDetailView: View {
             fact(L("Validity"), Text(validityWord(key.validity)))
             fact(L("Created"), Text(date(key.created) ?? "—"))
             fact(L("Expires"), Text(expiry(key.expires, validity: key.validity)))
+            if let revocation = revocations?.key {
+                fact(L("Revoked because"), RevocationText(revocation: revocation))
+            }
             fact(L("Algorithm"), Text(algorithmName(algorithm: key.algorithm, length: key.length, curve: key.curve)))
             // gpg は自分で作った鍵の入手元を記録しないことが多いので、自分の鍵で分からなければ出さない
             if own == nil || key.origin != .unknown {
@@ -99,12 +109,19 @@ struct KeyDetailView: View {
     private var names: some View {
         VStack(alignment: .leading, spacing: 12) {
             ForEach(Array(key.userIds.filter { !$0.attribute }.enumerated()), id: \.offset) { _, uid in
-                HStack {
-                    Text(uid.text)
-                        .strikethrough(uid.validity == .revoked)
-                        .textSelection(.enabled)
-                    Spacer()
-                    Text(validityWord(uid.validity)).foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack {
+                        Text(uid.text)
+                            .strikethrough(uid.validity == .revoked)
+                            .textSelection(.enabled)
+                        Spacer()
+                        Text(validityWord(uid.validity)).foregroundStyle(.secondary)
+                    }
+                    if let revocation = revocations?.userIds.first(where: { $0.userId == uid.text })?.revocation {
+                        RevocationText(revocation: revocation)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
         }
@@ -152,6 +169,9 @@ struct KeyDetailView: View {
                 fact(L("Use"), Text(uses(capabilities)))
                 fact(L("Created"), Text(date(created) ?? "—"))
                 fact(L("Expires"), Text(expiry(expires, validity: validity)))
+                if let revocation = revocation(of: fingerprint) {
+                    fact(L("Revoked because"), RevocationText(revocation: revocation))
+                }
                 if secret != .none {
                     fact(L("Secret key"), Text(secretWord(secret)))
                 }
@@ -162,6 +182,12 @@ struct KeyDetailView: View {
             }
             .font(.callout)
         }
+    }
+
+    /// 主鍵かサブ鍵の失効（フィンガープリントで）。
+    private func revocation(of fingerprint: String) -> Revocation? {
+        if fingerprint == key.fingerprint { return revocations?.key }
+        return revocations?.subkeys.first { $0.fingerprint.caseInsensitiveCompare(fingerprint) == .orderedSame }?.revocation
     }
 
     private func uses(_ c: Capabilities) -> String {
@@ -239,6 +265,31 @@ func originWord(_ key: Key) -> String {
     case .generated: L("Created in this keyring")
     }
     return host.map { "\(word) · \($0)" } ?? word
+}
+
+/// 失効の理由と、失効させた人の説明。秘密鍵が漏れたという理由は目立たせる（その鍵の古い署名も信用できない）。
+struct RevocationText: View {
+    let revocation: Revocation
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(cause)
+                .foregroundStyle(revocation.cause == .compromised ? AnyShapeStyle(.orange) : AnyShapeStyle(.foreground))
+            if let comment = revocation.comment {
+                Text(comment).foregroundStyle(.secondary).textSelection(.enabled)
+            }
+        }
+    }
+
+    private var cause: String {
+        switch revocation.cause {
+        case .unspecified: L("No reason was given")
+        case .superseded: L("Replaced by a new key")
+        case .compromised: L("The secret key was exposed")
+        case .retired: L("No longer used")
+        case .userIdInvalid: L("No longer valid")
+        }
+    }
 }
 
 /// 秘密鍵の場所を言葉で。

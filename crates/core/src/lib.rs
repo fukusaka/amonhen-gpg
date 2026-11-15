@@ -13,6 +13,7 @@ mod keylist;
 mod model;
 mod ownership;
 pub mod process;
+mod revocation;
 mod ssh;
 mod staging;
 pub mod status;
@@ -28,4 +29,7 @@ pub use model::{
     Subkey, UserId, Validity,
 };
 pub use ownership::{Availability, KeyStatus, Tier};
+pub use revocation::{
+    Revocation, RevocationCause, Revocations, SubkeyRevocation, UserIdRevocation, parse_revocations,
+};
 pub use ssh::{SshControl, SshKey, SshSupport};
