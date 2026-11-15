@@ -435,6 +435,8 @@ struct OwnKeysView: View {
     @Environment(\.openWindow) private var openWindow
     @State private var deleting: OwnKey?
     @State private var editingUserIds: OwnKey?
+    /// 選んでいる鍵のフィンガープリント（ダブルクリック・⌘I で詳細の窓を開く）。
+    @State private var selection: String?
 
     var body: some View {
         list
@@ -482,7 +484,7 @@ struct OwnKeysView: View {
                 }
             }
         } else {
-            List {
+            List(selection: $selection) {
                 if !keyring.usable.isEmpty {
                     Section(L("Usable")) {
                         ForEach(keyring.usable) { OwnKeyRow(own: $0, now: now, actions: rowActions) }
@@ -506,7 +508,52 @@ struct OwnKeysView: View {
                     }
                 }
             }
+            // 他者の鍵の表と同じく、ダブルクリック（と Return）で詳細を開き、メニューは選んだ行のものを出す
+            .contextMenu(forSelectionType: String.self) { ids in
+                if let own = ids.first.flatMap(model.keyring.own) {
+                    OwnKeyMenuItems(own: own, now: now, actions: rowActions)
+                }
+            } primaryAction: { ids in
+                if let own = ids.first.flatMap(model.keyring.own) { rowActions.showDetails(own) }
+            }
+            .focusedSceneValue(\.selectedKeyFingerprint, selection.flatMap(model.keyring.own)?.key.fingerprint)
         }
+    }
+}
+
+/// 自分の鍵の操作（行の ⋯ と、右クリックのメニュー）。
+struct OwnKeyMenuItems: View {
+    let own: OwnKey
+    let now: UInt64
+    let actions: OwnKeyActions
+
+    var body: some View {
+        Button(L("Details…")) { actions.showDetails(own) }
+        Divider()
+        Button(L("Extend Expiry…")) { actions.extendExpiry(own) }
+            .disabled(!own.canExtendExpiry)
+        Button(L("Names and Email Addresses…")) { actions.editUserIds(own) }
+            .disabled(!own.canEditUserIds)
+        Button(L("Change Passphrase…")) { actions.changePassphrase(own) }
+            .disabled(!own.canChangePassphrase)
+        Button(L("Back Up Secret Key…")) { actions.backUp(own) }
+            .disabled(!own.canBackUp)
+        Button(L("Mark as Backed Up…")) { actions.markBackedUp(own) }
+            .disabled(!own.needsBackup)
+        Button(L("Create Revocation Certificate…")) { actions.createRevocationCertificate(own) }
+            .disabled(!own.needsRevocationCertificate)
+        Divider()
+        Button(L("Export Public Key…")) { actions.exportPublicKey(own) }
+        Button(L("Send to Keyserver…")) { actions.sendToKeyserver(own) }
+        Button(L("Copy SSH Public Key")) { actions.copySshPublicKey(own) }
+            .disabled(own.sshSubkey(now: now) == nil)
+        Button(L("Export SSH Public Key…")) { actions.exportSshPublicKey(own) }
+            .disabled(own.sshSubkey(now: now) == nil)
+        Divider()
+        Button(L("Revoke Key…"), role: .destructive) { actions.revoke(own) }
+            .disabled(!own.canRevoke)
+        Divider()
+        Button(L("Delete Key with Secret Key…"), role: .destructive) { actions.delete(own) }
     }
 }
 
@@ -572,7 +619,7 @@ struct OwnKeyRow: View {
                     .controlSize(.small)
             }
             Menu {
-                menuItems
+                OwnKeyMenuItems(own: own, now: now, actions: actions)
             } label: {
                 Image(systemName: "ellipsis.circle")
             }
@@ -582,41 +629,7 @@ struct OwnKeyRow: View {
         }
         .padding(.vertical, 4)
         .listRowSeparator(.hidden)
-        // 行のどこをダブルクリックしても詳細を開く（ボタンの押下は妨げない）
-        .contentShape(Rectangle())
-        .simultaneousGesture(TapGesture(count: 2).onEnded { actions.showDetails(own) })
-        .contextMenu { menuItems }
     }
-
-    @ViewBuilder private var menuItems: some View {
-        Button(L("Details…")) { actions.showDetails(own) }
-        Divider()
-        Button(L("Extend Expiry…")) { actions.extendExpiry(own) }
-            .disabled(!own.canExtendExpiry)
-        Button(L("Names and Email Addresses…")) { actions.editUserIds(own) }
-            .disabled(!own.canEditUserIds)
-        Button(L("Change Passphrase…")) { actions.changePassphrase(own) }
-            .disabled(!own.canChangePassphrase)
-        Button(L("Back Up Secret Key…")) { actions.backUp(own) }
-            .disabled(!own.canBackUp)
-        Button(L("Mark as Backed Up…")) { actions.markBackedUp(own) }
-            .disabled(!own.needsBackup)
-        Button(L("Create Revocation Certificate…")) { actions.createRevocationCertificate(own) }
-            .disabled(!own.needsRevocationCertificate)
-        Divider()
-        Button(L("Export Public Key…")) { actions.exportPublicKey(own) }
-        Button(L("Send to Keyserver…")) { actions.sendToKeyserver(own) }
-        Button(L("Copy SSH Public Key")) { actions.copySshPublicKey(own) }
-            .disabled(own.sshSubkey(now: now) == nil)
-        Button(L("Export SSH Public Key…")) { actions.exportSshPublicKey(own) }
-            .disabled(own.sshSubkey(now: now) == nil)
-        Divider()
-        Button(L("Revoke Key…"), role: .destructive) { actions.revoke(own) }
-            .disabled(!own.canRevoke)
-        Divider()
-        Button(L("Delete Key with Secret Key…"), role: .destructive) { actions.delete(own) }
-    }
-
     private var symbol: String {
         switch own.status.tier {
         case .usable:

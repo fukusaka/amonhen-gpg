@@ -21,6 +21,11 @@ notes.
   origin.
 - Press the space bar on others' keys to quick-look the selected key's fingerprint, validity and expiry.
 
+### Fixed
+
+- Your own keys can be selected in My Keys, so double-clicking one opens its details and Key > Show Details ⌘I
+  works for it too.
+
 ## [0.1.0] - 2026-11-14
 
 The first release: a GnuPG front end for macOS that keeps your own keys usable and safe. It shows which of your keys

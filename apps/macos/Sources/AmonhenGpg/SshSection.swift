@@ -30,6 +30,8 @@ struct SshSection: View {
                         }
                     }
                 }
+                // 一覧で選べるのは自分の鍵だけ（選んだ鍵の詳細を開くため）
+                .selectionDisabled()
             }
             HStack {
                 Button(L("Add SSH Key…"), action: addKey)
