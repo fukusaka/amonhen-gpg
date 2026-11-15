@@ -111,7 +111,7 @@ final class StagingModel {
     }
 }
 
-/// 一時保管（docs/ui.md）。鍵サーバーや WKD で探した鍵、ファイルで受け取った鍵を、確かめてから取り込むか捨てる。
+/// 一時保管（docs/ui.md）。鍵サーバー・WKD・GitHub・GitLab で探した鍵、ファイルで受け取った鍵を、確かめてから取り込むか捨てる。
 struct StagingView: View {
     let model: StagingModel
     @State private var text = ""
@@ -119,7 +119,8 @@ struct StagingView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                TextField(L("Email address or fingerprint"), text: $text, prompt: Text(L("Email address or fingerprint")))
+                TextField(L("Email address, fingerprint, or github:name"), text: $text, prompt: Text(L("Email address, fingerprint, or github:name")))
+                    .help(L("Search WKD and keys.openpgp.org by email address or fingerprint, or fetch the keys a GitHub or GitLab user publishes with github:name or gitlab:name."))
                     .textFieldStyle(.roundedBorder)
                     .onSubmit(find)
                 Button(L("Find"), action: find)
@@ -184,7 +185,7 @@ struct StagingView: View {
     }
 }
 
-/// 一時保管の鍵ひとつ。取り込む前に確かめられるよう、UID をすべてとフィンガープリント、作成日を出す。
+/// 一時保管の鍵ひとつ。取り込む前に確かめられるよう、UID をすべてとフィンガープリント、入手元、作成日を出す。
 struct StagedKeyRow: View {
     let key: Key
     /// 直前に探して見つかった鍵か。
@@ -226,6 +227,10 @@ struct StagedKeyRow: View {
 
     private var details: String {
         var parts: [String] = []
+        // どこから来た鍵か（鍵サーバーのホスト名・WKD・ファイル）。持ち主に確かめるときの手がかりになる
+        if key.origin != .unknown {
+            parts.append(L("From %@", originWord(key)))
+        }
         if let created = key.created {
             parts.append(L("Created %@", Date(timeIntervalSince1970: TimeInterval(created)).formatted(date: .abbreviated, time: .omitted)))
         }

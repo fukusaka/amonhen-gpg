@@ -6,7 +6,7 @@ use std::process::Stdio;
 
 use amonhen_gpg_core::process::command;
 use amonhen_gpg_core::{
-    Capabilities, Error, Expiry, GenerateKey, Gpg, KeyOrigin, SecretState, Validity,
+    Capabilities, CodeHost, Error, Expiry, GenerateKey, Gpg, KeyOrigin, SecretState, Validity,
 };
 
 struct Home {
@@ -468,6 +468,40 @@ fn locate_external_key_through_wkd() {
         ),
         Err(Error::NotFound)
     ));
+    staging.discard_staging().unwrap();
+}
+
+/// ネットワークを使う（`cargo test -- --ignored`）。GitHub が公開している web-flow（Web 上のコミットに署名する鍵）で試す。
+#[test]
+#[ignore]
+fn fetch_keys_from_github() {
+    let Some(home) = Home::new() else {
+        eprintln!("gpg not found; skipped");
+        return;
+    };
+    let staging = Gpg::new()
+        .with_homedir(home.path())
+        .staging(home.path().join("staging"))
+        .unwrap();
+    let r = staging
+        .fetch_from_code_host(CodeHost::GitHub, "web-flow")
+        .unwrap();
+    assert!(r.considered >= 1);
+    // 入手元は、取ってきた URL
+    let keys = staging.list_keys().unwrap();
+    assert!(!keys.is_empty());
+    for key in &keys {
+        assert_eq!(key.origin, KeyOrigin::Url);
+        assert_eq!(
+            key.origin_url.as_deref(),
+            Some("https://github.com/web-flow.gpg")
+        );
+    }
+    // いない利用者と、鍵を登録していない利用者（octocat）は NotFound
+    for user in ["amonhen-no-such-user-zz9q", "octocat"] {
+        let r = staging.fetch_from_code_host(CodeHost::GitHub, user);
+        assert!(matches!(r, Err(Error::NotFound)), "{user}: {r:?}");
+    }
     staging.discard_staging().unwrap();
 }
 

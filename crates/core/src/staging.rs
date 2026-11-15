@@ -156,11 +156,71 @@ impl Gpg {
     }
 }
 
+/// 利用者ごとに公開鍵を `https://<ホスト>/<名前>.gpg` で出している、コードを置くサービス。
+/// 出しているのは、その利用者がアカウントに登録した鍵（コミットの署名を確かめるためのもの）。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CodeHost {
+    GitHub,
+    GitLab,
+}
+
+impl CodeHost {
+    fn host(self) -> &'static str {
+        match self {
+            CodeHost::GitHub => "github.com",
+            CodeHost::GitLab => "gitlab.com",
+        }
+    }
+
+    /// `user` の公開鍵の URL。名前はそのサービスで使える文字だけを受け付ける（URL や gpg の引数を壊さないように）。
+    pub fn key_url(self, user: &str) -> Result<String> {
+        let ok = match self {
+            // 英数字とハイフン、39 文字まで。ハイフンで始まらず終わらない
+            CodeHost::GitHub => {
+                (1..=39).contains(&user.len())
+                    && user.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+            }
+            // 英数字と `_` `-` `.`。英数字で始まり終わり、`..` を含まない
+            CodeHost::GitLab => {
+                (1..=255).contains(&user.len())
+                    && user
+                        .chars()
+                        .all(|c| c.is_ascii_alphanumeric() || "_-.".contains(c))
+                    && !user.contains("..")
+            }
+        } && user.starts_with(|c: char| c.is_ascii_alphanumeric())
+            && user.ends_with(|c: char| c.is_ascii_alphanumeric());
+        if ok {
+            Ok(format!("https://{}/{user}.gpg", self.host()))
+        } else {
+            Err(Error::InvalidArgument {
+                name: "user",
+                message: format!("`{user}` is not a {} user name", self.host()),
+            })
+        }
+    }
+}
+
+impl Gpg {
+    /// GitHub・GitLab の利用者が公開している鍵を取ってくる。入手元は、その URL（`url`）として記録する
+    /// （`--fetch-keys` だけでは記録されない）。利用者がいない、または鍵を登録していなければ `Error::NotFound`。
+    pub fn fetch_from_code_host(&self, host: CodeHost, user: &str) -> Result<ImportResult> {
+        let url = host.key_url(user)?;
+        let origin = format!("url,{url}");
+        self.run_import(&["--key-origin", &origin, "--fetch-keys", &url], None)
+            .map_err(not_found)
+    }
+}
+
 /// 鍵サーバーや WKD に鍵がなかった失敗を `Error::NotFound` にする。gpg は `ERROR` を出さず、メッセージ（LC_ALL=C）の
 /// `: No data` にしか現れないか、何も取り込まずに成功で終わる。ネットワークの失敗などは、そのまま返す。
 fn not_found(error: Error) -> Error {
     match &error {
         Error::Gpg { stderr, .. } if stderr.contains(": No data") => Error::NotFound,
+        // 鍵を登録していない GitHub の利用者は、鍵のない鍵ブロックを返す
+        Error::Gpg { stderr, .. } if stderr.contains("no valid OpenPGP data found") => {
+            Error::NotFound
+        }
         Error::Gpg { code: Some(0), .. } => Error::NotFound,
         _ => error,
     }
@@ -220,6 +280,35 @@ fn check_email(email: &str) -> Result<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn code_host_user_names_are_checked() {
+        assert_eq!(
+            CodeHost::GitHub.key_url("web-flow").unwrap(),
+            "https://github.com/web-flow.gpg"
+        );
+        assert_eq!(
+            CodeHost::GitLab.key_url("first.last_1").unwrap(),
+            "https://gitlab.com/first.last_1.gpg"
+        );
+        for bad in [
+            "",
+            "-x",
+            "x-",
+            "a/b",
+            "a b",
+            "a.b",
+            "../x",
+            "x?y",
+            "--fetch-keys",
+        ] {
+            assert!(CodeHost::GitHub.key_url(bad).is_err(), "{bad}");
+        }
+        assert!(CodeHost::GitHub.key_url(&"a".repeat(40)).is_err());
+        for bad in ["", ".x", "x.", "a..b", "a/b", "_x?"] {
+            assert!(CodeHost::GitLab.key_url(bad).is_err(), "{bad}");
+        }
+    }
 
     #[test]
     fn keyservers_and_emails_are_checked() {

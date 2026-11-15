@@ -640,6 +640,16 @@ func passphrasesThroughPinentry() throws {
     #expect(StagingQuery("alice@") == nil)
     #expect(StagingQuery("Alice <alice@example.com>") == nil)
     #expect(StagingQuery("") == nil)
+    // GitHub・GitLab の利用者（名前の大文字小文字はそのまま）
+    #expect(StagingQuery("github:Web-Flow") == .codeHost(.gitHub, "Web-Flow"))
+    #expect(StagingQuery("GitLab: first.last") == .codeHost(.gitLab, "first.last"))
+    #expect(StagingQuery("https://github.com/web-flow") == .codeHost(.gitHub, "web-flow"))
+    #expect(StagingQuery("github.com/web-flow.gpg") == .codeHost(.gitHub, "web-flow"))
+    #expect(StagingQuery("https://www.gitlab.com/someone/") == .codeHost(.gitLab, "someone"))
+    #expect(StagingQuery("github:") == nil)
+    #expect(StagingQuery("github:a/b") == nil)
+    #expect(StagingQuery("https://github.com/org/repo") == nil)
+    #expect(StagingQuery("https://example.com/key.gpg") == nil)
 }
 
 @Test(.enabled(if: gpgAvailable()))
