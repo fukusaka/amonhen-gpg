@@ -398,6 +398,22 @@ func groupsRealSignaturesFromAnotherKeyring() throws {
     #expect(groups.others.first?.signerName == nil)
 }
 
+@Test func ordersOwnKeysByExpiry() {
+    func key(_ fingerprint: String, created: UInt64, expires: UInt64?) -> Key {
+        var key = sampleKey(fingerprint, subkey: "AAAA1111BBBB2222CCCC3333DDDD4444EEEE5555", userIds: [])
+        key.created = created
+        key.expires = expires
+        return key
+    }
+    let never = key("1111111111111111111111111111111111111111", created: 100, expires: nil)
+    let later = key("2222222222222222222222222222222222222222", created: 100, expires: 900)
+    let soon = key("3333333333333333333333333333333333333333", created: 100, expires: 500)
+    let neverNewer = key("4444444444444444444444444444444444444444", created: 200, expires: nil)
+    // 期限が近いものから、期限のない鍵は最後（そのうちでは新しいものから）
+    let sorted = [never, later, soon, neverNewer].sorted(by: Key.expiresSooner).map(\.fingerprint)
+    #expect(sorted == [soon, later, neverNewer, never].map(\.fingerprint))
+}
+
 @Test func findsSshFingerprintsByKeygrip() {
     let ssh = SshKey(
         keygrip: "abcdef0123456789abcdef0123456789abcdef01", fingerprint: "SHA256:xyz", card: nil, protected: true,

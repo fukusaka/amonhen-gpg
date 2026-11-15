@@ -44,7 +44,9 @@ public struct Keyring: Sendable {
         let grips = Set(keys.flatMap { ([$0.keygrip] + $0.subkeys.map(\.keygrip)).compactMap { $0 } })
         sshOnly = sshKeys.filter { !grips.contains($0.keygrip) }
         sshFingerprints = Dictionary(sshKeys.map { ($0.keygrip.uppercased(), $0.fingerprint) }, uniquingKeysWith: { a, _ in a })
-        // 履歴は新しいものから
+        // 使える段とこの PC では使えない段は、期限が近いものから（延ばす必要のある鍵が上に来る）。履歴は新しいものから
+        usable.sort { Key.expiresSooner($0.key, $1.key) }
+        notOnThisDevice.sort { Key.expiresSooner($0.key, $1.key) }
         history.sort { ($0.key.created ?? 0) > ($1.key.created ?? 0) }
     }
 
@@ -66,6 +68,20 @@ public struct Keyring: Sendable {
 
     public func own(_ fingerprint: String) -> OwnKey? {
         (usable + notOnThisDevice + history).first { $0.key.fingerprint.caseInsensitiveCompare(fingerprint) == .orderedSame }
+    }
+}
+
+extension Key {
+    /// 期限が近い順。期限のない鍵は最後に置き、同じなら新しく作った鍵を先に、それも同じならフィンガープリントの順。
+    static func expiresSooner(_ a: Key, _ b: Key) -> Bool {
+        switch (a.expires, b.expires) {
+        case let (x?, y?) where x != y: return x < y
+        case (.some, .none): return true
+        case (.none, .some): return false
+        default:
+            if a.created != b.created { return (a.created ?? 0) > (b.created ?? 0) }
+            return a.fingerprint < b.fingerprint
+        }
     }
 }
 

@@ -40,6 +40,7 @@ Used before (history)                                  ▸ 3 keys
   - Usable: valid, and the secret key for at least one usage is on this PC or on a card.
   - Not usable on this PC: valid, but the secret key is not on this PC (public key only, or only a stub).
   - Used before (history): expired or revoked. Collapsed by default. An expired key can be brought back by extending it; revoking it settles it as history. The secret key is assumed to be kept, to decrypt things encrypted to old keys.
+- **Order within a section:** usable keys and keys not usable on this PC come in order of expiry, soonest first and keys that never expire last, so a key that needs extending is at the top. Keys used before come newest first. There is no sort menu: you have only a few keys of your own.
 - **Warnings are shown only for your own keys:** expiry is near, no backup has been made, no revocation certificate (`openpgp-revocs.d`).
 - **Dangerous operations** (deleting including the secret key) are kept apart, deep in the details screen, and prompt for a backup first ("Do not lose your own keys" in [architecture.md](architecture.md)).
 
