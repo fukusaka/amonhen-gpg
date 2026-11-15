@@ -16,6 +16,9 @@ notes.
   backup, its revocation certificate and SSH use), the names and addresses, and each subkey's fingerprint and keygrip.
 - A Signatures tab in the key window lists every signature on the key. Signatures from your own keys and from keys
   you verified come first; the rest are dimmed, since they are no proof that the key is genuine.
+- The key window shows where a key came from (keyserver, WKD or file) and when it was last refreshed, why a key,
+  subkey or name was revoked, and the SSH fingerprint of authentication subkeys. Keys moved out of staging keep their
+  origin.
 - Press the space bar on others' keys to quick-look the selected key's fingerprint, validity and expiry.
 
 ## [0.1.0] - 2026-11-14

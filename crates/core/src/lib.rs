@@ -13,6 +13,7 @@ mod keylist;
 mod model;
 mod ownership;
 pub mod process;
+mod revocation;
 mod ssh;
 mod staging;
 pub mod status;
@@ -24,8 +25,11 @@ pub use error::{Error, Result};
 pub use gpg::{Gpg, Version};
 pub use keylist::parse_keylist;
 pub use model::{
-    Capabilities, Expiry, GenerateKey, ImportResult, ImportedKey, Key, SecretState, Subkey, UserId,
-    Validity,
+    Capabilities, Expiry, GenerateKey, ImportResult, ImportedKey, Key, KeyOrigin, SecretState,
+    Subkey, UserId, Validity,
 };
 pub use ownership::{Availability, KeyStatus, Tier};
+pub use revocation::{
+    Revocation, RevocationCause, Revocations, SubkeyRevocation, UserIdRevocation, parse_revocations,
+};
 pub use ssh::{SshControl, SshKey, SshSupport};

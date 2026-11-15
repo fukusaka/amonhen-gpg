@@ -161,6 +161,9 @@ mod tests {
             secret,
             subkeys,
             user_ids: Vec::new(),
+            origin: crate::KeyOrigin::Generated,
+            origin_url: None,
+            last_update: None,
         }
     }
 

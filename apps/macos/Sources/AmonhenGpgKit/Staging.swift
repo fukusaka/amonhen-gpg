@@ -99,7 +99,7 @@ public final class Staging: @unchecked Sendable {
         let keys = try main.showKeys(data: data)
         // 秘密鍵を含んでいれば、使い捨ての鍵束で公開鍵だけにしてから入れる（秘密鍵を一時保管に置かない）
         let secret = keys.contains { $0.secret != .none }
-        return try staging().import(data: secret ? try publicOnly(data, fingerprints: keys.map(\.fingerprint)) : data)
+        return try staging().importFromFile(data: secret ? try publicOnly(data, fingerprints: keys.map(\.fingerprint)) : data)
     }
 
     /// 一時保管にある鍵。まだ何も入れていなければ空。

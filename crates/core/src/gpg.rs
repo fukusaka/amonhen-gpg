@@ -130,6 +130,7 @@ impl Gpg {
             &[
                 "--with-colons",
                 "--fixed-list-mode",
+                "--with-key-origin",
                 "--with-secret",
                 "--with-keygrip",
                 "--with-subkey-fingerprint",
@@ -175,6 +176,11 @@ impl Gpg {
     /// 一部の鍵だけ取り込めなかったとき、gpg は失敗の終了コードを返すが、結果（`ImportResult::not_imported`）を返す。
     pub fn import(&self, data: &[u8]) -> Result<ImportResult> {
         self.run_import(&["--import"], Some(data))
+    }
+
+    /// ファイルで受け取った鍵を取り込む。`import` と同じだが、鍵の入手元をファイルと記録する（`Key::origin`）。
+    pub fn import_from_file(&self, data: &[u8]) -> Result<ImportResult> {
+        self.run_import(&["--key-origin", "file", "--import"], Some(data))
     }
 
     /// 取り込みを伴う操作（`--import`・`--recv-keys` など）を動かし、`IMPORT_RES` から結果を作る。

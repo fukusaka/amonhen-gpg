@@ -5,7 +5,7 @@
 //! `tru`（trustdb の情報）や知らない種類は読み飛ばす。
 
 use crate::colons::{Record, unescape};
-use crate::model::{Capabilities, Key, SecretState, Subkey, UserId, Validity};
+use crate::model::{Capabilities, Key, KeyOrigin, SecretState, Subkey, UserId, Validity};
 use crate::{Error, Result};
 
 pub fn parse_keylist(output: &str) -> Result<Vec<Key>> {
@@ -71,6 +71,14 @@ fn current<'k>(keys: &'k mut [Key], r: &Record, line: usize) -> Result<&'k mut K
 
 fn primary(r: &Record) -> Key {
     let flags = r.field(12);
+    // Field 20 は `<数>` か `<数> <URL>`（`--with-key-origin` のとき）
+    let (origin, origin_url) = match r.field(20).map(|f| f.split_once(' ').unwrap_or((f, ""))) {
+        Some((n, url)) => (
+            KeyOrigin::from_number(Some(n)),
+            (!url.is_empty()).then(|| unescape(url)),
+        ),
+        None => (KeyOrigin::Unknown, None),
+    };
     Key {
         fingerprint: String::new(),
         key_id: r.field(5).unwrap_or_default().to_owned(),
@@ -88,6 +96,9 @@ fn primary(r: &Record) -> Key {
         secret: secret(r),
         subkeys: Vec::new(),
         user_ids: Vec::new(),
+        origin,
+        origin_url,
+        last_update: timestamp(r.field(19)),
     }
 }
 
@@ -153,7 +164,7 @@ fpr:::::::::99990000AAAABBBBCCCCDDDD5555666677778888:
 grp:::::::::FEDCBA9876543210FEDCBA9876543210FEDCBA98:
 sub:e:255:22:9999AAAABBBBCCCC:1600000000:1650000000:::::a:::D2760001240100000006123456780000::ed25519::
 fpr:::::::::12341234123412341234123412349999AAAABBBBCCCC:
-pub:f:4096:1:DDDDEEEEFFFF0000:1500000000:::-:::scESC:::::::::0:
+pub:f:4096:1:DDDDEEEEFFFF0000:1500000000:::-:::scESC:::::::1700000500:1 https\\x3a//keys.openpgp.org:
 fpr:::::::::0000111122223333444455556666DDDDEEEEFFFF0000:
 uid:f::::1500000000::HASH3::Bob <bob@example.org>::::::::::0:
 ";
@@ -173,6 +184,16 @@ uid:f::::1500000000::HASH3::Bob <bob@example.org>::::::::::0:
             Some("0123456789ABCDEF0123456789ABCDEF01234567")
         );
         assert_eq!(alice.validity, Validity::Ultimate);
+        assert_eq!(alice.origin, KeyOrigin::Unknown);
+        assert_eq!(alice.origin_url, None);
+        assert_eq!(alice.last_update, None);
+        // `--with-key-origin` の入手元と、URL のエスケープ
+        assert_eq!(keys[1].origin, KeyOrigin::Keyserver);
+        assert_eq!(
+            keys[1].origin_url.as_deref(),
+            Some("https://keys.openpgp.org")
+        );
+        assert_eq!(keys[1].last_update, Some(1700000500));
         assert_eq!(alice.owner_trust, Validity::Ultimate);
         assert_eq!(alice.algorithm, 22);
         assert_eq!(alice.curve.as_deref(), Some("ed25519"));

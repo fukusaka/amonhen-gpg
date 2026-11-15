@@ -27,6 +27,62 @@ pub struct Key {
     pub secret: SecretState,
     pub subkeys: Vec<Subkey>,
     pub user_ids: Vec<UserId>,
+    /// どこから取り込んだか（gpg が最初に取り込んだときに記録する）。
+    pub origin: KeyOrigin,
+    /// 取り込んだ先の URL（鍵サーバー・WKD・URL から取り込んだとき）。
+    pub origin_url: Option<String>,
+    /// 鍵サーバーや WKD から最後に取り直した日時。
+    pub last_update: Option<u64>,
+}
+
+/// 鍵をどこから取り込んだか（`--with-key-origin` の Field 20。`--key-origin` で渡す名前と対応する）。
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum KeyOrigin {
+    Unknown,
+    /// 鍵サーバー（`ks`）。
+    Keyserver,
+    /// 鍵が指定した、好みの鍵サーバー（`ks-pref`）。
+    PreferredKeyserver,
+    /// DNS（DANE、`dane`）。
+    Dane,
+    /// メールアドレスのドメインが公開している鍵（WKD、`wkd`）。
+    Wkd,
+    /// URL（`url`）。
+    Url,
+    /// ファイル（`file`）。
+    File,
+    /// この鍵束で作った鍵（`self`）。
+    Generated,
+}
+
+impl KeyOrigin {
+    /// Field 20 の数（`doc/DETAILS` の KEYORG_*）。知らない数は `Unknown`。
+    pub(crate) fn from_number(n: Option<&str>) -> Self {
+        match n {
+            Some("1") => KeyOrigin::Keyserver,
+            Some("2") => KeyOrigin::PreferredKeyserver,
+            Some("3") => KeyOrigin::Dane,
+            Some("4") => KeyOrigin::Wkd,
+            Some("5") => KeyOrigin::Url,
+            Some("6") => KeyOrigin::File,
+            Some("7") => KeyOrigin::Generated,
+            _ => KeyOrigin::Unknown,
+        }
+    }
+
+    /// `--key-origin` に渡す名前。`Unknown` は渡さない。
+    pub(crate) fn option_name(self) -> Option<&'static str> {
+        match self {
+            KeyOrigin::Unknown => None,
+            KeyOrigin::Keyserver => Some("ks"),
+            KeyOrigin::PreferredKeyserver => Some("ks-pref"),
+            KeyOrigin::Dane => Some("dane"),
+            KeyOrigin::Wkd => Some("wkd"),
+            KeyOrigin::Url => Some("url"),
+            KeyOrigin::File => Some("file"),
+            KeyOrigin::Generated => Some("self"),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -191,6 +247,25 @@ pub struct ImportResult {
     /// 取り込めなかった鍵。
     pub not_imported: u32,
     pub keys: Vec<ImportedKey>,
+}
+
+impl ImportResult {
+    /// 何回かに分けて取り込んだ結果を足し合わせる。
+    pub(crate) fn add(&mut self, other: ImportResult) {
+        self.considered += other.considered;
+        self.no_user_id += other.no_user_id;
+        self.imported += other.imported;
+        self.unchanged += other.unchanged;
+        self.new_user_ids += other.new_user_ids;
+        self.new_subkeys += other.new_subkeys;
+        self.new_signatures += other.new_signatures;
+        self.new_revocations += other.new_revocations;
+        self.secret_read += other.secret_read;
+        self.secret_imported += other.secret_imported;
+        self.secret_unchanged += other.secret_unchanged;
+        self.not_imported += other.not_imported;
+        self.keys.extend(other.keys);
+    }
 }
 
 /// 取り込んだ（または変わらなかった）1 つの鍵。

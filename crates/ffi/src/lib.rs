@@ -12,8 +12,9 @@ use std::sync::Arc;
 use amonhen_gpg_core::status::Failure;
 use amonhen_gpg_core::{
     Availability, Capabilities, Card, Certification, Expiry, GenerateKey, ImportResult,
-    ImportedKey, Key, KeyStatus, OwnerTrust, RevocationReason, SecretState, SignatureCheck,
-    SshControl, SshKey, SshSupport, Subkey, Tier, UserId, Validity, Version,
+    ImportedKey, Key, KeyOrigin, KeyStatus, OwnerTrust, Revocation, RevocationCause,
+    RevocationReason, Revocations, SecretState, SignatureCheck, SshControl, SshKey, SshSupport,
+    Subkey, SubkeyRevocation, Tier, UserId, UserIdRevocation, Validity, Version,
 };
 
 uniffi::setup_scaffolding!();
@@ -43,6 +44,56 @@ pub struct Key {
     pub secret: SecretState,
     pub subkeys: Vec<Subkey>,
     pub user_ids: Vec<UserId>,
+    pub origin: KeyOrigin,
+    pub origin_url: Option<String>,
+    pub last_update: Option<u64>,
+}
+
+#[uniffi::remote(Enum)]
+pub enum RevocationCause {
+    Unspecified,
+    Superseded,
+    Compromised,
+    Retired,
+    UserIdInvalid,
+}
+
+#[uniffi::remote(Record)]
+pub struct Revocation {
+    pub cause: RevocationCause,
+    pub comment: Option<String>,
+    pub created: Option<u64>,
+}
+
+#[uniffi::remote(Record)]
+pub struct SubkeyRevocation {
+    pub fingerprint: String,
+    pub revocation: Revocation,
+}
+
+#[uniffi::remote(Record)]
+pub struct UserIdRevocation {
+    pub user_id: String,
+    pub revocation: Revocation,
+}
+
+#[uniffi::remote(Record)]
+pub struct Revocations {
+    pub key: Option<Revocation>,
+    pub subkeys: Vec<SubkeyRevocation>,
+    pub user_ids: Vec<UserIdRevocation>,
+}
+
+#[uniffi::remote(Enum)]
+pub enum KeyOrigin {
+    Unknown,
+    Keyserver,
+    PreferredKeyserver,
+    Dane,
+    Wkd,
+    Url,
+    File,
+    Generated,
 }
 
 #[uniffi::remote(Record)]
@@ -423,6 +474,10 @@ impl Gpg {
         Ok(self.inner.import(&data)?)
     }
 
+    pub fn import_from_file(&self, data: Vec<u8>) -> Result<ImportResult> {
+        Ok(self.inner.import_from_file(&data)?)
+    }
+
     pub fn export_public_keys(&self, fingerprints: Vec<String>, armor: bool) -> Result<Vec<u8>> {
         Ok(self.inner.export_public_keys(&strs(&fingerprints), armor)?)
     }
@@ -588,6 +643,10 @@ impl Gpg {
 
     pub fn certifications(&self, fingerprint: String) -> Result<Vec<Certification>> {
         Ok(self.inner.certifications(&fingerprint)?)
+    }
+
+    pub fn revocations(&self, fingerprint: String) -> Result<Revocations> {
+        Ok(self.inner.revocations(&fingerprint)?)
     }
 
     // SSH

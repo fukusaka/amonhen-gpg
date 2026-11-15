@@ -29,14 +29,17 @@ g --faked-system-time 20190301T000000! --quick-gen-key 'Alice 2019 <alice@old.ex
 C=$(fpr alice@old.example)
 g --quick-gen-key 'Alice Work 2021 <alice@work.example>' ed25519 default never
 D=$(fpr alice@work.example)
-printf 'revkey\ny\n2\n\ny\nsave\n' | g --command-fd 0 --edit-key "$D"
+# 失効の理由（置き換えた）と説明
+printf 'revkey\ny\n2\nMoved to Alice Example\n\ny\nsave\n' | g --command-fd 0 --edit-key "$D"
 # 他者の鍵: 署名して確認済みにしたものと、未確認のもの
 o --quick-gen-key 'Bob Builder <bob@example.org>' ed25519 default never
 o --quick-gen-key 'Carol <carol@example.net>' ed25519 default never
-# Bob の鍵には、手元にない人（Dave）の署名も付けておく（詳細の「ほかに何人の署名」）
+# Bob の鍵には、手元にない人（Dave）の署名も付けておく（詳細の署名タブの「そのほかの署名」）
 o --quick-gen-key 'Dave <dave@example.com>' ed25519 default never
 o --local-user dave@example.com --quick-sign-key "$(gpg --homedir "$O" --with-colons --list-keys bob@example.org 2>/dev/null | awk -F: '/^fpr/{print $10; exit}')" >/dev/null
-gpg --homedir "$O" --batch --no-tty --export bob@example.org carol@example.net 2>/dev/null | g --import
+# 入手元: Bob は鍵サーバー、Carol はファイルから取り込んだことにする
+gpg --homedir "$O" --batch --no-tty --export bob@example.org 2>/dev/null | g --key-origin ks,https://keys.openpgp.org --import
+gpg --homedir "$O" --batch --no-tty --export carol@example.net 2>/dev/null | g --key-origin file --import
 BOB=$(fpr bob@example.org)
 g --local-user "$A" --quick-lsign-key "$BOB"
 gpgconf --homedir "$O" --kill all

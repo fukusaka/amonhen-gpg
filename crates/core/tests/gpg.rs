@@ -5,7 +5,9 @@ use std::path::Path;
 use std::process::Stdio;
 
 use amonhen_gpg_core::process::command;
-use amonhen_gpg_core::{Capabilities, Error, Expiry, GenerateKey, Gpg, SecretState, Validity};
+use amonhen_gpg_core::{
+    Capabilities, Error, Expiry, GenerateKey, Gpg, KeyOrigin, SecretState, Validity,
+};
 
 struct Home {
     dir: tempfile::TempDir,
@@ -370,8 +372,9 @@ fn staging_keeps_fetched_keys_apart() {
     let main = Gpg::new().with_homedir(home.path());
     let dir = home.path().join("staging");
     let staging = main.staging(&dir).unwrap();
-    let r = staging.import(&data).unwrap();
+    let r = staging.import_from_file(&data).unwrap();
     assert_eq!(r.imported, 1);
+    assert_eq!(staging.list_keys().unwrap()[0].origin, KeyOrigin::File);
     assert!(
         main.list_keys().unwrap().is_empty(),
         "staging must stay apart"
@@ -384,6 +387,8 @@ fn staging_keeps_fetched_keys_apart() {
     let keys = main.list_keys().unwrap();
     assert_eq!(keys[0].fingerprint, fpr);
     assert!(!keys[0].is_mine());
+    // 書き出して取り込み直しても、一時保管での入手元を引き継ぐ
+    assert_eq!(keys[0].origin, KeyOrigin::File);
 
     staging.discard_staging().unwrap();
     assert!(!dir.exists());
@@ -529,7 +534,7 @@ fn test_keyserver_sends_and_receives() {
 
 #[test]
 fn edit_own_key() {
-    use amonhen_gpg_core::{OwnerTrust, RevocationReason, Tier};
+    use amonhen_gpg_core::{OwnerTrust, RevocationCause, RevocationReason, Tier};
 
     let Some(home) = Home::new() else {
         eprintln!("gpg not found; skipped");
@@ -598,6 +603,16 @@ fn edit_own_key() {
     let k = key(&gpg);
     assert_eq!(k.subkeys[1].validity, Validity::Revoked);
     assert_eq!(k.subkeys[0].validity, Validity::Ultimate);
+    let r = gpg.revocations(&fpr).unwrap();
+    assert_eq!(r.subkeys.len(), 1);
+    assert_eq!(r.subkeys[0].fingerprint, auth);
+    assert_eq!(r.subkeys[0].revocation.cause, RevocationCause::Retired);
+    assert_eq!(
+        r.subkeys[0].revocation.comment.as_deref(),
+        Some("no longer used")
+    );
+    assert_eq!(r.user_ids[0].user_id, "Alice <alice@example.com>");
+    assert!(r.key.is_none());
 
     gpg.change_passphrase(&fpr).unwrap();
     gpg.set_owner_trust(&fpr, OwnerTrust::Full).unwrap();
@@ -605,10 +620,13 @@ fn edit_own_key() {
     gpg.set_owner_trust(&fpr, OwnerTrust::Ultimate).unwrap();
 
     // 鍵全体の失効。履歴の段に移る
-    gpg.revoke_key(&fpr, RevocationReason::Superseded, "")
+    gpg.revoke_key(&fpr, RevocationReason::Superseded, "moved to a new key")
         .unwrap();
     let k = key(&gpg);
     assert_eq!(k.validity, Validity::Revoked);
+    let revoked = gpg.revocations(&fpr).unwrap().key.unwrap();
+    assert_eq!(revoked.cause, RevocationCause::Superseded);
+    assert_eq!(revoked.comment.as_deref(), Some("moved to a new key"));
     assert_eq!(k.status(0).tier, Tier::History);
 
     assert!(matches!(
