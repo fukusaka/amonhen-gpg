@@ -21,6 +21,11 @@ notes.
   origin.
 - Press the space bar on others' keys to quick-look the selected key's fingerprint, validity and expiry.
 
+### Changed
+
+- My Keys lists usable keys and keys not usable on this Mac by expiry, soonest first, so the key that needs extending
+  is at the top.
+
 ### Fixed
 
 - Your own keys can be selected in My Keys, so double-clicking one opens its details and Key > Show Details ⌘I
