@@ -18,7 +18,7 @@ notes.
   you verified come first; the rest are dimmed, since they are no proof that the key is genuine.
 - The key window shows where a key came from (keyserver, WKD or file) and when it was last refreshed, why a key,
   subkey or name was revoked, and the SSH fingerprint of authentication subkeys. Keys moved out of staging keep their
-  origin.
+  origin. Staging shows where each key came from too.
 - Press the space bar on others' keys to quick-look the selected key's fingerprint, validity and expiry.
 
 ### Changed

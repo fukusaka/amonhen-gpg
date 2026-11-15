@@ -11,7 +11,7 @@ import SwiftUI
 /// - `--sheet extend|create|revoke|certify|details|detailnames|detailkeys|detailsignatures|otherdetails|delete|userids`: 一覧の代わりに、シートの中身を撮る（最初の自分の鍵で）
 /// - `--appearance light|dark`: 見た目を決める（既定はシステムの設定）
 /// - `--search <text>`: 一覧の検索欄にこの語を入れておく（撮らずに開くときも効く）
-/// - `--stage <file>`: 鍵のファイルを一時保管に入れてから書き出す（一時保管の見た目の確認用）
+/// - `--stage <file>`: 鍵のファイルを一時保管に入れておく（一時保管の見た目の確認用。撮らずに開くときも効く）
 /// - `--keyserver <url>`: 送る・探す鍵サーバー（既定は keys.openpgp.org。試験用の鍵サーバーは `scripts/test-keyserver.sh`）
 struct Options {
     var gpg: String?
@@ -114,11 +114,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 if let appearance = options.appearance {
     NSApplication.shared.appearance = appearance
 }
-// 撮るときは、窓を出す前に鍵束を読み、一時保管に入れておく（読み終わる前の画面を撮らないように）
+// 撮るときは、窓を出す前に鍵束を読んでおく（読み終わる前の画面を撮らないように）
 if options.snapshot != nil {
     model.reloadNow()
-    if let stage = options.stage, let data = FileManager.default.contents(atPath: stage) {
-        staging.addNow(data)
-    }
+}
+// --stage は撮らずに開くときも効く（別の Mac で一時保管の画面を確かめるため）
+if let stage = options.stage, let data = FileManager.default.contents(atPath: stage) {
+    staging.addNow(data)
 }
 GpgApp.main()

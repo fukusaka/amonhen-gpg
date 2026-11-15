@@ -184,7 +184,7 @@ struct StagingView: View {
     }
 }
 
-/// 一時保管の鍵ひとつ。取り込む前に確かめられるよう、UID をすべてとフィンガープリント、作成日を出す。
+/// 一時保管の鍵ひとつ。取り込む前に確かめられるよう、UID をすべてとフィンガープリント、入手元、作成日を出す。
 struct StagedKeyRow: View {
     let key: Key
     /// 直前に探して見つかった鍵か。
@@ -226,6 +226,10 @@ struct StagedKeyRow: View {
 
     private var details: String {
         var parts: [String] = []
+        // どこから来た鍵か（鍵サーバーのホスト名・WKD・ファイル）。持ち主に確かめるときの手がかりになる
+        if key.origin != .unknown {
+            parts.append(L("From %@", originWord(key)))
+        }
         if let created = key.created {
             parts.append(L("Created %@", Date(timeIntervalSince1970: TimeInterval(created)).formatted(date: .abbreviated, time: .omitted)))
         }
