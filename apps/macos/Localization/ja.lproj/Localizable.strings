@@ -200,7 +200,8 @@
 
 /* 一時保管 */
 "Keys found on keyservers or through WKD will be kept here until you import them." = "鍵サーバーや WKD で見つけた鍵は、取り込むまでここに置きます。";
-"Email address or fingerprint" = "メールアドレスかフィンガープリント";
+"Email address, fingerprint, or github:name" = "メールアドレス・フィンガープリント・github:名前";
+"Search WKD and keys.openpgp.org by email address or fingerprint, or fetch the keys a GitHub or GitLab user publishes with github:name or gitlab:name." = "メールアドレスかフィンガープリントで WKD と keys.openpgp.org を探します。github:名前・gitlab:名前 で、GitHub・GitLab の利用者が公開している鍵を取ってきます。";
 "Find" = "探す";
 "From File…" = "ファイルから…";
 "Found keys stay here and are not in your keyring until you import them. Compare the fingerprint with its owner before importing. Keys left here are discarded when the app quits." = "見つけた鍵はここに置かれ、取り込むまで鍵束には入りません。取り込む前に、フィンガープリントを持ち主と照らし合わせてください。ここに残した鍵は、アプリを終了すると捨てます。";

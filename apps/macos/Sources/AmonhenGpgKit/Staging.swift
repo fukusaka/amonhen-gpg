@@ -5,11 +5,18 @@ import Foundation
 public enum StagingQuery: Equatable, Sendable {
     case email(String)
     case fingerprint(String)
+    /// GitHub・GitLab の利用者が公開している鍵。
+    case codeHost(CodeHost, String)
 
     /// 入力を読む。フィンガープリントは空白で区切られていてもよい（`Fingerprint.grouped` の形をそのまま貼れる）。
-    /// 短い鍵 ID は別の鍵に当たり得るので受け付けない。
+    /// 短い鍵 ID は別の鍵に当たり得るので受け付けない。GitHub・GitLab は `github:名前`・`gitlab:名前` か、
+    /// プロフィールの URL（`https://github.com/名前` など）で指す。
     public init?(_ text: String) {
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let (host, user) = Self.codeHostUser(text) {
+            self = .codeHost(host, user)
+            return
+        }
         if text.contains("@") {
             let parts = text.split(separator: "@", omittingEmptySubsequences: false)
             guard parts.count == 2, !parts[0].isEmpty, parts[1].contains("."), !text.contains(where: { $0.isWhitespace || "<>".contains($0) })
@@ -21,6 +28,31 @@ public enum StagingQuery: Equatable, Sendable {
         let digits = hex.hasPrefix("0X") ? String(hex.dropFirst(2)) : hex
         guard [40, 64].contains(digits.count), digits.allSatisfy(\.isHexDigit) else { return nil }
         self = .fingerprint(digits)
+    }
+
+    /// `github:名前`・`gitlab:名前`、または `github.com/名前`（`https://`・`www.`・末尾の `.gpg` や `/` があってもよい）。
+    /// 名前の細かい決まりは core（`CodeHost.keyUrl`）が確かめるので、ここでは使える文字だけを見る。
+    private static func codeHostUser(_ text: String) -> (CodeHost, String)? {
+        let lower = text.lowercased()
+        let hosts: [(CodeHost, prefix: String, domain: String)] = [(.gitHub, "github:", "github.com/"), (.gitLab, "gitlab:", "gitlab.com/")]
+        for (host, prefix, domain) in hosts {
+            var rest: Substring
+            if lower.hasPrefix(prefix) {
+                rest = text.dropFirst(prefix.count)
+            } else {
+                var url = Substring(text)
+                for scheme in ["https://", "http://"] where url.lowercased().hasPrefix(scheme) { url = url.dropFirst(scheme.count) }
+                if url.lowercased().hasPrefix("www.") { url = url.dropFirst(4) }
+                guard url.lowercased().hasPrefix(domain) else { continue }
+                rest = url.dropFirst(domain.count)
+                if rest.hasSuffix("/") { rest = rest.dropLast() }
+                if rest.lowercased().hasSuffix(".gpg") { rest = rest.dropLast(4) }
+            }
+            let user = rest.trimmingCharacters(in: .whitespaces)
+            guard !user.isEmpty, user.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || "-_.".contains($0)) }) else { return nil }
+            return (host, user)
+        }
+        return nil
     }
 }
 
@@ -90,6 +122,7 @@ public final class Staging: @unchecked Sendable {
         switch query {
         case let .email(email): try staging().locateExternalKey(email: email)
         case let .fingerprint(fpr): try staging().receiveKeys(fingerprints: [fpr], keyserver: Keyserver.current)
+        case let .codeHost(host, user): try staging().fetchFromCodeHost(host: host, user: user)
         }
     }
 

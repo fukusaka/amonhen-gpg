@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use amonhen_gpg_core::status::Failure;
 use amonhen_gpg_core::{
-    Availability, Capabilities, Card, Certification, Expiry, GenerateKey, ImportResult,
+    Availability, Capabilities, Card, Certification, CodeHost, Expiry, GenerateKey, ImportResult,
     ImportedKey, Key, KeyOrigin, KeyStatus, OwnerTrust, Revocation, RevocationCause,
     RevocationReason, Revocations, SecretState, SignatureCheck, SshControl, SshKey, SshSupport,
     Subkey, SubkeyRevocation, Tier, UserId, UserIdRevocation, Validity, Version,
@@ -47,6 +47,12 @@ pub struct Key {
     pub origin: KeyOrigin,
     pub origin_url: Option<String>,
     pub last_update: Option<u64>,
+}
+
+#[uniffi::remote(Enum)]
+pub enum CodeHost {
+    GitHub,
+    GitLab,
 }
 
 #[uniffi::remote(Enum)]
@@ -555,6 +561,10 @@ impl Gpg {
 
     pub fn locate_external_key(&self, email: String) -> Result<ImportResult> {
         Ok(self.inner.locate_external_key(&email)?)
+    }
+
+    pub fn fetch_from_code_host(&self, host: CodeHost, user: String) -> Result<ImportResult> {
+        Ok(self.inner.fetch_from_code_host(host, &user)?)
     }
 
     // 自分の鍵の編集
