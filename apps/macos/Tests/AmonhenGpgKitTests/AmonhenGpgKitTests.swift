@@ -398,6 +398,17 @@ func groupsRealSignaturesFromAnotherKeyring() throws {
     #expect(groups.others.first?.signerName == nil)
 }
 
+@Test func findsSshFingerprintsByKeygrip() {
+    let ssh = SshKey(
+        keygrip: "abcdef0123456789abcdef0123456789abcdef01", fingerprint: "SHA256:xyz", card: nil, protected: true,
+        sshcontrol: .notListed, useForSsh: false, confirm: false)
+    let ring = Keyring(keys: [], sshKeys: [ssh], now: 0)
+    // keygrip の大文字小文字は問わない
+    #expect(ring.sshFingerprint(keygrip: "ABCDEF0123456789ABCDEF0123456789ABCDEF01") == "SHA256:xyz")
+    #expect(ring.sshFingerprint(keygrip: "0000000000000000000000000000000000000000") == nil)
+    #expect(ring.sshFingerprint(keygrip: nil) == nil)
+}
+
 @Test func groupsSignaturesByWhetherYouVerifiedTheSigner() {
     var me = sampleKey("1111111111111111111111111111111111111111", subkey: "1111000011110000111100001111000011110000", userIds: ["Me <me@example.com>"])
     me.secret = .available

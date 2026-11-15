@@ -92,7 +92,13 @@ struct KeyDetailView: View {
                 fact(L("Backup"), Text(own.backedUp.map { L("Backed up on %@", $0.formatted(date: .abbreviated, time: .omitted)) }
                     ?? L("No backup recorded")))
                 fact(L("Revocation certificate"), Text(own.hasRevocationCertificate ? L("On this Mac") : L("Missing")))
-                fact(L("SSH"), Text(own.ssh ? L("Set for SSH") : L("Not set for SSH")))
+                fact(L("SSH"), VStack(alignment: .leading, spacing: 2) {
+                    Text(own.ssh ? L("Set for SSH") : L("Not set for SSH"))
+                    // 認証サブ鍵を SSH 鍵として見たときのフィンガープリント（authorized_keys などと照らし合わせる）
+                    if let fpr = model.keyring.sshFingerprint(keygrip: own.sshSubkey(now: UInt64(Date().timeIntervalSince1970))?.keygrip) {
+                        Text(fpr).monospaced().foregroundStyle(.secondary).textSelection(.enabled)
+                    }
+                })
             }
         }
     }
@@ -176,6 +182,9 @@ struct KeyDetailView: View {
                     fact(L("Secret key"), Text(secretWord(secret)))
                 }
                 fact(L("Fingerprint"), Text(Fingerprint.grouped(fingerprint)).monospaced().textSelection(.enabled))
+                if capabilities.authenticate, let ssh = model.keyring.sshFingerprint(keygrip: keygrip) {
+                    fact(L("SSH"), Text(ssh).monospaced().textSelection(.enabled))
+                }
                 if let keygrip {
                     fact(L("Keygrip"), Text(keygrip).monospaced().textSelection(.enabled))
                 }

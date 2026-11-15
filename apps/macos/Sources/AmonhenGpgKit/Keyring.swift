@@ -11,6 +11,8 @@ public struct Keyring: Sendable {
     public var sshOnly: [SshKey] = []
     /// gpg-agent の SSH サポート（取れなければ nil）。
     public var sshSupport: SshSupport?
+    /// gpg-agent が持つ鍵の、SSH の形のフィンガープリント（`SHA256:...`）。keygrip（大文字）で引く。
+    public var sshFingerprints: [String: String] = [:]
 
     public init() {}
 
@@ -41,6 +43,7 @@ public struct Keyring: Sendable {
         }
         let grips = Set(keys.flatMap { ([$0.keygrip] + $0.subkeys.map(\.keygrip)).compactMap { $0 } })
         sshOnly = sshKeys.filter { !grips.contains($0.keygrip) }
+        sshFingerprints = Dictionary(sshKeys.map { ($0.keygrip.uppercased(), $0.fingerprint) }, uniquingKeysWith: { a, _ in a })
         // 履歴は新しいものから
         history.sort { ($0.key.created ?? 0) > ($1.key.created ?? 0) }
     }
@@ -56,6 +59,11 @@ public struct Keyring: Sendable {
     }
 
     /// 自分の鍵をフィンガープリントで探す（どの段にあっても）。
+    /// 鍵（サブ鍵）の SSH のフィンガープリント。gpg-agent が秘密鍵を持っていなければ nil。
+    public func sshFingerprint(keygrip: String?) -> String? {
+        keygrip.flatMap { sshFingerprints[$0.uppercased()] }
+    }
+
     public func own(_ fingerprint: String) -> OwnKey? {
         (usable + notOnThisDevice + history).first { $0.key.fingerprint.caseInsensitiveCompare(fingerprint) == .orderedSame }
     }
