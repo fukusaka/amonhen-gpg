@@ -11,6 +11,8 @@ public struct Keyring: Sendable {
     public var sshOnly: [SshKey] = []
     /// gpg-agent の SSH サポート（取れなければ nil）。
     public var sshSupport: SshSupport?
+    /// gpg の版（取れなければ nil）。
+    public var gpgVersion: Version?
     /// gpg-agent が持つ鍵の、SSH の形のフィンガープリント（`SHA256:...`）。keygrip（大文字）で引く。
     public var sshFingerprints: [String: String] = [:]
 
@@ -198,4 +200,16 @@ public func algorithmName(algorithm: UInt32, length: UInt32, curve: String?) -> 
     default: name = "#\(algorithm)"
     }
     return length > 0 ? "\(name) \(length)" : name
+}
+
+extension Keyring {
+    /// gpg がこのアプリには古いときの、その版（`minimumGpgVersion()` より前）。版が分からなければ nil（警告しない）。
+    public var outdatedGpg: Version? {
+        gpgVersion.flatMap { gpgVersionSupported(version: $0) ? nil : $0 }
+    }
+}
+
+extension Version: CustomStringConvertible {
+    /// `2.4.1` の形。
+    public var description: String { "\(major).\(minor).\(patch)" }
 }

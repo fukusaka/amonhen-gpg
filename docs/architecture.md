@@ -81,7 +81,7 @@ The thing to avoid most is deleting your own secret key by mistake, or losing th
 - Launch with an argument array, not through a shell. User input (UIDs, file names) is validated, and `--` is placed between it and the options. Keys are always specified by full fingerprint.
 - Results are judged by **status lines** (`KEY_CREATED`, `IMPORT_OK`, `IMPORT_RES`, `ERROR`, `FAILURE` etc.), not by the exit code.
 - Support timeouts and cancellation (waiting for pinentry can take a long time).
-- Require GnuPG 2.4.1 or later: turning SSH on and off for a key uses the private-key attribute `Use-for-ssh`, which gpg-agent has since 2.4.1. `--quick-set-ownertrust` needs 2.4.6, so before owner trust appears in the UI, either raise the minimum or fall back to `--edit-key`. Checking the version at startup (`gpg --version`) is still to do.
+- Require GnuPG 2.4.1 or later: turning SSH on and off for a key uses the private-key attribute `Use-for-ssh`, which gpg-agent has since 2.4.1. `--quick-set-ownertrust` needs 2.4.6, so before owner trust appears in the UI, either raise the minimum or fall back to `--edit-key`. The app reads the version (`gpg --version`) whenever it reads the keyring, and shows a warning above the lists when gpg is older; the keys are still listed (`Version::MINIMUM`).
 - Tests:
   - Unit tests and fuzz tests for the colon / status parsers.
   - Integration tests against the real gpg, using a `GNUPGHOME` in a temporary directory and loopback pinentry.

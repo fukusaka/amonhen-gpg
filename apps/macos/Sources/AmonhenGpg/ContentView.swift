@@ -85,6 +85,11 @@ struct ContentView: View {
                     }
                 }
             }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if let version = model.keyring.outdatedGpg {
+                    OutdatedGpgBanner(version: version)
+                }
+            }
             .navigationTitle(place.title)
             .toolbar {
                 if place == .mine {
@@ -1000,5 +1005,24 @@ extension KeyFilter {
         case .unverified: L("Not verified")
         case .inactive: L("Expired or Revoked")
         }
+    }
+}
+
+/// gpg がこのアプリには古いときの知らせ。鍵の一覧は出すが、一部の操作（SSH の入れ・切りなど）が失敗する。
+struct OutdatedGpgBanner: View {
+    let version: Version
+
+    var body: some View {
+        Label {
+            Text(L("GnuPG %@ is older than %@, which this app needs. Some actions, such as turning SSH on or off, may fail. Update GnuPG (brew upgrade gnupg).",
+                   version.description, minimumGpgVersion().description))
+        } icon: {
+            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.yellow)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(.bar)
+        .overlay(alignment: .bottom) { Divider() }
     }
 }

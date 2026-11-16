@@ -220,6 +220,7 @@
 
 /* エラー */
 "Cannot read the keyring" = "鍵束を読めません";
+"GnuPG %@ is older than %@, which this app needs. Some actions, such as turning SSH on or off, may fail. Update GnuPG (brew upgrade gnupg)." = "GnuPG %1$@ は、このアプリに必要な %2$@ より古い版です。SSH の入れ・切りなど、一部の操作が失敗することがあります。GnuPG を更新してください（brew upgrade gnupg）。";
 "Cannot start %@: %@" = "%@ を起動できません: %@";
 "gpg failed: %@" = "gpg が失敗しました: %@";
 "The passphrase entry was canceled." = "パスフレーズの入力が取り消されました。";

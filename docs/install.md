@@ -15,7 +15,7 @@ release:
 ## GnuPG
 
 The app is a front end and needs GnuPG 2.4.1 or later, with a pinentry that can show a
-dialog. With [Homebrew](https://brew.sh):
+dialog (with an older gpg, the app warns above the lists). With [Homebrew](https://brew.sh):
 
 ```sh
 brew install gnupg pinentry-mac

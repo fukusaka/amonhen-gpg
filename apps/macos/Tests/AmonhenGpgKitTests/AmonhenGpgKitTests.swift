@@ -849,3 +849,13 @@ func discardsStagingLeftByCrashedApps() throws {
     #expect(FileManager.default.fileExists(atPath: other.path))
     _ = try? home.gpg.staging(dir: other.path).discardStaging()
 }
+
+@Test func warnsAboutOldGpg() {
+    var keyring = Keyring()
+    #expect(keyring.outdatedGpg == nil)
+    keyring.gpgVersion = Version(major: 2, minor: 4, patch: 0)
+    #expect(keyring.outdatedGpg?.description == "2.4.0")
+    keyring.gpgVersion = Version(major: 2, minor: 4, patch: 1)
+    #expect(keyring.outdatedGpg == nil)
+    #expect(minimumGpgVersion().description == "2.4.1")
+}

@@ -67,6 +67,7 @@ final class KeyringModel {
             hasRevocationCertificate: { (try? gpg.hasRevocationCertificate(fingerprint: $0)) ?? true },
             backups: backups)
         keyring.sshSupport = try? gpg.sshSupport()
+        keyring.gpgVersion = try? gpg.version()
         return keyring
     }
 }

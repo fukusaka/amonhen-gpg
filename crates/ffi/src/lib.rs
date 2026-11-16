@@ -423,6 +423,18 @@ pub fn key_status(key: &Key, now: u64) -> KeyStatus {
     key.status(now)
 }
 
+/// このアプリが使える一番古い gpg。
+#[uniffi::export]
+pub fn minimum_gpg_version() -> Version {
+    Version::MINIMUM
+}
+
+/// このアプリが使える gpg の版か。
+#[uniffi::export]
+pub fn gpg_version_supported(version: Version) -> bool {
+    version.is_supported()
+}
+
 /// gpg-agent がこの鍵を SSH に出すか。
 #[uniffi::export]
 pub fn ssh_key_enabled(key: &SshKey) -> bool {
