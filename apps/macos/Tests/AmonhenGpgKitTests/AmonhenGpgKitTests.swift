@@ -465,6 +465,30 @@ func groupsRealSignaturesFromAnotherKeyring() throws {
 }
 
 @Test(.enabled(if: gpgAvailable()))
+func addsSubkeyForSsh() throws {
+    let home = try TemporaryKeyring()
+    let now = UInt64(Date().timeIntervalSince1970)
+    let fpr = try home.gpg.generateKey(
+        request: GenerateKey(
+            userId: "Alice <alice@example.com>", algorithm: nil,
+            capabilities: Capabilities(certify: true, sign: true, encrypt: false, authenticate: false), expires: .days(100)))
+    func own() throws -> OwnKey {
+        try #require(Keyring(keys: try home.gpg.listKeys(), sshKeys: try home.gpg.sshKeys(), now: now).own(fpr))
+    }
+    #expect(try own().canAddSshSubkey(now: now))
+    #expect(try own().sshCandidate == nil)
+
+    let added = try home.gpg.addSshSubkey(try own(), now: now)
+    let mine = try own()
+    let subkey = try #require(mine.sshSubkey(now: now))
+    #expect(subkey.fingerprint == added)
+    // 期限は主鍵に揃い、SSH に出ている
+    #expect(abs(Int64(subkey.expires ?? 0) - Int64(mine.key.expires ?? 0)) < 2 * 86_400)
+    #expect(mine.ssh)
+    #expect(!mine.canAddSshSubkey(now: now))
+}
+
+@Test(.enabled(if: gpgAvailable()))
 func exportsSshPublicKey() throws {
     let home = try TemporaryKeyring()
     let fpr = try home.gpg.generateKey(

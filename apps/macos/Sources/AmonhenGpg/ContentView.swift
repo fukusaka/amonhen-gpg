@@ -49,8 +49,17 @@ struct ContentView: View {
     @State private var changingPassphrase: OwnKey?
     /// パスフレーズを変えたばかりの鍵（バックアップを取り直すよう勧める）。
     @State private var passphraseChanged: OwnKey?
+    /// SSH 用の認証サブ鍵を加えるか確かめている鍵。
+    @State private var addingSshSubkey: OwnKey?
+    /// SSH 用の認証サブ鍵を加えたばかりの鍵（バックアップを取り直すよう勧める）。
+    @State private var sshSubkeyAdded: OwnKey?
 
     var body: some View {
+        // 修飾をつなぎすぎると型の推論が終わらないので、分けて付ける
+        sshSubkeyAlerts(main)
+    }
+
+    private var main: some View {
         NavigationSplitView {
             List(Place.allCases, id: \.self, selection: $place) { place in
                 Label(place.title, systemImage: place.symbol)
@@ -73,6 +82,7 @@ struct ContentView: View {
                                 markBackedUp: { markingBackedUp = $0 }, exportPublicKey: exportPublicKey,
                                 sendToKeyserver: { sending = $0 }, changePassphrase: { changingPassphrase = $0 },
                                 copySshPublicKey: copySshPublicKey, exportSshPublicKey: exportSshPublicKey, setSsh: setSsh,
+                                addSshSubkey: { addingSshSubkey = $0 },
                                 createRevocationCertificate: createRevocationCertificate),
                             create: { creating = true }, importKeys: importKeys)
                         .searchable(text: $query, placement: .toolbar, prompt: L("Name, email or fingerprint"))
@@ -206,6 +216,32 @@ struct ContentView: View {
         .alert(item: $notice) { notice in
             Alert(title: Text(notice.title), message: Text(notice.message))
         }
+    }
+
+    /// SSH 用の認証サブ鍵を加えるかの確認と、加えたあとの知らせ。
+    private func sshSubkeyAlerts(_ content: some View) -> some View {
+        content
+            .alert(
+                L("Add a subkey for SSH?"),
+                isPresented: Binding(get: { addingSshSubkey != nil }, set: { if !$0 { addingSshSubkey = nil } }),
+                presenting: addingSshSubkey
+            ) { own in
+                Button(L("Add")) { addSshSubkey(own) }
+                Button(L("Cancel"), role: .cancel) {}
+            } message: { _ in
+                Text(L("This adds an authentication subkey that expires with the key, and offers it to ssh. gpg will ask for the passphrase."))
+            }
+            .alert(
+                L("Subkey for SSH added"),
+                isPresented: Binding(get: { sshSubkeyAdded != nil }, set: { if !$0 { sshSubkeyAdded = nil } }),
+                presenting: sshSubkeyAdded
+            ) { own in
+                Button(L("Copy SSH Public Key")) { copySshPublicKey(own) }
+                Button(L("Back Up…")) { backUp(own) }
+                Button(L("Later"), role: .cancel) {}
+            } message: { _ in
+                Text(sshSubkeyAddedMessage)
+            }
     }
 
     /// 鍵のファイルを選ばせ、取り込む。秘密鍵を含むときはパスフレーズを gpg が聞く。
@@ -353,6 +389,28 @@ struct ContentView: View {
         }
     }
 
+    /// SSH 用の認証サブ鍵を加えて SSH に出す。パスフレーズは gpg が聞く。
+    private func addSshSubkey(_ own: OwnKey) {
+        let fingerprint = own.key.fingerprint
+        let now = UInt64(Date().timeIntervalSince1970)
+        Task {
+            switch await model.perform({ try $0.addSshSubkey(own, now: now) }) {
+            case .success:
+                sshSubkeyAdded = model.keyring.own(fingerprint) ?? own
+            case let .failure(error) where isCanceled(error): break
+            case let .failure(error):
+                notice = Notice(title: L("Cannot add the subkey"), message: describe(error))
+            }
+        }
+    }
+
+    private var sshSubkeyAddedMessage: String {
+        let message = L("Put its public key in ~/.ssh/authorized_keys on the server. Backups you made earlier do not have the new subkey, so make a new one.")
+        return model.keyring.sshSupport?.enabled == false
+            ? message + "\n\n" + L("gpg-agent will offer this key to ssh, but its SSH support is off. Turn it on in the SSH section.")
+            : message
+    }
+
     /// 失効証明書を作り、gpg が置く場所（`openpgp-revocs.d`）に置く。パスフレーズは gpg が聞く。
     private func createRevocationCertificate(_ own: OwnKey) {
         let fingerprint = own.key.fingerprint
@@ -395,6 +453,8 @@ struct OwnKeyActions {
     var exportSshPublicKey: (OwnKey) -> Void = { _ in }
     /// SSH に出す（true）・止める（false）。
     var setSsh: (OwnKey, Bool) -> Void = { _, _ in }
+    /// SSH 用の認証サブ鍵を加える（確かめたあと）。
+    var addSshSubkey: (OwnKey) -> Void = { _ in }
     var createRevocationCertificate: (OwnKey) -> Void = { _ in }
 }
 
@@ -570,6 +630,8 @@ struct OwnKeyMenuItems: View {
         Button(L("Send to Keyserver…")) { actions.sendToKeyserver(own) }
         if own.ssh {
             Button(L("Stop Using for SSH")) { actions.setSsh(own, false) }
+        } else if own.sshCandidate == nil, own.canAddSshSubkey(now: now) {
+            Button(L("Add Subkey for SSH…")) { actions.addSshSubkey(own) }
         } else {
             Button(L("Use for SSH")) { actions.setSsh(own, true) }
                 .disabled(own.sshCandidate == nil)

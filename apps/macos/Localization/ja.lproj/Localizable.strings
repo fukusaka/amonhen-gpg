@@ -352,3 +352,11 @@
 "Stop Using for SSH" = "SSH に使うのをやめる";
 "SSH support is off" = "SSH サポートが切れています";
 "gpg-agent will offer this key to ssh, but its SSH support is off. Turn it on in the SSH section." = "gpg-agent はこの鍵を ssh に出しますが、SSH サポートが切れています。SSH の段で入れてください。";
+
+/* SSH 用の認証サブ鍵を加える */
+"Add Subkey for SSH…" = "SSH 用のサブ鍵を加える…";
+"Add a subkey for SSH?" = "SSH 用のサブ鍵を加えますか？";
+"This adds an authentication subkey that expires with the key, and offers it to ssh. gpg will ask for the passphrase." = "鍵と同じ期限の認証サブ鍵を加え、ssh に出します。gpg がパスフレーズを聞きます。";
+"Subkey for SSH added" = "SSH 用のサブ鍵を加えました";
+"Put its public key in ~/.ssh/authorized_keys on the server. Backups you made earlier do not have the new subkey, so make a new one." = "公開鍵をサーバーの ~/.ssh/authorized_keys に置いてください。前に取ったバックアップには新しいサブ鍵がないので、取り直してください。";
+"Cannot add the subkey" = "サブ鍵を加えられません";

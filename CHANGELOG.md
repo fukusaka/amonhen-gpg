@@ -26,6 +26,7 @@ notes.
 - Settings (⌘,) shows the gpg in use and its version, and lets you choose another gpg or go back to finding it
   automatically.
 - Turn your own key on or off for SSH from its menu (Use for SSH, Stop Using for SSH).
+- Add a subkey for SSH to a key that has none: it expires with the key and is offered to SSH right away.
 
 ### Changed
 

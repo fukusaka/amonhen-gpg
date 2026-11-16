@@ -326,4 +326,26 @@ extension Gpg {
             }
         }
     }
+
+    /// SSH 用の認証サブ鍵を加えて、SSH に出す。方式は gpg の既定、期限は主鍵に揃える（期限がなければ無期限）。
+    /// パスフレーズは pinentry が聞く。加えたサブ鍵のフィンガープリントを返す。
+    public func addSshSubkey(_ own: OwnKey, now: UInt64) throws -> String {
+        let expires: Expiry = own.key.expires.map { .days(UInt32(max(1, (Int64($0) - Int64(now)) / 86_400))) } ?? .never
+        let fingerprint = try addSubkey(
+            fingerprint: own.key.fingerprint, algorithm: nil,
+            capabilities: Capabilities(certify: false, sign: false, encrypt: false, authenticate: true), expires: expires)
+        let keygrip = try listKeys()
+            .first { $0.fingerprint == own.key.fingerprint }?
+            .subkeys.first { $0.fingerprint == fingerprint }?.keygrip
+        guard let keygrip else { throw GpgError.NotFound }
+        try setSshKeyEnabled(keygrip: keygrip, enabled: true)
+        return fingerprint
+    }
+}
+
+extension OwnKey {
+    /// SSH 用の認証サブ鍵を加えられるか。使える段にあり、使える認証サブ鍵がまだなく、主鍵の秘密鍵がこの PC かカードにあること。
+    public func canAddSshSubkey(now: UInt64) -> Bool {
+        status.tier == .usable && canExtendExpiry && sshSubkey(now: now) == nil
+    }
 }
