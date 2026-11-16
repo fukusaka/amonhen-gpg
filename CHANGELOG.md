@@ -6,6 +6,13 @@ notes.
 
 ## Unreleased
 
+## [0.2.0] - 2026-11-17
+
+Finding and comparing keys, and more of SSH. Search your keys, see others' keys in a sortable table, and open any key
+in its own window with its signatures, origin and revocation reasons. Staging fetches keys from GitHub and GitLab.
+Your own keys can now be turned on for SSH, get a subkey for SSH, and imported SSH keys can be copied and removed.
+Settings let you choose the gpg to use, and warnings are quieter.
+
 ### Added
 
 - Search My Keys and Others' Keys by name, email address or fingerprint.
