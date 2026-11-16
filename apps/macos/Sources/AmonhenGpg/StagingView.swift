@@ -5,7 +5,7 @@ import SwiftUI
 /// 一時保管の画面が見るもの。gpg を待つ呼び出しは裏のスレッドで行う。
 @Observable
 final class StagingModel {
-    let staging: Staging
+    private(set) var staging: Staging
     /// 本来の鍵束（取り込んだら読み直す）。
     let main: KeyringModel
     private(set) var keys: [Key] = []
@@ -62,6 +62,18 @@ final class StagingModel {
             try staging.discard(fingerprint)
             return (nil, nil)
         }
+    }
+
+    /// 別の gpg に替える（設定）。一時保管の鍵束は前の gpg で作ったので捨て、空の一時保管から始める。
+    func use(_ gpg: Gpg) {
+        let old = staging
+        Task.detached { try? old.discardAll() }
+        staging = Staging(main: gpg, dir: Staging.directory(in: old.dir.deletingLastPathComponent()))
+        keys = []
+        lastFound = []
+        searched = false
+        failure = nil
+        message = nil
     }
 
     /// アプリの終わりに一時保管ごと捨てる。

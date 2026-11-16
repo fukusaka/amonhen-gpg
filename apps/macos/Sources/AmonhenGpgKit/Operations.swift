@@ -225,6 +225,29 @@ public enum GpgProgram {
         let directories = (path ?? "").split(separator: ":").map(String.init) + fallbackDirectories
         return directories.map { "\($0)/gpg" }.first(where: isExecutable)
     }
+
+    static let chosenKey = "GpgProgram"
+
+    /// 設定で選んだ gpg の場所。nil なら自動（`locate`）。
+    public static func chosen(in defaults: UserDefaults = .standard) -> String? {
+        defaults.string(forKey: chosenKey).flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    /// 設定で選んだ gpg を覚える。nil なら自動に戻す。
+    public static func choose(_ path: String?, in defaults: UserDefaults = .standard) {
+        if let path, !path.isEmpty {
+            defaults.set(path, forKey: chosenKey)
+        } else {
+            defaults.removeObject(forKey: chosenKey)
+        }
+    }
+
+    /// 使う gpg。起動の引数（`--gpg`）、設定で選んだもの、自動で見つけたものの順。
+    public static func resolve(
+        option: String?, defaults: UserDefaults = .standard, locate: () -> String? = { GpgProgram.locate() }
+    ) -> String? {
+        option ?? chosen(in: defaults) ?? locate()
+    }
 }
 
 extension OwnKey {

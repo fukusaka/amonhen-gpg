@@ -49,7 +49,7 @@ One screen at a time:
 "$(scripts/swift-build.sh --show-bin-path)/AmonhenGpg" --homedir "$(scripts/sample-keyring.sh)" --snapshot out.png --place mine
 ```
 
-Launch options: `--homedir <dir>`, `--gpg <path>`, `--keyserver <url>`, `--snapshot <file.png>` (capture the window
+Launch options: `--homedir <dir>`, `--gpg <path>` (comes before the gpg chosen in Settings), `--keyserver <url>`, `--snapshot <file.png>` (capture the window
 and exit), `--place mine|others|staging`, `--sheet extend|create|revoke|certify|details|detailnames|detailkeys|detailsignatures|otherdetails|delete|userids`,
 `--stage <file>` (put a key file into staging first), `--appearance light|dark`, `--search <text>` (fill the search
 field). `--place`, `--search`, `--stage` and `--appearance` also work without `--snapshot`, to open a window that is driven and

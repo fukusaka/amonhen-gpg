@@ -3,7 +3,7 @@ import AppKit
 import SwiftUI
 
 /// 起動の引数。
-/// - `--gpg <path>`: 使う gpg（既定は `PATH` の gpg）
+/// - `--gpg <path>`: 使う gpg（既定は設定で選んだもの、なければ `PATH` などから探す）。設定より先
 /// - `--homedir <dir>`: 鍵の置き場所（既定は `GNUPGHOME` か `~/.gnupg`）
 /// - `--snapshot <file.png>`: 窓を開いて、その窓を画像に撮って終わる（見た目の確認用。使えた鍵は開いておく。初めは
 ///   起動したアプリに「画面収録」の許可が要る）
@@ -53,7 +53,8 @@ if let keyserver = options.keyserver {
     Keyserver.current = keyserver
 }
 // Finder から開くと PATH に Homebrew がないので、gpg の場所を探して渡す（見つからなければ gpg のまま。読めずに知らせる）
-let model = KeyringModel(gpg: Gpg(program: options.gpg ?? GpgProgram.locate(), homedir: options.homedir))
+// 設定で選んだ gpg があればそれを使う（起動の引数 --gpg が先）
+let model = KeyringModel(program: GpgProgram.resolve(option: options.gpg), homedir: options.homedir)
 /// 一時保管は起動ごとに一時ディレクトリに作り、終わるときに捨てる。落ちて残った前の一時保管は、起動したときに捨てる。
 let staging = StagingModel(main: model, dir: Staging.directory(in: FileManager.default.temporaryDirectory))
 
@@ -87,6 +88,10 @@ struct GpgApp: App {
             }
         }
         .defaultSize(width: 620, height: 640)
+
+        Settings {
+            SettingsView(model: model, staging: staging, fixedProgram: options.gpg)
+        }
     }
 }
 

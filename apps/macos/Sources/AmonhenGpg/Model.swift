@@ -5,15 +5,27 @@ import Observation
 /// 画面が見る鍵束。gpg を待つ呼び出しは裏のスレッドで行う。
 @Observable
 final class KeyringModel {
-    let gpg: Gpg
+    private(set) var gpg: Gpg
+    /// gpg の実行ファイルの場所（nil なら PATH の gpg）。
+    private(set) var program: String?
+    let homedir: String?
     let backups: BackupLog
     private(set) var keyring = Keyring()
     private(set) var loading = false
     private(set) var failure: String?
 
-    init(gpg: Gpg, backups: BackupLog = BackupLog()) {
-        self.gpg = gpg
+    init(program: String?, homedir: String?, backups: BackupLog = BackupLog()) {
+        gpg = Gpg(program: program, homedir: homedir)
+        self.program = program
+        self.homedir = homedir
         self.backups = backups
+    }
+
+    /// 別の gpg に替えて、鍵束を読み直す（設定）。
+    func use(_ gpg: Gpg, program: String?) async {
+        self.gpg = gpg
+        self.program = program
+        await reload()
     }
 
     func reload() async {

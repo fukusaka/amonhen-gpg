@@ -1014,7 +1014,7 @@ struct OutdatedGpgBanner: View {
 
     var body: some View {
         Label {
-            Text(L("GnuPG %@ is older than %@, which this app needs. Some actions, such as turning SSH on or off, may fail. Update GnuPG (brew upgrade gnupg).",
+            Text(L("GnuPG %@ is older than %@, which this app needs. Some actions, such as turning SSH on or off, may fail. Update GnuPG (brew upgrade gnupg), or choose a newer gpg in Settings.",
                    version.description, minimumGpgVersion().description))
         } icon: {
             Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.yellow)

@@ -21,7 +21,7 @@ brew install gnupg pinentry-mac
 ```
 
 [GPG Suite](https://gpgtools.org) や MacGPG2 でも使えます。アプリは `gpg` を `PATH`、Homebrew、GPG Suite の場所から
-探し、ふだんの鍵束（`~/.gnupg`）を開きます。パスフレーズの画面を出せないときは、`gpg-agent.conf` に足す
+探し（設定 ⌘, で選んだものがあればそれを使い）、ふだんの鍵束（`~/.gnupg`）を開きます。パスフレーズの画面を出せないときは、`gpg-agent.conf` に足す
 `pinentry-program` の行を示します。
 
 ## アプリ（macOS）

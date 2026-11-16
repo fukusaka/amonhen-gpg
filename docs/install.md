@@ -22,7 +22,7 @@ brew install gnupg pinentry-mac
 ```
 
 [GPG Suite](https://gpgtools.org) and MacGPG2 work too. The app finds `gpg` on the `PATH`, in Homebrew and in GPG
-Suite, and opens your usual keyring (`~/.gnupg`). If no passphrase dialog can be shown, it tells you which
+Suite (or uses the one chosen in Settings, ⌘,), and opens your usual keyring (`~/.gnupg`). If no passphrase dialog can be shown, it tells you which
 `pinentry-program` line to add to `gpg-agent.conf`.
 
 ## App (macOS)
