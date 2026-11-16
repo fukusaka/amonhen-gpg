@@ -304,8 +304,26 @@ extension OwnKey {
     /// SSH の公開鍵として渡す認証サブ鍵。失効・期限切れでない認証サブ鍵のうち、いちばん新しいもの
     /// （gpg-agent も、使える認証サブ鍵が複数あると新しいものを出す）。
     public func sshSubkey(now: UInt64) -> Subkey? {
+        Self.sshSubkey(of: key, now: now)
+    }
+
+    static func sshSubkey(of key: Key, now: UInt64) -> Subkey? {
         key.subkeys
             .filter { $0.capabilities.authenticate && $0.validity != .revoked && $0.validity != .expired && ($0.expires ?? .max) > now }
             .max { ($0.created ?? 0) < ($1.created ?? 0) }
+    }
+}
+
+extension Gpg {
+    /// 自分の鍵を SSH に出す（`sshCandidate`）か、出しているものをすべて止める。
+    public func setSshEnabled(_ own: OwnKey, enabled: Bool) throws {
+        if enabled {
+            guard let keygrip = own.sshCandidate else { return }
+            try setSshKeyEnabled(keygrip: keygrip, enabled: true)
+        } else {
+            for keygrip in own.sshKeygrips {
+                try setSshKeyEnabled(keygrip: keygrip, enabled: false)
+            }
+        }
     }
 }

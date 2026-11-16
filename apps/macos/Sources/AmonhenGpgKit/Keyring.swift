@@ -26,15 +26,17 @@ public struct Keyring: Sendable {
         hasRevocationCertificate: (String) -> Bool = { _ in true },
         backups: [String: Date] = [:]
     ) {
-        let ssh = Set(sshKeys.filter(sshKeyEnabled(key:)).map(\.keygrip))
+        let ssh = Set(sshKeys.filter(sshKeyEnabled(key:)).map { $0.keygrip.uppercased() })
+        let inAgent = Set(sshKeys.map { $0.keygrip.uppercased() })
         for key in keys {
             guard keyIsMine(key: key) else {
                 others.append(key)
                 continue
             }
-            let grips = ([key.keygrip] + key.subkeys.map(\.keygrip)).compactMap { $0 }
+            let grips = ([key.keygrip] + key.subkeys.map(\.keygrip)).compactMap { $0?.uppercased() }
             let own = OwnKey(
-                key: key, status: keyStatus(key: key, now: now), ssh: grips.contains(where: ssh.contains),
+                key: key, status: keyStatus(key: key, now: now), sshKeygrips: grips.filter(ssh.contains),
+                sshCandidate: OwnKey.sshSubkey(of: key, now: now)?.keygrip.flatMap { inAgent.contains($0.uppercased()) ? $0 : nil },
                 hasRevocationCertificate: hasRevocationCertificate(key.fingerprint),
                 backedUp: backups[key.fingerprint])
             switch own.status.tier {
@@ -91,14 +93,19 @@ extension Key {
 public struct OwnKey: Sendable, Identifiable {
     public let key: Key
     public let status: KeyStatus
-    /// 主鍵かサブ鍵のどれかを、gpg-agent が SSH に出しているか。
-    public let ssh: Bool
+    /// 主鍵・サブ鍵のうち、gpg-agent が SSH に出しているものの keygrip（大文字）。
+    public let sshKeygrips: [String]
+    /// SSH に出せる認証サブ鍵（`sshSubkey`）の keygrip。gpg-agent が秘密鍵を持っていなければ nil。
+    public let sshCandidate: String?
     /// 手元（`openpgp-revocs.d`）に失効証明書があるか。
     public let hasRevocationCertificate: Bool
     /// 秘密鍵のバックアップを取った日時（`BackupLog`）。記録がなければ nil。
     public let backedUp: Date?
 
     public var id: String { key.fingerprint }
+
+    /// 主鍵かサブ鍵のどれかを、gpg-agent が SSH に出しているか。
+    public var ssh: Bool { !sshKeygrips.isEmpty }
 
     /// 期限切れまでこの日数以内なら急ぐ（目立たせる）。
     public static let urgentExpiryDays = 14

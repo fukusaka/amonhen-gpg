@@ -72,7 +72,7 @@ struct ContentView: View {
                                 backUp: backUp,
                                 markBackedUp: { markingBackedUp = $0 }, exportPublicKey: exportPublicKey,
                                 sendToKeyserver: { sending = $0 }, changePassphrase: { changingPassphrase = $0 },
-                                copySshPublicKey: copySshPublicKey, exportSshPublicKey: exportSshPublicKey,
+                                copySshPublicKey: copySshPublicKey, exportSshPublicKey: exportSshPublicKey, setSsh: setSsh,
                                 createRevocationCertificate: createRevocationCertificate),
                             create: { creating = true }, importKeys: importKeys)
                         .searchable(text: $query, placement: .toolbar, prompt: L("Name, email or fingerprint"))
@@ -307,7 +307,23 @@ struct ContentView: View {
 
     /// gpg-agent がまだこの鍵を SSH に出していなければ、そう添える（公開鍵を置いても、ssh が秘密鍵を使えない）。
     private func sshNote(_ own: OwnKey, _ message: String) -> String {
-        own.ssh ? message : message + "\n\n" + L("To log in with it, gpg-agent must also offer this key to ssh. It does not yet: the row does not show SSH ✓.")
+        own.ssh ? message : message + "\n\n" + L("To log in with it, gpg-agent must also offer this key to ssh. It does not yet: choose Use for SSH in the key's menu.")
+    }
+
+    /// 鍵を SSH に出す・止める（gpg-agent の属性 Use-for-ssh）。SSH サポートが切れていれば、出しても使えないと添える。
+    private func setSsh(_ own: OwnKey, _ enabled: Bool) {
+        Task {
+            switch await model.perform({ try $0.setSshEnabled(own, enabled: enabled) }) {
+            case .success where enabled && model.keyring.sshSupport?.enabled == false:
+                notice = Notice(
+                    title: L("SSH support is off"),
+                    message: L("gpg-agent will offer this key to ssh, but its SSH support is off. Turn it on in the SSH section."))
+            case .success:
+                break
+            case let .failure(error):
+                notice = Notice(title: L("Cannot change the SSH key"), message: describe(error))
+            }
+        }
     }
 
     /// 公開鍵を鍵サーバーに送る（確かめたあと）。秘密鍵は送らない。
@@ -377,6 +393,8 @@ struct OwnKeyActions {
     var changePassphrase: (OwnKey) -> Void = { _ in }
     var copySshPublicKey: (OwnKey) -> Void = { _ in }
     var exportSshPublicKey: (OwnKey) -> Void = { _ in }
+    /// SSH に出す（true）・止める（false）。
+    var setSsh: (OwnKey, Bool) -> Void = { _, _ in }
     var createRevocationCertificate: (OwnKey) -> Void = { _ in }
 }
 
@@ -550,6 +568,12 @@ struct OwnKeyMenuItems: View {
         Divider()
         Button(L("Export Public Key…")) { actions.exportPublicKey(own) }
         Button(L("Send to Keyserver…")) { actions.sendToKeyserver(own) }
+        if own.ssh {
+            Button(L("Stop Using for SSH")) { actions.setSsh(own, false) }
+        } else {
+            Button(L("Use for SSH")) { actions.setSsh(own, true) }
+                .disabled(own.sshCandidate == nil)
+        }
         Button(L("Copy SSH Public Key")) { actions.copySshPublicKey(own) }
             .disabled(own.sshSubkey(now: now) == nil)
         Button(L("Export SSH Public Key…")) { actions.exportSshPublicKey(own) }

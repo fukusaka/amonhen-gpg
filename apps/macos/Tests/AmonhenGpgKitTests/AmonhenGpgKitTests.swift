@@ -229,15 +229,24 @@ func groupsOwnKeysAndOthers() throws {
     _ = try home.gpg.import(data: try other.gpg.exportPublicKeys(fingerprints: [bob], armor: false))
 
     let grip = try #require(try home.gpg.listKeys().first { $0.fingerprint == mine }?.subkeys.first { $0.fingerprint == auth }?.keygrip)
-    try home.gpg.setSshKeyEnabled(keygrip: grip, enabled: true)
+    let read = { Keyring(keys: try home.gpg.listKeys(), sshKeys: try home.gpg.sshKeys(), now: UInt64(Date().timeIntervalSince1970)) }
+    // SSH に出す前から、出せる認証サブ鍵が分かる
+    let before = try #require(try read().usable.first)
+    #expect(!before.ssh)
+    #expect(before.sshCandidate == grip)
+    try home.gpg.setSshEnabled(before, enabled: true)
 
-    let ring = Keyring(keys: try home.gpg.listKeys(), sshKeys: try home.gpg.sshKeys(), now: UInt64(Date().timeIntervalSince1970))
+    let ring = try read()
     #expect(ring.usable.map(\.key.fingerprint) == [mine])
     #expect(ring.usable.first?.ssh == true)
+    #expect(ring.usable.first?.sshKeygrips == [grip.uppercased()])
     #expect(ring.usable.first?.status.sign == .thisDevice)
     #expect(ring.history.map(\.key.fingerprint) == [old])
     #expect(ring.others.map(\.fingerprint) == [bob])
     #expect(ring.usable.first?.key.primaryUserId.map { UserIdParts($0.text).email } == "alice@example.com")
+    // 止める
+    try home.gpg.setSshEnabled(try #require(ring.usable.first), enabled: false)
+    #expect(try read().usable.first?.ssh == false)
 }
 
 @Test(.enabled(if: gpgAvailable()))

@@ -268,7 +268,7 @@
 "Cannot copy the SSH public key" = "SSH の公開鍵をコピーできません";
 "Saved the SSH public key to %@." = "SSH の公開鍵を %@ に保存しました。";
 "Cannot export the SSH public key" = "SSH の公開鍵を書き出せません";
-"To log in with it, gpg-agent must also offer this key to ssh. It does not yet: the row does not show SSH ✓." = "これでログインするには、gpg-agent がこの鍵を ssh に出している必要もあります。いまは出していません（行に「SSH ✓」がありません）。";
+"To log in with it, gpg-agent must also offer this key to ssh. It does not yet: choose Use for SSH in the key's menu." = "これでログインするには、gpg-agent がこの鍵を ssh に出している必要もあります。いまは出していません。鍵のメニューで「SSH に使う」を選んでください。";
 
 /* 誰が確認したか */
 "Name, email or fingerprint" = "名前、メールアドレス、フィンガープリント";
@@ -347,3 +347,8 @@
 "Chosen in Settings." = "設定で選んだもの。";
 "Choose the gpg program." = "gpg のプログラムを選んでください。";
 "Cannot use %@: %@" = "%1$@ は使えません: %2$@";
+
+/* 自分の鍵を SSH に出す・止める */
+"Stop Using for SSH" = "SSH に使うのをやめる";
+"SSH support is off" = "SSH サポートが切れています";
+"gpg-agent will offer this key to ssh, but its SSH support is off. Turn it on in the SSH section." = "gpg-agent はこの鍵を ssh に出しますが、SSH サポートが切れています。SSH の段で入れてください。";
