@@ -304,8 +304,63 @@ extension OwnKey {
     /// SSH の公開鍵として渡す認証サブ鍵。失効・期限切れでない認証サブ鍵のうち、いちばん新しいもの
     /// （gpg-agent も、使える認証サブ鍵が複数あると新しいものを出す）。
     public func sshSubkey(now: UInt64) -> Subkey? {
+        Self.sshSubkey(of: key, now: now)
+    }
+
+    static func sshSubkey(of key: Key, now: UInt64) -> Subkey? {
         key.subkeys
             .filter { $0.capabilities.authenticate && $0.validity != .revoked && $0.validity != .expired && ($0.expires ?? .max) > now }
             .max { ($0.created ?? 0) < ($1.created ?? 0) }
+    }
+}
+
+extension Gpg {
+    /// 自分の鍵を SSH に出す（`sshCandidate`）か、出しているものをすべて止める。
+    public func setSshEnabled(_ own: OwnKey, enabled: Bool) throws {
+        if enabled {
+            guard let keygrip = own.sshCandidate else { return }
+            try setSshKeyEnabled(keygrip: keygrip, enabled: true)
+        } else {
+            for keygrip in own.sshKeygrips {
+                try setSshKeyEnabled(keygrip: keygrip, enabled: false)
+            }
+        }
+    }
+
+    /// SSH 用の認証サブ鍵を加えて、SSH に出す。方式は gpg の既定、期限は主鍵に揃える（期限がなければ無期限）。
+    /// パスフレーズは pinentry が聞く。加えたサブ鍵のフィンガープリントを返す。
+    public func addSshSubkey(_ own: OwnKey, now: UInt64) throws -> String {
+        let expires: Expiry = own.key.expires.map { .days(UInt32(max(1, (Int64($0) - Int64(now)) / 86_400))) } ?? .never
+        let fingerprint = try addSubkey(
+            fingerprint: own.key.fingerprint, algorithm: nil,
+            capabilities: Capabilities(certify: false, sign: false, encrypt: false, authenticate: true), expires: expires)
+        let keygrip = try listKeys()
+            .first { $0.fingerprint == own.key.fingerprint }?
+            .subkeys.first { $0.fingerprint == fingerprint }?.keygrip
+        guard let keygrip else { throw GpgError.NotFound }
+        try setSshKeyEnabled(keygrip: keygrip, enabled: true)
+        return fingerprint
+    }
+}
+
+extension OwnKey {
+    /// SSH 用の認証サブ鍵を加えられるか。使える段にあり、使える認証サブ鍵がまだなく、主鍵の秘密鍵がこの PC かカードにあること。
+    public func canAddSshSubkey(now: UInt64) -> Bool {
+        status.tier == .usable && canExtendExpiry && sshSubkey(now: now) == nil
+    }
+}
+
+extension SshKey {
+    /// 公開鍵の既定のファイル名（説明から作り、なければ `ssh-key.pub`）。
+    public var publicKeyFileName: String {
+        let name = (comment ?? "").map { "/:\\".contains($0) ? "_" : $0 }
+        return (name.isEmpty ? "ssh-key" : String(name)) + ".pub"
+    }
+}
+
+extension Gpg {
+    /// gpg-agent が持つ SSH の鍵の公開鍵を、`authorized_keys` の 1 行の形でファイルに書く（0644）。
+    public func exportSshPublicKey(_ key: SshKey, to url: URL) throws {
+        try write(Data((sshPublicKey(keygrip: key.keygrip) + "\n").utf8), to: url, permissions: 0o644)
     }
 }

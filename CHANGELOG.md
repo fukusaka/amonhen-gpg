@@ -25,6 +25,10 @@ notes.
 - A warning above the lists when gpg is older than 2.4.1, which the app needs.
 - Settings (⌘,) shows the gpg in use and its version, and lets you choose another gpg or go back to finding it
   automatically.
+- Turn your own key on or off for SSH from its menu (Use for SSH, Stop Using for SSH).
+- Add a subkey for SSH to a key that has none: it expires with the key and is offered to SSH right away.
+- Imported SSH keys show their comment, and their menu copies or exports the public key and removes the key from
+  gpg-agent.
 
 ### Changed
 

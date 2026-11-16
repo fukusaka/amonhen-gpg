@@ -148,7 +148,8 @@ As "a pure FE", the SSH keys handled are also **the ones gpg-agent manages**.
 | List SSH keys | Assuan `KEYINFO --list --ssh-fpr --with-ssh` and `KEYINFO --list --need-attr=Use-for-ssh` (gpg-connect-agent. The exit code is 0 even on `ERR`, so judge by the response lines). Linked to the primary key and subkeys of GPG keys by keygrip |
 | Use a GPG authentication (A) subkey as an SSH key | Create it with `--quick-add-key <FPR> ed25519 auth` and configure it to be offered to SSH |
 | Offer or stop offering to SSH | To offer, set the secret key attribute `Use-for-ssh: true` (`KEYATTR`. Does not rewrite the user's files). To stop, remove the attribute, and if `sshcontrol` has an enabled line, add `!` to it (`sshcontrol` wins even when the attribute is false). Afterwards, ask gpg-agent again to confirm |
-| Output the SSH public key (for authorized_keys) | `gpg --export-ssh-key <FPR>!` (the key pointed to, exactly) |
+| Output the SSH public key (for authorized_keys) | `gpg --export-ssh-key <FPR>!` (the key pointed to, exactly). For SSH keys that are not OpenPGP keys, Assuan `READKEY --format=ssh`, with the comment taken from `READKEY` (gpg-agent writes `(none)` in its place) |
+| Remove an imported SSH key | Assuan `DELETE_KEY --force` after the app's own confirmation, only for keygrips that belong to no OpenPGP key; afterwards, ask gpg-agent again to confirm |
 | Import an existing SSH secret key | Register it in gpg-agent with `ssh-add` (passphrase through pinentry) |
 
 ## Open questions

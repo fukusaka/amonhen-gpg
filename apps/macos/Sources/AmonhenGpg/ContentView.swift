@@ -49,8 +49,17 @@ struct ContentView: View {
     @State private var changingPassphrase: OwnKey?
     /// パスフレーズを変えたばかりの鍵（バックアップを取り直すよう勧める）。
     @State private var passphraseChanged: OwnKey?
+    /// SSH 用の認証サブ鍵を加えるか確かめている鍵。
+    @State private var addingSshSubkey: OwnKey?
+    /// SSH 用の認証サブ鍵を加えたばかりの鍵（バックアップを取り直すよう勧める）。
+    @State private var sshSubkeyAdded: OwnKey?
 
     var body: some View {
+        // 修飾をつなぎすぎると型の推論が終わらないので、分けて付ける
+        sshSubkeyAlerts(main)
+    }
+
+    private var main: some View {
         NavigationSplitView {
             List(Place.allCases, id: \.self, selection: $place) { place in
                 Label(place.title, systemImage: place.symbol)
@@ -72,7 +81,8 @@ struct ContentView: View {
                                 backUp: backUp,
                                 markBackedUp: { markingBackedUp = $0 }, exportPublicKey: exportPublicKey,
                                 sendToKeyserver: { sending = $0 }, changePassphrase: { changingPassphrase = $0 },
-                                copySshPublicKey: copySshPublicKey, exportSshPublicKey: exportSshPublicKey,
+                                copySshPublicKey: copySshPublicKey, exportSshPublicKey: exportSshPublicKey, setSsh: setSsh,
+                                addSshSubkey: { addingSshSubkey = $0 },
                                 createRevocationCertificate: createRevocationCertificate),
                             create: { creating = true }, importKeys: importKeys)
                         .searchable(text: $query, placement: .toolbar, prompt: L("Name, email or fingerprint"))
@@ -208,6 +218,32 @@ struct ContentView: View {
         }
     }
 
+    /// SSH 用の認証サブ鍵を加えるかの確認と、加えたあとの知らせ。
+    private func sshSubkeyAlerts(_ content: some View) -> some View {
+        content
+            .alert(
+                L("Add a subkey for SSH?"),
+                isPresented: Binding(get: { addingSshSubkey != nil }, set: { if !$0 { addingSshSubkey = nil } }),
+                presenting: addingSshSubkey
+            ) { own in
+                Button(L("Add")) { addSshSubkey(own) }
+                Button(L("Cancel"), role: .cancel) {}
+            } message: { _ in
+                Text(L("This adds an authentication subkey that expires with the key, and offers it to ssh. gpg will ask for the passphrase."))
+            }
+            .alert(
+                L("Subkey for SSH added"),
+                isPresented: Binding(get: { sshSubkeyAdded != nil }, set: { if !$0 { sshSubkeyAdded = nil } }),
+                presenting: sshSubkeyAdded
+            ) { own in
+                Button(L("Copy SSH Public Key")) { copySshPublicKey(own) }
+                Button(L("Back Up…")) { backUp(own) }
+                Button(L("Later"), role: .cancel) {}
+            } message: { _ in
+                Text(sshSubkeyAddedMessage)
+            }
+    }
+
     /// 鍵のファイルを選ばせ、取り込む。秘密鍵を含むときはパスフレーズを gpg が聞く。
     /// サイドバーに出す鍵の数（一時保管は出さない）。
     private func count(_ place: Place) -> Int {
@@ -307,7 +343,23 @@ struct ContentView: View {
 
     /// gpg-agent がまだこの鍵を SSH に出していなければ、そう添える（公開鍵を置いても、ssh が秘密鍵を使えない）。
     private func sshNote(_ own: OwnKey, _ message: String) -> String {
-        own.ssh ? message : message + "\n\n" + L("To log in with it, gpg-agent must also offer this key to ssh. It does not yet: the row does not show SSH ✓.")
+        own.ssh ? message : message + "\n\n" + L("To log in with it, gpg-agent must also offer this key to ssh. It does not yet: choose Use for SSH in the key's menu.")
+    }
+
+    /// 鍵を SSH に出す・止める（gpg-agent の属性 Use-for-ssh）。SSH サポートが切れていれば、出しても使えないと添える。
+    private func setSsh(_ own: OwnKey, _ enabled: Bool) {
+        Task {
+            switch await model.perform({ try $0.setSshEnabled(own, enabled: enabled) }) {
+            case .success where enabled && model.keyring.sshSupport?.enabled == false:
+                notice = Notice(
+                    title: L("SSH support is off"),
+                    message: L("gpg-agent will offer this key to ssh, but its SSH support is off. Turn it on in the SSH section."))
+            case .success:
+                break
+            case let .failure(error):
+                notice = Notice(title: L("Cannot change the SSH key"), message: describe(error))
+            }
+        }
     }
 
     /// 公開鍵を鍵サーバーに送る（確かめたあと）。秘密鍵は送らない。
@@ -335,6 +387,28 @@ struct ContentView: View {
                 notice = Notice(title: L("Cannot change the passphrase"), message: describe(error))
             }
         }
+    }
+
+    /// SSH 用の認証サブ鍵を加えて SSH に出す。パスフレーズは gpg が聞く。
+    private func addSshSubkey(_ own: OwnKey) {
+        let fingerprint = own.key.fingerprint
+        let now = UInt64(Date().timeIntervalSince1970)
+        Task {
+            switch await model.perform({ try $0.addSshSubkey(own, now: now) }) {
+            case .success:
+                sshSubkeyAdded = model.keyring.own(fingerprint) ?? own
+            case let .failure(error) where isCanceled(error): break
+            case let .failure(error):
+                notice = Notice(title: L("Cannot add the subkey"), message: describe(error))
+            }
+        }
+    }
+
+    private var sshSubkeyAddedMessage: String {
+        let message = L("Put its public key in ~/.ssh/authorized_keys on the server. Backups you made earlier do not have the new subkey, so make a new one.")
+        return model.keyring.sshSupport?.enabled == false
+            ? message + "\n\n" + L("gpg-agent will offer this key to ssh, but its SSH support is off. Turn it on in the SSH section.")
+            : message
     }
 
     /// 失効証明書を作り、gpg が置く場所（`openpgp-revocs.d`）に置く。パスフレーズは gpg が聞く。
@@ -377,6 +451,10 @@ struct OwnKeyActions {
     var changePassphrase: (OwnKey) -> Void = { _ in }
     var copySshPublicKey: (OwnKey) -> Void = { _ in }
     var exportSshPublicKey: (OwnKey) -> Void = { _ in }
+    /// SSH に出す（true）・止める（false）。
+    var setSsh: (OwnKey, Bool) -> Void = { _, _ in }
+    /// SSH 用の認証サブ鍵を加える（確かめたあと）。
+    var addSshSubkey: (OwnKey) -> Void = { _ in }
     var createRevocationCertificate: (OwnKey) -> Void = { _ in }
 }
 
@@ -550,6 +628,14 @@ struct OwnKeyMenuItems: View {
         Divider()
         Button(L("Export Public Key…")) { actions.exportPublicKey(own) }
         Button(L("Send to Keyserver…")) { actions.sendToKeyserver(own) }
+        if own.ssh {
+            Button(L("Stop Using for SSH")) { actions.setSsh(own, false) }
+        } else if own.sshCandidate == nil, own.canAddSshSubkey(now: now) {
+            Button(L("Add Subkey for SSH…")) { actions.addSshSubkey(own) }
+        } else {
+            Button(L("Use for SSH")) { actions.setSsh(own, true) }
+                .disabled(own.sshCandidate == nil)
+        }
         Button(L("Copy SSH Public Key")) { actions.copySshPublicKey(own) }
             .disabled(own.sshSubkey(now: now) == nil)
         Button(L("Export SSH Public Key…")) { actions.exportSshPublicKey(own) }

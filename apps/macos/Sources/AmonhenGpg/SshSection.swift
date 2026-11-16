@@ -8,6 +8,8 @@ struct SshSection: View {
     let model: KeyringModel
     var notify: (Notice) -> Void = { _ in }
     @State private var enabling = false
+    /// gpg-agent から消すか確かめている鍵。
+    @State private var removing: SshKey?
 
     var body: some View {
         let support = model.keyring.sshSupport
@@ -22,16 +24,12 @@ struct SshSection: View {
                 .font(.callout)
             }
             ForEach(model.keyring.sshOnly, id: \.keygrip) { key in
-                SshKeyRow(key: key) { enabled in
-                    let keygrip = key.keygrip
-                    Task {
-                        if case let .failure(error) = await model.perform({ try $0.setSshKeyEnabled(keygrip: keygrip, enabled: enabled) }) {
-                            notify(Notice(title: L("Cannot change the SSH key"), message: describe(error)))
-                        }
-                    }
-                }
-                // 一覧で選べるのは自分の鍵だけ（選んだ鍵の詳細を開くため）
-                .selectionDisabled()
+                let actions = SshKeyActions(
+                    setEnabled: { setEnabled(key, $0) }, copy: { copy(key) }, export: { export(key) }, remove: { removing = key })
+                SshKeyRow(key: key, actions: actions)
+                    .contextMenu { SshKeyMenuItems(key: key, actions: actions) }
+                    // 一覧で選べるのは自分の鍵だけ（選んだ鍵の詳細を開くため）
+                    .selectionDisabled()
             }
             HStack {
                 Button(L("Add SSH Key…"), action: addKey)
@@ -52,6 +50,68 @@ struct SshSection: View {
             Button(L("Cancel"), role: .cancel) {}
         } message: {
             Text(L("This adds enable-ssh-support to gpg-agent.conf and restarts gpg-agent, which forgets the passphrases it remembered."))
+        }
+        .alert(
+            L("Remove the SSH key from gpg-agent?"),
+            isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }),
+            presenting: removing
+        ) { key in
+            Button(L("Remove"), role: .destructive) { remove(key) }
+            Button(L("Cancel"), role: .cancel) {}
+        } message: { key in
+            Text(L("gpg-agent deletes its copy of the secret key %@. This cannot be undone. The key file you added it from is not changed; without that file, the key is lost.", key.displayName))
+        }
+    }
+
+    private func setEnabled(_ key: SshKey, _ enabled: Bool) {
+        let keygrip = key.keygrip
+        Task {
+            if case let .failure(error) = await model.perform({ try $0.setSshKeyEnabled(keygrip: keygrip, enabled: enabled) }) {
+                notify(Notice(title: L("Cannot change the SSH key"), message: describe(error)))
+            }
+        }
+    }
+
+    /// 公開鍵を、`authorized_keys` に貼る 1 行としてコピーする。
+    private func copy(_ key: SshKey) {
+        let keygrip = key.keygrip
+        Task {
+            switch await model.perform({ try $0.sshPublicKey(keygrip: keygrip) }) {
+            case let .success(line):
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(line, forType: .string)
+                notify(Notice(title: L("Copied"), message: L("Copied the SSH public key. Paste it as one line into ~/.ssh/authorized_keys on the server.")))
+            case let .failure(error):
+                notify(Notice(title: L("Cannot copy the SSH public key"), message: describe(error)))
+            }
+        }
+    }
+
+    /// 公開鍵を、`authorized_keys` の 1 行の形でファイルに書き出す。
+    private func export(_ key: SshKey) {
+        let panel = NSSavePanel()
+        panel.title = L("Export SSH Public Key")
+        panel.nameFieldStringValue = key.publicKeyFileName
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        Task {
+            switch await model.perform({ try $0.exportSshPublicKey(key, to: url) }) {
+            case .success:
+                notify(Notice(title: L("Exported"), message: L("Saved the SSH public key to %@.", url.path)))
+            case let .failure(error):
+                notify(Notice(title: L("Cannot export the SSH public key"), message: describe(error)))
+            }
+        }
+    }
+
+    private func remove(_ key: SshKey) {
+        let keygrip = key.keygrip
+        Task {
+            switch await model.perform({ try $0.deleteSshKey(keygrip: keygrip) }) {
+            case .success:
+                notify(Notice(title: L("SSH key removed"), message: L("gpg-agent no longer has %@.", key.displayName)))
+            case let .failure(error):
+                notify(Notice(title: L("Cannot remove the SSH key"), message: describe(error)))
+            }
         }
     }
 
@@ -84,10 +144,31 @@ struct SshSection: View {
     }
 }
 
-/// OpenPGP の鍵でない SSH の鍵ひとつ。gpg-agent は鍵のコメントを返さないので、SSH の形のフィンガープリントで示す。
+/// SSH の鍵ごとの操作。
+struct SshKeyActions {
+    var setEnabled: (Bool) -> Void = { _ in }
+    var copy: () -> Void = {}
+    var export: () -> Void = {}
+    var remove: () -> Void = {}
+}
+
+/// SSH の鍵の操作（行の ⋯ と、右クリックのメニュー）。
+struct SshKeyMenuItems: View {
+    let key: SshKey
+    let actions: SshKeyActions
+
+    var body: some View {
+        Button(L("Copy SSH Public Key"), action: actions.copy)
+        Button(L("Export SSH Public Key…"), action: actions.export)
+        Divider()
+        Button(L("Remove from gpg-agent…"), role: .destructive, action: actions.remove)
+    }
+}
+
+/// OpenPGP の鍵でない SSH の鍵ひとつ。説明（ssh-keygen の -C）と、SSH の形のフィンガープリントで示す。
 struct SshKeyRow: View {
     let key: SshKey
-    let setEnabled: (Bool) -> Void
+    var actions = SshKeyActions()
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -95,19 +176,34 @@ struct SshKeyRow: View {
                 .font(.title2)
                 .frame(width: 28)
             VStack(alignment: .leading, spacing: 4) {
-                Text(key.card.map { L("SSH key on card %@", $0) } ?? L("SSH key")).font(.headline)
+                Text(key.displayName).font(.headline)
                 Text(key.fingerprint)
                     .font(.caption.monospaced())
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
             }
             Spacer()
-            Toggle(L("Use for SSH"), isOn: Binding(get: { sshKeyEnabled(key: key) }, set: setEnabled))
+            Toggle(L("Use for SSH"), isOn: Binding(get: { sshKeyEnabled(key: key) }, set: actions.setEnabled))
                 .toggleStyle(.switch)
                 .controlSize(.small)
                 .fixedSize()
+            Menu {
+                SshKeyMenuItems(key: key, actions: actions)
+            } label: {
+                Image(systemName: "ellipsis.circle")
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
         }
         .padding(.vertical, 4)
         .listRowSeparator(.hidden)
+    }
+}
+
+extension SshKey {
+    /// 一覧での名前。説明（ssh-keygen の -C）がなければ、種類で。
+    var displayName: String {
+        comment ?? card.map { L("SSH key on card %@", $0) } ?? L("SSH key")
     }
 }

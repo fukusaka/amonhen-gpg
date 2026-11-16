@@ -147,7 +147,8 @@ docs/       英語の文書。日本語版は docs/ja/
 | SSH 鍵の一覧 | Assuan の `KEYINFO --list --ssh-fpr --with-ssh` と `KEYINFO --list --need-attr=Use-for-ssh`（gpg-connect-agent。`ERR` でも終了コードは 0 なので応答の行で判断する）。keygrip で GPG 鍵の主鍵・サブ鍵とつなぐ |
 | GPG の認証 (A) サブ鍵を SSH 鍵として使う | `--quick-add-key <FPR> ed25519 auth` で作り、SSH に出す設定をする |
 | SSH に出す・出さない | 出すときは秘密鍵の属性 `Use-for-ssh: true`（`KEYATTR`。利用者のファイルを書き換えない）。出さないときは属性を消し、`sshcontrol` で有効な行があれば `!` を付ける（属性を偽にしても `sshcontrol` が勝つ）。終わったあとに gpg-agent に聞き直して確かめる |
-| SSH 公開鍵の出力（authorized_keys 用） | `gpg --export-ssh-key <FPR>!`（指した鍵そのもの） |
+| SSH 公開鍵の出力（authorized_keys 用） | `gpg --export-ssh-key <FPR>!`（指した鍵そのもの）。OpenPGP の鍵でない SSH の鍵は Assuan の `READKEY --format=ssh` で、説明は `READKEY` から取る（gpg-agent は代わりに `(none)` と書く） |
+| 取り込んだ SSH の鍵を消す | アプリで確かめてから Assuan の `DELETE_KEY --force`。どの OpenPGP の鍵にも属さない keygrip だけ。終わったあとに gpg-agent に聞き直して確かめる |
 | 既存の SSH 秘密鍵の取り込み | `ssh-add` で gpg-agent に登録（パスフレーズは pinentry） |
 
 ## 未決事項

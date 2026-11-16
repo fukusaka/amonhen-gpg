@@ -304,6 +304,7 @@ pub struct SshKey {
     pub sshcontrol: SshControl,
     pub use_for_ssh: bool,
     pub confirm: bool,
+    pub comment: Option<String>,
 }
 
 #[uniffi::remote(Record)]
@@ -687,6 +688,14 @@ impl Gpg {
 
     pub fn set_ssh_key_enabled(&self, keygrip: String, enabled: bool) -> Result<()> {
         Ok(self.inner.set_ssh_key_enabled(&keygrip, enabled)?)
+    }
+
+    pub fn ssh_public_key(&self, keygrip: String) -> Result<String> {
+        Ok(self.inner.ssh_public_key(&keygrip)?)
+    }
+
+    pub fn delete_ssh_key(&self, keygrip: String) -> Result<()> {
+        Ok(self.inner.delete_ssh_key(&keygrip)?)
     }
 
     pub fn add_ssh_key(&self, path: String) -> Result<()> {

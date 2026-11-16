@@ -27,7 +27,7 @@ Everything goes through gpg-agent; the app never writes to `~/.ssh`.
   is offered to SSH, and imports an existing secret key file (from `~/.ssh`) into gpg-agent with `ssh-add`. The file is
   left as it is.
 
-Gaps inside gpg-agent, which fit the current definition:
+Gaps inside gpg-agent, which fit the current definition (1 to 3 were filled after this memo; backup is still open):
 
 1. Your own key cannot be turned on for SSH from the app (only imported SSH keys can). The core already has
    `set_ssh_key_enabled` (`Use-for-ssh`).

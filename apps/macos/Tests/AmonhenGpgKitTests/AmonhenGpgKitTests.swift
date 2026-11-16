@@ -229,15 +229,24 @@ func groupsOwnKeysAndOthers() throws {
     _ = try home.gpg.import(data: try other.gpg.exportPublicKeys(fingerprints: [bob], armor: false))
 
     let grip = try #require(try home.gpg.listKeys().first { $0.fingerprint == mine }?.subkeys.first { $0.fingerprint == auth }?.keygrip)
-    try home.gpg.setSshKeyEnabled(keygrip: grip, enabled: true)
+    let read = { Keyring(keys: try home.gpg.listKeys(), sshKeys: try home.gpg.sshKeys(), now: UInt64(Date().timeIntervalSince1970)) }
+    // SSH に出す前から、出せる認証サブ鍵が分かる
+    let before = try #require(try read().usable.first)
+    #expect(!before.ssh)
+    #expect(before.sshCandidate == grip)
+    try home.gpg.setSshEnabled(before, enabled: true)
 
-    let ring = Keyring(keys: try home.gpg.listKeys(), sshKeys: try home.gpg.sshKeys(), now: UInt64(Date().timeIntervalSince1970))
+    let ring = try read()
     #expect(ring.usable.map(\.key.fingerprint) == [mine])
     #expect(ring.usable.first?.ssh == true)
+    #expect(ring.usable.first?.sshKeygrips == [grip.uppercased()])
     #expect(ring.usable.first?.status.sign == .thisDevice)
     #expect(ring.history.map(\.key.fingerprint) == [old])
     #expect(ring.others.map(\.fingerprint) == [bob])
     #expect(ring.usable.first?.key.primaryUserId.map { UserIdParts($0.text).email } == "alice@example.com")
+    // 止める
+    try home.gpg.setSshEnabled(try #require(ring.usable.first), enabled: false)
+    #expect(try read().usable.first?.ssh == false)
 }
 
 @Test(.enabled(if: gpgAvailable()))
@@ -417,7 +426,7 @@ func groupsRealSignaturesFromAnotherKeyring() throws {
 @Test func findsSshFingerprintsByKeygrip() {
     let ssh = SshKey(
         keygrip: "abcdef0123456789abcdef0123456789abcdef01", fingerprint: "SHA256:xyz", card: nil, protected: true,
-        sshcontrol: .notListed, useForSsh: false, confirm: false)
+        sshcontrol: .notListed, useForSsh: false, confirm: false, comment: nil)
     let ring = Keyring(keys: [], sshKeys: [ssh], now: 0)
     // keygrip の大文字小文字は問わない
     #expect(ring.sshFingerprint(keygrip: "ABCDEF0123456789ABCDEF0123456789ABCDEF01") == "SHA256:xyz")
@@ -453,6 +462,30 @@ func groupsRealSignaturesFromAnotherKeyring() throws {
     #expect(groups.trusted.map(\.certification.userId) == ["Bob <bob@example.org>", "Bob <bob@example.org>", "Bob <bob@work.example>"])
     // 確認していない Erin と、鍵束にない鍵
     #expect(groups.others.map(\.signerName) == ["Erin", nil])
+}
+
+@Test(.enabled(if: gpgAvailable()))
+func addsSubkeyForSsh() throws {
+    let home = try TemporaryKeyring()
+    let now = UInt64(Date().timeIntervalSince1970)
+    let fpr = try home.gpg.generateKey(
+        request: GenerateKey(
+            userId: "Alice <alice@example.com>", algorithm: nil,
+            capabilities: Capabilities(certify: true, sign: true, encrypt: false, authenticate: false), expires: .days(100)))
+    func own() throws -> OwnKey {
+        try #require(Keyring(keys: try home.gpg.listKeys(), sshKeys: try home.gpg.sshKeys(), now: now).own(fpr))
+    }
+    #expect(try own().canAddSshSubkey(now: now))
+    #expect(try own().sshCandidate == nil)
+
+    let added = try home.gpg.addSshSubkey(try own(), now: now)
+    let mine = try own()
+    let subkey = try #require(mine.sshSubkey(now: now))
+    #expect(subkey.fingerprint == added)
+    // 期限は主鍵に揃い、SSH に出ている
+    #expect(abs(Int64(subkey.expires ?? 0) - Int64(mine.key.expires ?? 0)) < 2 * 86_400)
+    #expect(mine.ssh)
+    #expect(!mine.canAddSshSubkey(now: now))
 }
 
 @Test(.enabled(if: gpgAvailable()))
@@ -760,6 +793,18 @@ func listsSshKeysThatAreNotOpenPgpKeys() throws {
     try home.gpg.setSshKeyEnabled(keygrip: ssh.keygrip, enabled: false)
     ring = Keyring(keys: try home.gpg.listKeys(), sshKeys: try home.gpg.sshKeys(), now: UInt64(Date().timeIntervalSince1970))
     #expect(ring.sshOnly.map { sshKeyEnabled(key: $0) } == [false])
+
+    // 説明と公開鍵は、鍵ファイルの .pub と同じ
+    #expect(ssh.comment == "test")
+    #expect(ssh.publicKeyFileName == "test.pub")
+    let out = home.dir.appendingPathComponent(ssh.publicKeyFileName)
+    try home.gpg.exportSshPublicKey(ssh, to: out)
+    let original = try String(contentsOf: home.dir.appendingPathComponent("id_ed25519.pub"), encoding: .utf8)
+    #expect(try String(contentsOf: out, encoding: .utf8) == original)
+
+    // gpg-agent から消す
+    try home.gpg.deleteSshKey(keygrip: ssh.keygrip)
+    #expect(try home.gpg.sshKeys().filter { $0.comment == "test" }.isEmpty)
 }
 
 @Test(.enabled(if: gpgAvailable()))
