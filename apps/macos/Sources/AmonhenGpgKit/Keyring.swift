@@ -100,6 +100,9 @@ public struct OwnKey: Sendable, Identifiable {
 
     public var id: String { key.fingerprint }
 
+    /// 期限切れまでこの日数以内なら急ぐ（目立たせる）。
+    public static let urgentExpiryDays = 14
+
     /// 期限までの日数。期限がなければ nil。
     public func daysUntilExpiry(now: UInt64) -> Int? {
         guard let expires = key.expires else { return nil }
