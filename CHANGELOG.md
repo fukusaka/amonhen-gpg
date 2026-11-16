@@ -25,6 +25,8 @@ notes.
 
 ### Changed
 
+- Warnings on your own keys are quieter: only expiry within 14 days stays orange; a missing backup or revocation
+  certificate, expiry further away and SSH support being off are shown in gray.
 - My Keys lists usable keys and keys not usable on this Mac by expiry, soonest first, so the key that needs extending
   is at the top.
 

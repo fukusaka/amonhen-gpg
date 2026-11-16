@@ -14,8 +14,8 @@ struct SshSection: View {
         Section {
             if support?.enabled == false {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Label(L("SSH support of gpg-agent is off, so SSH cannot use these keys."), systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
+                    Label(L("SSH support of gpg-agent is off, so SSH cannot use these keys."), systemImage: "info.circle")
+                        .foregroundStyle(.secondary)
                     Button(L("Turn On…")) { enabling = true }
                         .controlSize(.small)
                 }

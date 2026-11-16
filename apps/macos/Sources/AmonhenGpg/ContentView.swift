@@ -606,8 +606,9 @@ struct OwnKeyRow: View {
             }
             Spacer()
             if own.status.tier != .history, let days = own.daysUntilExpiry(now: now), days < 60 {
+                // 急ぐもの（2 週間以内）だけ橙。それより先なら目立たせない
                 Label(L("Expires in %ld days", max(days, 0)), systemImage: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(days <= OwnKey.urgentExpiryDays ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
                     .font(.callout)
                 if own.canExtendExpiry {
                     Button(L("Extend…")) { actions.extendExpiry(own) }
@@ -652,7 +653,7 @@ struct OwnKeyRow: View {
     }
 }
 
-/// 自分の鍵の警告ひとつと、それを解消する操作。
+/// 自分の鍵の、急がない警告ひとつ（バックアップ・失効証明書がない）と、それを解消する操作。目立たせない。
 struct Warning: View {
     let text: String
     let action: String
@@ -660,8 +661,8 @@ struct Warning: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Label(text, systemImage: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
+            Label(text, systemImage: "info.circle")
+                .foregroundStyle(.secondary)
             Button(action, action: perform)
                 .controlSize(.small)
         }
