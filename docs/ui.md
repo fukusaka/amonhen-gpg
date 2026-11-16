@@ -87,9 +87,12 @@ Done:
 - Sending to a keyserver (`Gpg::send_keys`; used to announce your own revoked key).
 - gpg-agent's SSH keys (`Gpg::ssh_support`, `enable_ssh_support`, `ssh_keys`, `set_ssh_key_enabled`, `export_ssh_key`, `ssh_public_key`, `delete_ssh_key`), and importing an existing SSH secret key (`Gpg::add_ssh_key`). "SSH ✓ This PC" on the main screen is shown by matching the authentication subkey's keygrip against `SshKey`.
 
-Not yet:
+Left out on purpose:
 
-- Searching a keyserver by name (`--search-keys`). After checking the shape of its output in batch mode.
+- Searching a keyserver by name (`--search-keys`). keys.openpgp.org, the default, finds keys only by exact email
+  address or fingerprint. Keyservers that do search names (such as keyserver.ubuntu.com) return many keys that anyone
+  uploaded under someone else's name, and a name proves nothing about a key. Staging finds keys by email address
+  (WKD first), fingerprint, or a GitHub or GitLab user instead.
 
 ## What the macOS app (SwiftUI) can do
 

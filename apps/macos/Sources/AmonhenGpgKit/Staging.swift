@@ -1,7 +1,8 @@
 import Foundation
 
 /// 一時保管で探すときの入力。メールアドレス（WKD、なければ鍵サーバー）か、完全なフィンガープリント（鍵サーバー）。
-/// 名前での検索（`--search-keys`）はまだない。
+/// 名前での検索（`--search-keys`）は意図して作らない（docs/ui.md）。名前は鍵について何も示さず、名前で探せる鍵サーバーは
+/// 他人の名前で上げられた鍵を多く返す。
 public enum StagingQuery: Equatable, Sendable {
     case email(String)
     case fingerprint(String)

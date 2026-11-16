@@ -87,9 +87,9 @@ git やメールの署名検証は本来の鍵束しか見ないので、そう�
 - 鍵サーバーへの送信（`Gpg::send_keys`。失効させた自分の鍵を知らせるのに使う）。
 - gpg-agent の SSH 鍵（`Gpg::ssh_support`・`enable_ssh_support`・`ssh_keys`・`set_ssh_key_enabled`・`export_ssh_key`・`ssh_public_key`・`delete_ssh_key`）と、既存の SSH 秘密鍵の取り込み（`Gpg::add_ssh_key`）。主画面の「SSH ✓ この PC」は、認証サブ鍵の keygrip を `SshKey` と照らし合わせて出す。
 
-まだ:
+意図して作らない:
 
-- 鍵サーバーで名前から探す（`--search-keys`）。バッチでの出力の形を確かめてから。
+- 鍵サーバーで名前から探す（`--search-keys`）。既定の keys.openpgp.org は、メールアドレスかフィンガープリントで完全に一致する鍵しか返さない。名前で探せる鍵サーバー（keyserver.ubuntu.com など）は、誰かが他人の名前で上げた鍵を多く返し、名前は鍵について何も示さない。一時保管では、代わりにメールアドレス（まず WKD）、フィンガープリント、GitHub・GitLab の利用者で探す。
 
 ## macOS アプリ（SwiftUI）でできること
 
