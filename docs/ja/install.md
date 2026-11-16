@@ -13,7 +13,7 @@
 
 ## GnuPG
 
-アプリはフロントエンドなので、GnuPG 2.4.1 以降と、画面を出せる pinentry が要ります。
+アプリはフロントエンドなので、GnuPG 2.4.1 以降と、画面を出せる pinentry が要ります（gpg が古ければ、アプリは一覧の上に警告を出します）。
 [Homebrew](https://brew.sh) なら:
 
 ```sh
@@ -21,7 +21,7 @@ brew install gnupg pinentry-mac
 ```
 
 [GPG Suite](https://gpgtools.org) や MacGPG2 でも使えます。アプリは `gpg` を `PATH`、Homebrew、GPG Suite の場所から
-探し、ふだんの鍵束（`~/.gnupg`）を開きます。パスフレーズの画面を出せないときは、`gpg-agent.conf` に足す
+探し（設定 ⌘, で選んだものがあればそれを使い）、ふだんの鍵束（`~/.gnupg`）を開きます。パスフレーズの画面を出せないときは、`gpg-agent.conf` に足す
 `pinentry-program` の行を示します。
 
 ## アプリ（macOS）

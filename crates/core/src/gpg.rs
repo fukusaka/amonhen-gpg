@@ -531,6 +531,18 @@ pub struct Version {
 }
 
 impl Version {
+    /// このアプリが使える一番古い gpg。鍵ごとに SSH を入れ・切る `Use-for-ssh` を gpg-agent が知るのが 2.4.1 から。
+    pub const MINIMUM: Version = Version {
+        major: 2,
+        minor: 4,
+        patch: 1,
+    };
+
+    /// このアプリが使える版（`MINIMUM` 以降）か。
+    pub fn is_supported(&self) -> bool {
+        *self >= Self::MINIMUM
+    }
+
     /// `gpg --version` の 1 行目を読む。最後の語が版（`2.5.24`、`2.4.0-beta3` のような後ろの部分は無視する）。
     pub fn parse(line: &str) -> Option<Self> {
         let word = line.split_whitespace().last()?;
@@ -559,6 +571,16 @@ mod tests {
         assert_eq!((v.major, v.minor, v.patch), (2, 4, 0));
         assert!(Version::parse("gpg (GnuPG)").is_none());
         assert!(Version::parse("").is_none());
+    }
+
+    #[test]
+    fn versions_from_2_4_1_are_supported() {
+        let v = |line| Version::parse(line).unwrap();
+        assert!(!v("gpg (GnuPG/MacGPG2) 2.2.41").is_supported());
+        assert!(!v("gpg (GnuPG) 2.4.0").is_supported());
+        assert!(v("gpg (GnuPG) 2.4.1").is_supported());
+        assert!(v("gpg (GnuPG) 2.5.24").is_supported());
+        assert!(v("gpg (GnuPG) 3.0").is_supported());
     }
 
     #[test]

@@ -22,6 +22,9 @@ notes.
 - Staging fetches the keys a GitHub or GitLab user publishes: search for `github:name`, `gitlab:name` or the profile
   URL.
 - Press the space bar on others' keys to quick-look the selected key's fingerprint, validity and expiry.
+- A warning above the lists when gpg is older than 2.4.1, which the app needs.
+- Settings (⌘,) shows the gpg in use and its version, and lets you choose another gpg or go back to finding it
+  automatically.
 
 ### Changed
 

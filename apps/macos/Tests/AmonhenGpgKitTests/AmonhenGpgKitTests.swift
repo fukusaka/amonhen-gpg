@@ -849,3 +849,26 @@ func discardsStagingLeftByCrashedApps() throws {
     #expect(FileManager.default.fileExists(atPath: other.path))
     _ = try? home.gpg.staging(dir: other.path).discardStaging()
 }
+
+@Test func warnsAboutOldGpg() {
+    var keyring = Keyring()
+    #expect(keyring.outdatedGpg == nil)
+    keyring.gpgVersion = Version(major: 2, minor: 4, patch: 0)
+    #expect(keyring.outdatedGpg?.description == "2.4.0")
+    keyring.gpgVersion = Version(major: 2, minor: 4, patch: 1)
+    #expect(keyring.outdatedGpg == nil)
+    #expect(minimumGpgVersion().description == "2.4.1")
+}
+
+@Test func choosesTheGpgProgram() throws {
+    let defaults = try #require(UserDefaults(suiteName: "amonhen-gpg-test-\(UUID().uuidString)"))
+    let found = { () -> String? in "/opt/homebrew/bin/gpg" }
+    // 選んでいなければ自動、選べばそれ、起動の引数がいちばん先
+    #expect(GpgProgram.chosen(in: defaults) == nil)
+    #expect(GpgProgram.resolve(option: nil, defaults: defaults, locate: found) == "/opt/homebrew/bin/gpg")
+    GpgProgram.choose("/usr/local/bin/gpg", in: defaults)
+    #expect(GpgProgram.resolve(option: nil, defaults: defaults, locate: found) == "/usr/local/bin/gpg")
+    #expect(GpgProgram.resolve(option: "/tmp/gpg", defaults: defaults, locate: found) == "/tmp/gpg")
+    GpgProgram.choose(nil, in: defaults)
+    #expect(GpgProgram.chosen(in: defaults) == nil)
+}
