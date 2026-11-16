@@ -426,7 +426,7 @@ func groupsRealSignaturesFromAnotherKeyring() throws {
 @Test func findsSshFingerprintsByKeygrip() {
     let ssh = SshKey(
         keygrip: "abcdef0123456789abcdef0123456789abcdef01", fingerprint: "SHA256:xyz", card: nil, protected: true,
-        sshcontrol: .notListed, useForSsh: false, confirm: false)
+        sshcontrol: .notListed, useForSsh: false, confirm: false, comment: nil)
     let ring = Keyring(keys: [], sshKeys: [ssh], now: 0)
     // keygrip の大文字小文字は問わない
     #expect(ring.sshFingerprint(keygrip: "ABCDEF0123456789ABCDEF0123456789ABCDEF01") == "SHA256:xyz")
@@ -793,6 +793,18 @@ func listsSshKeysThatAreNotOpenPgpKeys() throws {
     try home.gpg.setSshKeyEnabled(keygrip: ssh.keygrip, enabled: false)
     ring = Keyring(keys: try home.gpg.listKeys(), sshKeys: try home.gpg.sshKeys(), now: UInt64(Date().timeIntervalSince1970))
     #expect(ring.sshOnly.map { sshKeyEnabled(key: $0) } == [false])
+
+    // 説明と公開鍵は、鍵ファイルの .pub と同じ
+    #expect(ssh.comment == "test")
+    #expect(ssh.publicKeyFileName == "test.pub")
+    let out = home.dir.appendingPathComponent(ssh.publicKeyFileName)
+    try home.gpg.exportSshPublicKey(ssh, to: out)
+    let original = try String(contentsOf: home.dir.appendingPathComponent("id_ed25519.pub"), encoding: .utf8)
+    #expect(try String(contentsOf: out, encoding: .utf8) == original)
+
+    // gpg-agent から消す
+    try home.gpg.deleteSshKey(keygrip: ssh.keygrip)
+    #expect(try home.gpg.sshKeys().filter { $0.comment == "test" }.isEmpty)
 }
 
 @Test(.enabled(if: gpgAvailable()))

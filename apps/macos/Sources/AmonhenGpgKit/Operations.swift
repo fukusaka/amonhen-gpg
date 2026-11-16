@@ -349,3 +349,18 @@ extension OwnKey {
         status.tier == .usable && canExtendExpiry && sshSubkey(now: now) == nil
     }
 }
+
+extension SshKey {
+    /// 公開鍵の既定のファイル名（説明から作り、なければ `ssh-key.pub`）。
+    public var publicKeyFileName: String {
+        let name = (comment ?? "").map { "/:\\".contains($0) ? "_" : $0 }
+        return (name.isEmpty ? "ssh-key" : String(name)) + ".pub"
+    }
+}
+
+extension Gpg {
+    /// gpg-agent が持つ SSH の鍵の公開鍵を、`authorized_keys` の 1 行の形でファイルに書く（0644）。
+    public func exportSshPublicKey(_ key: SshKey, to url: URL) throws {
+        try write(Data((sshPublicKey(keygrip: key.keygrip) + "\n").utf8), to: url, permissions: 0o644)
+    }
+}

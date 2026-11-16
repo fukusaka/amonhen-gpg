@@ -360,3 +360,12 @@
 "Subkey for SSH added" = "SSH 用のサブ鍵を加えました";
 "Put its public key in ~/.ssh/authorized_keys on the server. Backups you made earlier do not have the new subkey, so make a new one." = "公開鍵をサーバーの ~/.ssh/authorized_keys に置いてください。前に取ったバックアップには新しいサブ鍵がないので、取り直してください。";
 "Cannot add the subkey" = "サブ鍵を加えられません";
+
+/* 取り込んだ SSH の鍵 */
+"Remove from gpg-agent…" = "gpg-agent から消す…";
+"Remove the SSH key from gpg-agent?" = "SSH の鍵を gpg-agent から消しますか？";
+"gpg-agent deletes its copy of the secret key %@. This cannot be undone. The key file you added it from is not changed; without that file, the key is lost." = "gpg-agent が持つ秘密鍵 %@ を消します。元に戻せません。取り込んだ元の鍵ファイルは変わりません。そのファイルがなければ、鍵は失われます。";
+"SSH key removed" = "SSH の鍵を消しました";
+"gpg-agent no longer has %@." = "gpg-agent は %@ を持っていません。";
+"Cannot remove the SSH key" = "SSH の鍵を消せません";
+"Remove" = "消す";

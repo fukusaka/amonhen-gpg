@@ -822,6 +822,14 @@ fn ssh_keys_through_gpg_agent() {
     let k = ssh_key(&auth_grip).unwrap();
     assert!(k.fingerprint.starts_with("SHA256:"));
     assert!(!k.enabled());
+    // OpenPGP の鍵の秘密鍵は、SSH の鍵としては消さない
+    assert!(matches!(
+        gpg.delete_ssh_key(&auth_grip),
+        Err(Error::InvalidArgument {
+            name: "keygrip",
+            ..
+        })
+    ));
 
     gpg.set_ssh_key_enabled(&auth_grip, true).unwrap();
     assert!(ssh_key(&auth_grip).unwrap().use_for_ssh);
@@ -1009,6 +1017,20 @@ fn adds_existing_ssh_keys() {
     let keys_in_agent = gpg.ssh_keys().unwrap();
     assert_eq!(keys_in_agent.len(), 2);
     assert!(keys_in_agent.iter().all(|k| k.enabled()));
+    // 説明（ssh-keygen の -C）と公開鍵は、鍵ファイルの .pub と同じ
+    let pub_line = |name: &str| {
+        std::fs::read_to_string(keys.path().join(format!("{name}.pub")))
+            .unwrap()
+            .trim()
+            .to_owned()
+    };
+    for name in ["id_plain", "id_encrypted"] {
+        let key = keys_in_agent
+            .iter()
+            .find(|k| k.comment.as_deref() == Some(name))
+            .unwrap();
+        assert_eq!(gpg.ssh_public_key(&key.keygrip).unwrap(), pub_line(name));
+    }
 
     // 鍵ファイルのパスフレーズを聞かれて取り消す
     let other = keygen("id_other", "other passphrase");
@@ -1024,4 +1046,20 @@ fn adds_existing_ssh_keys() {
         Err(Error::Tool { .. })
     ));
     assert_eq!(gpg.ssh_keys().unwrap().len(), 2);
+
+    // gpg-agent から消す。鍵ファイルは残る
+    let plain_grip = gpg
+        .ssh_keys()
+        .unwrap()
+        .into_iter()
+        .find(|k| k.comment.as_deref() == Some("id_plain"))
+        .unwrap()
+        .keygrip;
+    gpg.delete_ssh_key(&plain_grip).unwrap();
+    assert_eq!(gpg.ssh_keys().unwrap().len(), 1);
+    assert!(plain.is_file());
+    assert!(matches!(
+        gpg.delete_ssh_key(&plain_grip),
+        Err(Error::NotFound)
+    ));
 }

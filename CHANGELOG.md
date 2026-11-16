@@ -27,6 +27,8 @@ notes.
   automatically.
 - Turn your own key on or off for SSH from its menu (Use for SSH, Stop Using for SSH).
 - Add a subkey for SSH to a key that has none: it expires with the key and is offered to SSH right away.
+- Imported SSH keys show their comment, and their menu copies or exports the public key and removes the key from
+  gpg-agent.
 
 ### Changed
 

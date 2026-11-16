@@ -55,6 +55,8 @@ pub struct SshKey {
     pub use_for_ssh: bool,
     /// 使うたびに確認を求める（`sshcontrol` の `confirm`）。
     pub confirm: bool,
+    /// 鍵の説明（ssh-keygen の `-C`。ssh-add で取り込んだ鍵だけにある）。
+    pub comment: Option<String>,
 }
 
 impl SshKey {
@@ -106,10 +108,85 @@ impl Gpg {
             .filter_map(|l| keyinfo(l))
             .map(|f| f[0])
             .collect();
-        Ok(replies[0]
+        let mut keys: Vec<SshKey> = replies[0]
             .iter()
             .filter_map(|l| parse_keyinfo(l, &marked))
-            .collect())
+            .collect();
+        // 説明は鍵ごとに READKEY で読む。読めない鍵があっても一覧は出す
+        let commands: Vec<String> = keys
+            .iter()
+            .map(|k| format!("READKEY {}", k.keygrip))
+            .collect();
+        if !commands.is_empty() {
+            let commands: Vec<&str> = commands.iter().map(String::as_str).collect();
+            if let Ok(replies) = self.agent_each(&commands) {
+                for (key, reply) in keys.iter_mut().zip(replies) {
+                    key.comment = reply.and_then(|lines| sexp_comment(&data(&lines)));
+                }
+            }
+        }
+        Ok(keys)
+    }
+
+    /// gpg-agent が持つ SSH の鍵の公開鍵を、`authorized_keys` に書く 1 行の形（説明があれば付ける）で返す。
+    pub fn ssh_public_key(&self, keygrip: &str) -> Result<String> {
+        let keygrip = check_keygrip(keygrip)?;
+        let replies = self.agent(&[
+            &format!("READKEY --format=ssh {keygrip}"),
+            &format!("READKEY {keygrip}"),
+        ])?;
+        // gpg-agent は説明の代わりに `(none)` を付けるので、型と鍵だけを取る
+        let ssh = String::from_utf8_lossy(&data(&replies[0])).into_owned();
+        let mut fields = ssh.split_whitespace();
+        let (Some(kind), Some(blob)) = (fields.next(), fields.next()) else {
+            return Err(Error::Parse {
+                line: 0,
+                message: "gpg-agent did not return an ssh key".into(),
+            });
+        };
+        Ok(match sexp_comment(&data(&replies[1])) {
+            Some(comment) => format!("{kind} {blob} {comment}"),
+            None => format!("{kind} {blob}"),
+        })
+    }
+
+    /// OpenPGP の鍵でない SSH の鍵を gpg-agent から消す。元に戻せないので、FE は必ず利用者に確かめる。
+    /// OpenPGP の鍵（主鍵・サブ鍵）の秘密鍵は、ここでは消さない（`delete_secret_and_public_key` で鍵ごと消す）。
+    pub fn delete_ssh_key(&self, keygrip: &str) -> Result<()> {
+        let keygrip = check_keygrip(keygrip)?;
+        let openpgp = self.list_keys()?.iter().any(|k| {
+            std::iter::once(&k.keygrip)
+                .chain(k.subkeys.iter().map(|s| &s.keygrip))
+                .any(|g| {
+                    g.as_deref()
+                        .is_some_and(|g| g.eq_ignore_ascii_case(keygrip))
+                })
+        });
+        if openpgp {
+            return Err(Error::InvalidArgument {
+                name: "keygrip",
+                message: "the key belongs to an OpenPGP key".into(),
+            });
+        }
+        if !self
+            .ssh_keys()?
+            .iter()
+            .any(|k| k.keygrip.eq_ignore_ascii_case(keygrip))
+        {
+            return Err(Error::NotFound);
+        }
+        // 確かめるのは FE なので、gpg-agent には聞かせない（gpg の `--yes --delete-secret-keys` と同じ）
+        self.agent(&[&format!("DELETE_KEY --force {keygrip}")])?;
+        if self
+            .ssh_keys()?
+            .iter()
+            .any(|k| k.keygrip.eq_ignore_ascii_case(keygrip))
+        {
+            return Err(Error::NotApplied {
+                message: "gpg-agent did not delete the key".into(),
+            });
+        }
+        Ok(())
     }
 
     /// 鍵を SSH に出すか決める。終わったあとに gpg-agent に聞き直して確かめる。
@@ -236,6 +313,14 @@ impl Gpg {
         args.push("/bye");
         let out = self.run_tool("gpg-connect-agent", &args, None)?;
         parse_replies(&out, commands.len())
+    }
+
+    /// `agent` と同じだが、`ERR` の応答を `None` にして、ほかのコマンドの応答は返す。
+    fn agent_each(&self, commands: &[&str]) -> Result<Vec<Option<Vec<String>>>> {
+        let mut args = commands.to_vec();
+        args.push("/bye");
+        let out = self.run_tool("gpg-connect-agent", &args, None)?;
+        parse_each_reply(&out, commands.len())
     }
 }
 
@@ -372,6 +457,74 @@ fn parse_replies(out: &str, expected: usize) -> Result<Vec<Vec<String>>> {
     }
 }
 
+fn parse_each_reply(out: &str, expected: usize) -> Result<Vec<Option<Vec<String>>>> {
+    let mut replies = Vec::new();
+    let mut lines = Vec::new();
+    for line in out.lines() {
+        if line == "OK" || line.starts_with("OK ") {
+            replies.push(Some(std::mem::take(&mut lines)));
+        } else if line.starts_with("ERR ") {
+            lines.clear();
+            replies.push(None);
+        } else if line.starts_with("S ") || line.starts_with("D ") {
+            lines.push(line.to_owned());
+        }
+    }
+    if replies.len() == expected {
+        Ok(replies)
+    } else {
+        Err(Error::Parse {
+            line: 0,
+            message: format!("expected {expected} replies from gpg-agent"),
+        })
+    }
+}
+
+/// 応答の `D` の行をつないで、Assuan のエスケープ（`%XX`）を解いたバイト列。
+fn data(lines: &[String]) -> Vec<u8> {
+    let mut out = Vec::new();
+    for line in lines {
+        let Some(rest) = line.strip_prefix("D ") else {
+            continue;
+        };
+        let bytes = rest.as_bytes();
+        let mut i = 0;
+        while i < bytes.len() {
+            let hex = bytes
+                .get(i + 1..i + 3)
+                .and_then(|h| std::str::from_utf8(h).ok())
+                .and_then(|h| u8::from_str_radix(h, 16).ok());
+            match (bytes[i], hex) {
+                (b'%', Some(b)) => {
+                    out.push(b);
+                    i += 3;
+                }
+                (b, _) => {
+                    out.push(b);
+                    i += 1;
+                }
+            }
+        }
+    }
+    out
+}
+
+/// READKEY の公開鍵（canonical な S 式）の `(7:comment<長さ>:<説明>)`。制御文字は空白にし、空なら `None`。
+fn sexp_comment(sexp: &[u8]) -> Option<String> {
+    const TAG: &[u8] = b"(7:comment";
+    let start = sexp.windows(TAG.len()).rposition(|w| w == TAG)? + TAG.len();
+    let rest = &sexp[start..];
+    let colon = rest.iter().position(|&b| b == b':')?;
+    let len: usize = std::str::from_utf8(&rest[..colon]).ok()?.parse().ok()?;
+    let value = rest.get(colon + 1..colon + 1 + len)?;
+    let text: String = String::from_utf8_lossy(value)
+        .chars()
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .collect();
+    let text = text.trim();
+    (!text.is_empty()).then(|| text.to_owned())
+}
+
 /// `S KEYINFO <keygrip> <type> <serialno> <idstr> <cached> <protection> <fpr> <ttl> <flags>` の、KEYINFO より後ろ。
 fn keyinfo(line: &str) -> Option<Vec<&str>> {
     let fields: Vec<&str> = line.strip_prefix("S KEYINFO ")?.split(' ').collect();
@@ -400,6 +553,7 @@ fn parse_keyinfo(line: &str, marked: &[&str]) -> Option<SshKey> {
         },
         use_for_ssh: marked.contains(&f[0]),
         confirm: flags.contains('c'),
+        comment: None,
     })
 }
 
@@ -498,6 +652,28 @@ OK
             Some("D2760001240100000006012345670000")
         );
         assert!(keys[2].confirm && !keys[2].enabled());
+    }
+
+    #[test]
+    fn reads_comments_from_public_keys() {
+        // gpg-connect-agent が出す READKEY の応答（`%` と改行はエスケープされる）
+        let sexp = "D (10:public-key(3:ecc(5:curve7:Ed25519)(5:flags5:eddsa)(1:q33:@\u{1}abc(7:comment)xyz123456789012345678901234))(7:comment15:me@laptop 100%25!))";
+        assert_eq!(
+            sexp_comment(&data(&[sexp.to_owned()])).as_deref(),
+            Some("me@laptop 100%!")
+        );
+        let none = "D (10:public-key(3:ecc(5:curve7:Ed25519)(1:q2:ab)))";
+        assert_eq!(sexp_comment(&data(&[none.to_owned()])), None);
+        let control = "D (10:public-key(7:comment5:a%0Ab%0D ))";
+        assert_eq!(
+            sexp_comment(&data(&[control.to_owned()])).as_deref(),
+            Some("a b")
+        );
+        // 応答ごとに。断られた鍵は None
+        let replies = parse_each_reply("D x\nOK\nERR 1 No such key\nS KEYINFO y\nOK\n", 3).unwrap();
+        assert_eq!(replies[0].as_deref(), Some(&["D x".to_owned()][..]));
+        assert_eq!(replies[1], None);
+        assert!(replies[2].is_some());
     }
 
     #[test]
