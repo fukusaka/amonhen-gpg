@@ -364,3 +364,21 @@ extension Gpg {
         try write(Data((sshPublicKey(keygrip: key.keygrip) + "\n").utf8), to: url, permissions: 0o644)
     }
 }
+
+extension Key {
+    /// 所有者信頼を、設定に使う値で（一覧の値から。決めていない・分からないものは `unknown`）。
+    public var ownerTrustSetting: OwnerTrust {
+        switch ownerTrust {
+        case .never: .never
+        case .marginal: .marginal
+        case .full: .full
+        case .ultimate: .ultimate
+        default: .unknown
+        }
+    }
+}
+
+extension OwnerTrust {
+    /// 他者の鍵に選ばせる値。絶対的（`ultimate`）は自分の鍵のもので、付けると他者の鍵が「自分の鍵」になるので出さない。
+    public static let choicesForOthers: [OwnerTrust] = [.unknown, .never, .marginal, .full]
+}

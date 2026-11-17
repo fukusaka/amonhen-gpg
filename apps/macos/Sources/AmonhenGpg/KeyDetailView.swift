@@ -21,6 +21,8 @@ struct KeyDetailView: View {
     /// 失効の理由と説明（鍵・サブ鍵・UID のどれかが失効しているときだけ読む）。
     @State private var revocations: Revocations?
     @State private var tab: Tab?
+    /// 所有者信頼を設定できなかった理由。
+    @State private var trustFailure: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -45,6 +47,11 @@ struct KeyDetailView: View {
         }
         .padding(20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .alert(L("Cannot change the owner trust"), isPresented: Binding(get: { trustFailure != nil }, set: { if !$0 { trustFailure = nil } })) {
+            Button(L("OK"), role: .cancel) {}
+        } message: {
+            Text(trustFailure ?? "")
+        }
         .task {
             let gpg = model.gpg
             let fingerprint = key.fingerprint
@@ -73,6 +80,21 @@ struct KeyDetailView: View {
         return Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 8) {
             fact(L("Key ID"), Text(Fingerprint.grouped(String(key.fingerprint.suffix(16)))).monospaced().textSelection(.enabled))
             fact(L("Validity"), Text(validityWord(key.validity)))
+            // 他者の鍵だけ（自分の鍵は絶対的）
+            if own == nil {
+                fact(L("Owner trust"), VStack(alignment: .leading, spacing: 4) {
+                    OwnerTrustPicker(key: key) { trust in
+                        Task { trustFailure = await model.setOwnerTrust(key, trust).map(describe) }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .fixedSize()
+                    Text(ownerTrustNote())
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                })
+            }
             fact(L("Created"), Text(date(key.created) ?? "—"))
             fact(L("Expires"), Text(expiry(key.expires, validity: key.validity)))
             if let revocation = revocations?.key {

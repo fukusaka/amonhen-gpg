@@ -6,6 +6,10 @@ notes.
 
 ## Unreleased
 
+### Added
+
+- Owner trust for others' keys: choose how far you rely on a key's owner to check other keys (not set, not at all, marginally, fully) from the row menu or the key details. Keys signed by people you trust then count as verified.
+
 ### Changed
 
 - Requires GnuPG 2.4.6 or later (was 2.4.1), the first version that can set owner trust without the interactive editor. With an older gpg, the app warns above the lists.

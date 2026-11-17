@@ -957,8 +957,21 @@ struct OthersView: View {
         Button(L("Details…")) { openWindow(id: "key", value: key.fingerprint) }
         Button(L("Mark as Verified…")) { certifying = key }
             .disabled(!key.canCertify)
+        Menu(L("Owner Trust")) {
+            OwnerTrustPicker(key: key) { trust in setOwnerTrust(key, trust) }
+                .pickerStyle(.inline)
+                .labelsHidden()
+        }
         Divider()
         Button(L("Delete Public Key…"), role: .destructive) { deleting = key }
+    }
+
+    private func setOwnerTrust(_ key: Key, _ trust: OwnerTrust) {
+        Task {
+            if let error = await model.setOwnerTrust(key, trust) {
+                notify(Notice(title: L("Cannot change the owner trust"), message: describe(error)))
+            }
+        }
     }
 
     /// 公開鍵を消す（確かめたあと）。秘密鍵のある鍵は gpg が拒む。
