@@ -9,6 +9,7 @@ notes.
 ### Added
 
 - Key details show whose signatures made another person's key verified (your own keys, and keys whose owner you trust), and, for your own keys, how many keys signed them.
+- "Mark as My Key…" for a key in Others' Keys that is your own, with its secret key on another computer; it moves to My Keys. "Not My Key…" moves it back.
 - Owner trust for others' keys: choose how far you rely on a key's owner to check other keys (not set, not at all, marginally, fully) from the row menu or the key details. Keys signed by people you trust then count as verified.
 
 ### Changed

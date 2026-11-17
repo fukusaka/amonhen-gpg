@@ -52,6 +52,7 @@ Used before (history)                                  ▸ 3 keys
 - Validity is shown in words, not symbols ("Verified", "Not verified" etc.).
 - The "verify" operation signs the key (`Gpg::sign_key`). It first prompts the user to compare the fingerprint with the owner. The default is a non-exportable signature (it only marks the key as verified inside your own keyring); a signature that appears on keyservers is made only when chosen.
 - Owner trust (how far you rely on the owner to check other keys before signing them) is chosen in the row menu (Owner Trust) or on the Overview of the key details: not set, not at all, marginally or fully (`Gpg::set_owner_trust`). Ultimate is left out: it belongs to your own keys, and setting it would turn the key into one of yours. A short note says what it does (with gpg's defaults, one signature from a key you trust fully, or three you trust marginally, makes a key verified).
+- "Mark as My Key…" in the row menu is for your own key whose secret key is on another computer: after a confirmation that asks you to compare the fingerprint with that computer, it sets ultimate owner trust and the key moves to My Keys (not usable on this Mac). Such a key, mine only by owner trust, has "Not My Key…" in its menu, which sets the owner trust back to not set and moves it to Others' Keys. Keys with a secret key are always your own and do not have it.
 - Deletion only deletes the public key (gpg refuses keys that have a secret key).
 
 ## Staging

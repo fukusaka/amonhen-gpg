@@ -981,3 +981,27 @@ func ownerTrustMakesSignedKeysVerified() throws {
     // 受け取った署名は、署名した鍵ごとに数える（取り消しと自分の鍵は数えない。確かめられない鍵も数える）
     #expect(ring.signerCount(all, of: bob) == 5)
 }
+
+@Test(.enabled(if: gpgAvailable()))
+func marksAnImportedKeyAsYourOwn() throws {
+    // 秘密鍵は別の PC にある自分の鍵。公開鍵だけを取り込むと、まず他者の鍵になる
+    let home = try TemporaryKeyring()
+    let other = try TemporaryKeyring()
+    let fpr = try other.gpg.generateKey(
+        request: GenerateKey(userId: "Alice Home <alice@home.example>", algorithm: nil, capabilities: nil, expires: .never))
+    _ = try home.gpg.import(data: try other.gpg.exportPublicKeys(fingerprints: [fpr], armor: false))
+    let ring = { Keyring(keys: try home.gpg.listKeys(), sshKeys: [], now: UInt64(Date().timeIntervalSince1970)) }
+    #expect(try ring().others.map(\.fingerprint) == [fpr])
+    // 自分の鍵にする（所有者信頼を絶対的に）と、この PC では使えない自分の鍵になる
+    try home.gpg.setOwnerTrust(fingerprint: fpr, trust: .ultimate)
+    let own = try #require(try ring().notOnThisDevice.first)
+    #expect(own.key.fingerprint == fpr)
+    #expect(own.isMineByTrustOnly)
+    // 戻すと、また他者の鍵
+    try home.gpg.setOwnerTrust(fingerprint: fpr, trust: .unknown)
+    #expect(try ring().others.map(\.fingerprint) == [fpr])
+    // 秘密鍵のある鍵は、所有者信頼だけの自分の鍵ではない
+    let mine = try home.gpg.generateKey(
+        request: GenerateKey(userId: "Alice <alice@example.com>", algorithm: nil, capabilities: nil, expires: .never))
+    #expect(try ring().own(mine)?.isMineByTrustOnly == false)
+}
