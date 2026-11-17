@@ -95,6 +95,13 @@ struct KeyDetailView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 })
             }
+            // 何で確認済みになったか（Web of Trust。他者の鍵だけ。署名を読み終えてから）
+            if own == nil, key.validity == .full || key.validity == .marginal {
+                let by = model.keyring.introducers(preloaded ?? loaded ?? [], of: key)
+                if !by.isEmpty {
+                    fact(L("Verified by"), Text(by.map(introducerWord).joined(separator: "\n")))
+                }
+            }
             fact(L("Created"), Text(date(key.created) ?? "—"))
             fact(L("Expires"), Text(expiry(key.expires, validity: key.validity)))
             if let revocation = revocations?.key {
@@ -114,6 +121,8 @@ struct KeyDetailView: View {
                 fact(L("Backup"), Text(own.backedUp.map { L("Backed up on %@", $0.formatted(date: .abbreviated, time: .omitted)) }
                     ?? L("No backup recorded")))
                 fact(L("Revocation certificate"), Text(own.hasRevocationCertificate ? L("On this Mac") : L("Missing")))
+                // 自分の鍵は、受け取った署名の数だけ（誰の署名かは署名タブ）
+                fact(L("Signatures from others"), Text((preloaded ?? loaded).map { "\(model.keyring.signerCount($0, of: key))" } ?? "—"))
                 fact(L("SSH"), VStack(alignment: .leading, spacing: 2) {
                     Text(own.ssh ? L("Set for SSH") : L("Not set for SSH"))
                     // 認証サブ鍵を SSH 鍵として見たときのフィンガープリント（authorized_keys などと照らし合わせる）
@@ -331,6 +340,12 @@ func secretWord(_ secret: SecretState) -> String {
     case .stub: L("Stored elsewhere")
     case .onCard(let serial): L("On smart card %@", serial)
     }
+}
+
+/// 鍵を確認済みにした署名の主を、自分の鍵か所有者信頼と一緒に。
+func introducerWord(_ introducer: Introducer) -> String {
+    if introducer.byYou { return L("%@ (your key)", introducer.name) }
+    return introducer.trust == .full ? L("%@ (trusted fully)", introducer.name) : L("%@ (trusted marginally)", introducer.name)
 }
 
 /// 有効性は記号ではなく言葉で（docs/ui.md）。

@@ -379,3 +379,8 @@
 "How far you rely on this person to check other keys before signing them. A key counts as verified when it is signed by one verified key whose owner you trust fully, or by three you trust marginally." = "この人が、ほかの鍵をどれだけ確かめてから署名すると見なすか。確認済みの鍵のうち、完全に信頼する人の 1 つ、またはある程度信頼する人の 3 つの署名があれば、その鍵を確認済みとします。";
 "Cannot change the owner trust" = "所有者信頼を変えられません";
 "OK" = "OK";
+"Verified by" = "確認の根拠";
+"%@ (your key)" = "%@（自分の鍵）";
+"%@ (trusted fully)" = "%@（完全に信頼）";
+"%@ (trusted marginally)" = "%@（ある程度信頼）";
+"Signatures from others" = "ほかの鍵からの署名";
