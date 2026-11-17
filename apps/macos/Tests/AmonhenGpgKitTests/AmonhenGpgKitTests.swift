@@ -898,11 +898,11 @@ func discardsStagingLeftByCrashedApps() throws {
 @Test func warnsAboutOldGpg() {
     var keyring = Keyring()
     #expect(keyring.outdatedGpg == nil)
-    keyring.gpgVersion = Version(major: 2, minor: 4, patch: 0)
-    #expect(keyring.outdatedGpg?.description == "2.4.0")
-    keyring.gpgVersion = Version(major: 2, minor: 4, patch: 1)
+    keyring.gpgVersion = Version(major: 2, minor: 4, patch: 5)
+    #expect(keyring.outdatedGpg?.description == "2.4.5")
+    keyring.gpgVersion = Version(major: 2, minor: 4, patch: 6)
     #expect(keyring.outdatedGpg == nil)
-    #expect(minimumGpgVersion().description == "2.4.1")
+    #expect(minimumGpgVersion().description == "2.4.6")
 }
 
 @Test func choosesTheGpgProgram() throws {

@@ -81,7 +81,7 @@ pinentry を出せないときは `Error::NoPinentry` を返す。設定した p
 - シェルを経由せず引数配列で起動する。ユーザー入力（UID・ファイル名）は検証し、オプションとの間に `--` を入れる。鍵の指定は常に完全なフィンガープリントで行う。
 - 結果の判定は終了コードではなく **status 行**（`KEY_CREATED`, `IMPORT_OK`, `IMPORT_RES`, `ERROR`, `FAILURE` など）で行う。
 - タイムアウトとキャンセルに対応する（pinentry 待ちは長時間になり得る）。
-- GnuPG は 2.4.1 以降を求める。鍵を SSH に出す・出さないの切り替えに使う秘密鍵の属性 `Use-for-ssh` が、gpg-agent の 2.4.1 からのため。`--quick-set-ownertrust` は 2.4.6 からなので、所有者信頼を画面に出す前に、最低の版を上げるか `--edit-key` で代わりに設定するかを決める。アプリは鍵束を読むたびに版（`gpg --version`）を読み、古ければ一覧の上に警告を出す。鍵の一覧は出す（`Version::MINIMUM`）。
+- GnuPG は 2.4.6 以降を求める。所有者信頼の設定に使う `--quick-set-ownertrust` が、gpg の 2.4.6 からのため（鍵を SSH に出す・出さないの切り替えに使う秘密鍵の属性 `Use-for-ssh` は、gpg-agent の 2.4.1 から）。アプリは鍵束を読むたびに版（`gpg --version`）を読み、古ければ一覧の上に警告を出す。鍵の一覧は出す（`Version::MINIMUM`）。
 - テスト:
   - colon / status パーサーは単体テストとファズテスト。
   - 一時ディレクトリの `GNUPGHOME` と loopback pinentry を使い、実際の gpg に対する結合テスト。
@@ -129,7 +129,7 @@ docs/       英語の文書。日本語版は docs/ja/
 | 有効期限の変更 | `--quick-set-expire` |
 | UID の追加・失効・主 UID の設定 | `--quick-add-uid` / `--quick-revoke-uid` / `--quick-set-primary-uid` |
 | 他者の鍵への署名 | `--quick-sign-key` / `--quick-lsign-key`（UID を選べる。署名に使う鍵は `--local-user` にフィンガープリントで渡す） |
-| 所有者信頼の設定 | `--quick-set-ownertrust`（2.5 で確認。古い gpg にはない） |
+| 所有者信頼の設定 | `--quick-set-ownertrust`（2.4.6 から） |
 | 失効（鍵全体・サブ鍵） | `--edit-key` を `--command-fd` で駆動し `revkey`（`--gen-revoke` はバッチで動かない）。答え方がずれても気づけるよう、終わったあとに鍵一覧で失効を確かめる。手元の失効証明書（`openpgp-revocs.d`）は、秘密鍵を失ったときのためのもの |
 | 失効証明書の作成 | `--gen-revoke` を `--batch` なしで（`--no-tty` と `--command-fd` で答える）。ない鍵には作り直して `openpgp-revocs.d/<FPR>.rev` に置く（gpg と同じく先頭に `:` を入れ、誤って取り込んでも失効しないようにする） |
 | 削除 | `--delete-secret-and-public-key`（フィンガープリント指定） |

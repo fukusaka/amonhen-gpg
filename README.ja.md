@@ -31,7 +31,7 @@
 
 ## インストール
 
-Mac（macOS 14.4 以降、Apple シリコン）で、GnuPG 2.4.1 以降（`brew install gnupg pinentry-mac`）を入れたうえで:
+Mac（macOS 14.4 以降、Apple シリコン）で、GnuPG 2.4.6 以降（`brew install gnupg pinentry-mac`）を入れたうえで:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/fukusaka/amonhen-gpg/main/scripts/install-app.sh | sh -s -- stable

@@ -6,6 +6,10 @@ notes.
 
 ## Unreleased
 
+### Changed
+
+- Requires GnuPG 2.4.6 or later (was 2.4.1), the first version that can set owner trust without the interactive editor. With an older gpg, the app warns above the lists.
+
 ## [0.2.0] - 2026-11-17
 
 Finding and comparing keys, and more of SSH. Search your keys, see others' keys in a sortable table, and open any key

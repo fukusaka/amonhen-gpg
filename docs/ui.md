@@ -12,7 +12,7 @@ Instead of managing keys as one flat list, manage mainly **the keys you can use 
 | **Others' Keys** | Keys used as encryption recipients or to verify signatures | Keep the ones you need |
 | **Staging** | Keys fetched from a keyserver, WKD, GitHub or GitLab, keys received as files | Check the contents, then import into "Others' Keys" or discard |
 
-If gpg is older than 2.4.1, a warning above every place says so and suggests updating GnuPG or choosing a newer gpg in Settings. The keys are still listed, but some actions (such as turning SSH on or off) may fail.
+If gpg is older than 2.4.6, a warning above every place says so and suggests updating GnuPG or choosing a newer gpg in Settings. The keys are still listed, but some actions (such as turning SSH on or off) may fail.
 
 ## Main screen: My Keys
 

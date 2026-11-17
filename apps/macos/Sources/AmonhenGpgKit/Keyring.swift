@@ -220,6 +220,6 @@ extension Keyring {
 }
 
 extension Version: CustomStringConvertible {
-    /// `2.4.1` の形。
+    /// `2.4.6` の形。
     public var description: String { "\(major).\(minor).\(patch)" }
 }
