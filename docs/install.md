@@ -14,7 +14,7 @@ release:
 
 ## GnuPG
 
-The app is a front end and needs GnuPG 2.4.1 or later, with a pinentry that can show a
+The app is a front end and needs GnuPG 2.4.6 or later, with a pinentry that can show a
 dialog (with an older gpg, the app warns above the lists). With [Homebrew](https://brew.sh):
 
 ```sh
@@ -63,4 +63,4 @@ gh attestation verify <file> --repo fukusaka/amonhen-gpg
 ## Requirements
 
 - macOS 14.4 or later on Apple silicon.
-- GnuPG 2.4.1 or later, and a pinentry that shows a dialog (pinentry-mac).
+- GnuPG 2.4.6 or later, and a pinentry that shows a dialog (pinentry-mac).

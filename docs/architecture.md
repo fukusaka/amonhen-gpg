@@ -81,7 +81,7 @@ The thing to avoid most is deleting your own secret key by mistake, or losing th
 - Launch with an argument array, not through a shell. User input (UIDs, file names) is validated, and `--` is placed between it and the options. Keys are always specified by full fingerprint.
 - Results are judged by **status lines** (`KEY_CREATED`, `IMPORT_OK`, `IMPORT_RES`, `ERROR`, `FAILURE` etc.), not by the exit code.
 - Support timeouts and cancellation (waiting for pinentry can take a long time).
-- Require GnuPG 2.4.1 or later: turning SSH on and off for a key uses the private-key attribute `Use-for-ssh`, which gpg-agent has since 2.4.1. `--quick-set-ownertrust` needs 2.4.6, so before owner trust appears in the UI, either raise the minimum or fall back to `--edit-key`. The app reads the version (`gpg --version`) whenever it reads the keyring, and shows a warning above the lists when gpg is older; the keys are still listed (`Version::MINIMUM`).
+- Require GnuPG 2.4.6 or later: setting owner trust uses `--quick-set-ownertrust`, which gpg has since 2.4.6 (turning SSH on and off for a key uses the private-key attribute `Use-for-ssh`, which gpg-agent has since 2.4.1). The app reads the version (`gpg --version`) whenever it reads the keyring, and shows a warning above the lists when gpg is older; the keys are still listed (`Version::MINIMUM`).
 - Tests:
   - Unit tests and fuzz tests for the colon / status parsers.
   - Integration tests against the real gpg, using a `GNUPGHOME` in a temporary directory and loopback pinentry.
@@ -130,7 +130,7 @@ For the screen policy (your own keys are the main focus; other people's keys and
 | Change expiry | `--quick-set-expire` |
 | Add and revoke UIDs, set the primary UID | `--quick-add-uid` / `--quick-revoke-uid` / `--quick-set-primary-uid` |
 | Sign other people's keys | `--quick-sign-key` / `--quick-lsign-key` (UIDs can be chosen. The signing key is passed to `--local-user` by fingerprint) |
-| Set owner trust | `--quick-set-ownertrust` (confirmed on 2.5. Older gpg does not have it) |
+| Set owner trust | `--quick-set-ownertrust` (since 2.4.6) |
 | Revoke (whole key, subkeys) | Drive `--edit-key` with `--command-fd` and use `revkey` (`--gen-revoke` does not work in batch mode). So that a mismatch in the answers is noticed, check the revocation in the key list afterwards. The local revocation certificate (`openpgp-revocs.d`) is for when the secret key is lost |
 | Create a revocation certificate | `--gen-revoke` without `--batch` (answered with `--no-tty` and `--command-fd`). For keys that have none, recreate it and place it at `openpgp-revocs.d/<FPR>.rev` (like gpg, put a `:` at the start so that importing it by mistake does not revoke the key) |
 | Delete | `--delete-secret-and-public-key` (specified by fingerprint) |

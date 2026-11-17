@@ -172,7 +172,7 @@ impl Gpg {
     }
 
     /// 所有者信頼を決める。別の PC から取り込んだ自分の鍵を「自分の鍵」にするときは `Ultimate`。
-    /// `--quick-set-ownertrust` は新しい gpg にしかない（2.5 で確認）。
+    /// `--quick-set-ownertrust` は gpg 2.4.6 から（`Version::MINIMUM`）。
     pub fn set_owner_trust(&self, fingerprint: &str, trust: OwnerTrust) -> Result<()> {
         let fingerprint = check_fingerprint(fingerprint)?;
         self.run(

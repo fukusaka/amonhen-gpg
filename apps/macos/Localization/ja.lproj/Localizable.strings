@@ -369,3 +369,13 @@
 "gpg-agent no longer has %@." = "gpg-agent は %@ を持っていません。";
 "Cannot remove the SSH key" = "SSH の鍵を消せません";
 "Remove" = "消す";
+"Owner Trust" = "所有者信頼";
+"Owner trust" = "所有者信頼";
+"Not set" = "決めていない";
+"Not at all" = "信頼しない";
+"Marginally" = "ある程度";
+"Fully" = "完全に";
+"Ultimately (your key)" = "絶対的（自分の鍵）";
+"How far you rely on this person to check other keys before signing them. A key counts as verified when it is signed by one verified key whose owner you trust fully, or by three you trust marginally." = "この人が、ほかの鍵をどれだけ確かめてから署名すると見なすか。確認済みの鍵のうち、完全に信頼する人の 1 つ、またはある程度信頼する人の 3 つの署名があれば、その鍵を確認済みとします。";
+"Cannot change the owner trust" = "所有者信頼を変えられません";
+"OK" = "OK";

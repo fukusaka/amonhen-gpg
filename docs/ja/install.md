@@ -13,7 +13,7 @@
 
 ## GnuPG
 
-アプリはフロントエンドなので、GnuPG 2.4.1 以降と、画面を出せる pinentry が要ります（gpg が古ければ、アプリは一覧の上に警告を出します）。
+アプリはフロントエンドなので、GnuPG 2.4.6 以降と、画面を出せる pinentry が要ります（gpg が古ければ、アプリは一覧の上に警告を出します）。
 [Homebrew](https://brew.sh) なら:
 
 ```sh
@@ -61,4 +61,4 @@ gh attestation verify <ファイル> --repo fukusaka/amonhen-gpg
 ## 動く環境
 
 - macOS 14.4 以降、Apple シリコン。
-- GnuPG 2.4.1 以降と、画面を出せる pinentry（pinentry-mac）。
+- GnuPG 2.4.6 以降と、画面を出せる pinentry（pinentry-mac）。

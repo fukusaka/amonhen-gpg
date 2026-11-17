@@ -531,11 +531,12 @@ pub struct Version {
 }
 
 impl Version {
-    /// このアプリが使える一番古い gpg。鍵ごとに SSH を入れ・切る `Use-for-ssh` を gpg-agent が知るのが 2.4.1 から。
+    /// このアプリが使える一番古い gpg。所有者信頼を決める `--quick-set-ownertrust` が 2.4.6 から（鍵ごとに SSH を入れ・切る
+    /// `Use-for-ssh` は 2.4.1 から）。
     pub const MINIMUM: Version = Version {
         major: 2,
         minor: 4,
-        patch: 1,
+        patch: 6,
     };
 
     /// このアプリが使える版（`MINIMUM` 以降）か。
@@ -574,11 +575,11 @@ mod tests {
     }
 
     #[test]
-    fn versions_from_2_4_1_are_supported() {
+    fn versions_from_2_4_6_are_supported() {
         let v = |line| Version::parse(line).unwrap();
         assert!(!v("gpg (GnuPG/MacGPG2) 2.2.41").is_supported());
-        assert!(!v("gpg (GnuPG) 2.4.0").is_supported());
-        assert!(v("gpg (GnuPG) 2.4.1").is_supported());
+        assert!(!v("gpg (GnuPG) 2.4.5").is_supported());
+        assert!(v("gpg (GnuPG) 2.4.6").is_supported());
         assert!(v("gpg (GnuPG) 2.5.24").is_supported());
         assert!(v("gpg (GnuPG) 3.0").is_supported());
     }

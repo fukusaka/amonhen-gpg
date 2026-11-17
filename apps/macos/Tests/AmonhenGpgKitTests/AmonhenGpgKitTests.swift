@@ -898,11 +898,11 @@ func discardsStagingLeftByCrashedApps() throws {
 @Test func warnsAboutOldGpg() {
     var keyring = Keyring()
     #expect(keyring.outdatedGpg == nil)
-    keyring.gpgVersion = Version(major: 2, minor: 4, patch: 0)
-    #expect(keyring.outdatedGpg?.description == "2.4.0")
-    keyring.gpgVersion = Version(major: 2, minor: 4, patch: 1)
+    keyring.gpgVersion = Version(major: 2, minor: 4, patch: 5)
+    #expect(keyring.outdatedGpg?.description == "2.4.5")
+    keyring.gpgVersion = Version(major: 2, minor: 4, patch: 6)
     #expect(keyring.outdatedGpg == nil)
-    #expect(minimumGpgVersion().description == "2.4.1")
+    #expect(minimumGpgVersion().description == "2.4.6")
 }
 
 @Test func choosesTheGpgProgram() throws {
@@ -916,4 +916,35 @@ func discardsStagingLeftByCrashedApps() throws {
     #expect(GpgProgram.resolve(option: "/tmp/gpg", defaults: defaults, locate: found) == "/tmp/gpg")
     GpgProgram.choose(nil, in: defaults)
     #expect(GpgProgram.chosen(in: defaults) == nil)
+}
+
+@Test(.enabled(if: gpgAvailable()))
+func ownerTrustMakesSignedKeysVerified() throws {
+    let home = try TemporaryKeyring()
+    let me = try home.gpg.generateKey(
+        request: GenerateKey(userId: "Alice <alice@example.com>", algorithm: nil, capabilities: nil, expires: .never))
+    // Carol が Bob に署名した鍵を、別の鍵束から受け取る。Carol は自分で確認済みにする
+    let other = try TemporaryKeyring()
+    let bob = try other.gpg.generateKey(
+        request: GenerateKey(userId: "Bob <bob@example.com>", algorithm: nil, capabilities: nil, expires: .never))
+    let carol = try other.gpg.generateKey(
+        request: GenerateKey(userId: "Carol <carol@example.com>", algorithm: nil, capabilities: nil, expires: .never))
+    try other.gpg.signKey(fingerprint: bob, userIds: [], signer: carol, local: false)
+    _ = try home.gpg.import(data: try other.gpg.exportPublicKeys(fingerprints: [bob, carol], armor: false))
+    try home.gpg.signKey(fingerprint: carol, userIds: [], signer: me, local: true)
+    let key = { (fpr: String) in try #require(try home.gpg.listKeys().first { $0.fingerprint == fpr }) }
+
+    #expect(try key(carol).ownerTrustSetting == .unknown)
+    #expect(try key(bob).validity != .full)
+    // Carol を完全に信頼すると、Carol が署名した Bob の鍵も確認済みになる
+    try home.gpg.setOwnerTrust(fingerprint: carol, trust: .full)
+    #expect(try key(carol).ownerTrustSetting == .full)
+    #expect(try key(bob).validity == .full)
+    // ある程度なら 1 人の署名では足りない
+    try home.gpg.setOwnerTrust(fingerprint: carol, trust: .marginal)
+    #expect(try key(carol).ownerTrustSetting == .marginal)
+    #expect(try key(bob).validity != .full)
+    // 他者の鍵に選ばせる値に、絶対的はない
+    #expect(!OwnerTrust.choicesForOthers.contains(.ultimate))
+    #expect(Keyring(keys: try home.gpg.listKeys(), sshKeys: [], now: UInt64(Date().timeIntervalSince1970)).own(carol) == nil)
 }
