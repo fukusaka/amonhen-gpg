@@ -1,7 +1,7 @@
 name: Release
 
-# 正式版（v0.1.0 など）。タグのコミットで CI が通っていることを確かめ、build.yml で作って公証し、CHANGELOG の要約を
-# 説明にして Release を作る。
+# 正式版（v0.1.0 など）。タグのコミットで CI が通っていることを確かめ、build.yml で作って公証し、承認されたら
+# CHANGELOG の要約を説明にして Release を作る。
 on:
   push:
     tags: ['v[0-9]*']
@@ -51,6 +51,9 @@ jobs:
   publish:
     name: Publish
     needs: build
+    # 環境 publish は承認者を求める。公証した zip（成果物 app）を確かめてから、Actions の画面で承認すると Release を作る。
+    # secret は置かない（署名と公証の鍵は環境 release）。
+    environment: publish
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
