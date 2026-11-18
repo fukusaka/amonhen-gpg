@@ -6,6 +6,12 @@ notes.
 
 ## Unreleased
 
+## [0.3.0] - 2026-11-18
+
+The web of trust. Set how far you trust the owners of others' keys, and keys they signed count as verified; the key
+window shows whose signatures made a key verified. A key whose secret key is on another computer can be marked as
+your own. Needs GnuPG 2.4.6 or later.
+
 ### Added
 
 - Key details show whose signatures made another person's key verified (your own keys, and keys whose owner you trust), and, for your own keys, how many keys signed them.
