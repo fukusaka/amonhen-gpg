@@ -379,3 +379,16 @@
 "How far you rely on this person to check other keys before signing them. A key counts as verified when it is signed by one verified key whose owner you trust fully, or by three you trust marginally." = "この人が、ほかの鍵をどれだけ確かめてから署名すると見なすか。確認済みの鍵のうち、完全に信頼する人の 1 つ、またはある程度信頼する人の 3 つの署名があれば、その鍵を確認済みとします。";
 "Cannot change the owner trust" = "所有者信頼を変えられません";
 "OK" = "OK";
+"Verified by" = "確認の根拠";
+"%@ (your key)" = "%@（自分の鍵）";
+"%@ (trusted fully)" = "%@（完全に信頼）";
+"%@ (trusted marginally)" = "%@（ある程度信頼）";
+"Signatures from others" = "ほかの鍵からの署名";
+"Not My Key…" = "自分の鍵ではない…";
+"Treat %@ as someone else's key?" = "%@ を他者の鍵にしますか？";
+"Move to Others' Keys" = "他者の鍵にする";
+"Its owner trust goes back to not set, and the key moves to Others' Keys. Keys it signed no longer count as verified because of it." = "所有者信頼を「決めていない」に戻し、鍵は他者の鍵に移ります。この鍵が署名した鍵は、この鍵の署名では確認済みになりません。";
+"Mark as My Key…" = "自分の鍵にする…";
+"Mark %@ as your own key?" = "%@ を自分の鍵にしますか？";
+"Mark as My Key" = "自分の鍵にする";
+"For your own key whose secret key is on another computer. First check that the fingerprint there is %@. The key moves to My Keys, and keys it signed count as verified." = "秘密鍵が別のコンピュータにある自分の鍵に使います。先に、そのコンピュータでのフィンガープリントが %@ であることを確かめてください。鍵は自分の鍵に移り、この鍵が署名した鍵は確認済みになります。";

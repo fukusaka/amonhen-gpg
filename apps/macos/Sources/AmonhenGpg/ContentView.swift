@@ -456,6 +456,8 @@ struct OwnKeyActions {
     /// SSH 用の認証サブ鍵を加える（確かめたあと）。
     var addSshSubkey: (OwnKey) -> Void = { _ in }
     var createRevocationCertificate: (OwnKey) -> Void = { _ in }
+    /// 他者の鍵に戻す（確かめたあと。秘密鍵がこの PC になく、所有者信頼だけで自分の鍵のとき）。
+    var notMine: (OwnKey) -> Void = { _ in }
 }
 
 /// 操作の結果を知らせる（成功も失敗も）。
@@ -518,6 +520,8 @@ struct OwnKeysView: View {
     @Environment(\.openWindow) private var openWindow
     @State private var deleting: OwnKey?
     @State private var editingUserIds: OwnKey?
+    /// 他者の鍵に戻そうとしている鍵（確かめるアラート）。
+    @State private var notMine: OwnKey?
     /// 選んでいる鍵のフィンガープリント（ダブルクリック・⌘I で詳細の窓を開く）。
     @State private var selection: String?
 
@@ -537,6 +541,24 @@ struct OwnKeysView: View {
             .sheet(item: $revoking) { own in
                 RevokeKeySheet(model: model, own: own, backUp: actions.backUp, onRevoked: actions.revoked)
             }
+            .alert(
+                L("Treat %@ as someone else's key?", notMine?.key.primaryUserId?.text ?? ""),
+                isPresented: Binding(get: { notMine != nil }, set: { if !$0 { notMine = nil } }),
+                presenting: notMine
+            ) { own in
+                Button(L("Move to Others' Keys")) { setOwnerTrust(own.key, .unknown) }
+                Button(L("Cancel"), role: .cancel) {}
+            } message: { _ in
+                Text(L("Its owner trust goes back to not set, and the key moves to Others' Keys. Keys it signed no longer count as verified because of it."))
+            }
+    }
+
+    private func setOwnerTrust(_ key: Key, _ trust: OwnerTrust) {
+        Task {
+            if let error = await model.setOwnerTrust(key, trust) {
+                actions.notify(Notice(title: L("Cannot change the owner trust"), message: describe(error)))
+            }
+        }
     }
 
     private var rowActions: OwnKeyActions {
@@ -546,6 +568,7 @@ struct OwnKeysView: View {
         actions.revoke = { revoking = $0 }
         actions.showDetails = { openWindow(id: "key", value: $0.key.fingerprint) }
         actions.delete = { deleting = $0 }
+        actions.notMine = { notMine = $0 }
         return actions
     }
 
@@ -644,6 +667,9 @@ struct OwnKeyMenuItems: View {
         Button(L("Revoke Key…"), role: .destructive) { actions.revoke(own) }
             .disabled(!own.canRevoke)
         Divider()
+        if own.isMineByTrustOnly {
+            Button(L("Not My Key…")) { actions.notMine(own) }
+        }
         Button(L("Delete Key with Secret Key…"), role: .destructive) { actions.delete(own) }
     }
 }
@@ -804,6 +830,8 @@ struct OthersView: View {
     @State private var certifying: Key?
     @Environment(\.openWindow) private var openWindow
     @State private var deleting: Key?
+    /// 自分の鍵にしようとしている鍵（確かめるアラート）。
+    @State private var claiming: Key?
     @State private var selection: KeyTableRow.ID?
     /// スペースで覗いている行（クイックルック）。選ぶ行を変えると、ついていく。
     @State private var peeking: KeyTableRow.ID?
@@ -828,6 +856,16 @@ struct OthersView: View {
                 Button(L("Cancel"), role: .cancel) {}
             } message: { _ in
                 Text(L("You will no longer be able to encrypt to it or verify its signatures. Your verification of it is deleted too. You can import it again later."))
+            }
+            .alert(
+                L("Mark %@ as your own key?", claiming?.primaryUserId?.text ?? ""),
+                isPresented: Binding(get: { claiming != nil }, set: { if !$0 { claiming = nil } }),
+                presenting: claiming
+            ) { key in
+                Button(L("Mark as My Key")) { setOwnerTrust(key, .ultimate) }
+                Button(L("Cancel"), role: .cancel) {}
+            } message: { key in
+                Text(L("For your own key whose secret key is on another computer. First check that the fingerprint there is %@. The key moves to My Keys, and keys it signed count as verified.", Fingerprint.grouped(key.fingerprint)))
             }
     }
 
@@ -957,6 +995,7 @@ struct OthersView: View {
         Button(L("Details…")) { openWindow(id: "key", value: key.fingerprint) }
         Button(L("Mark as Verified…")) { certifying = key }
             .disabled(!key.canCertify)
+        Button(L("Mark as My Key…")) { claiming = key }
         Menu(L("Owner Trust")) {
             OwnerTrustPicker(key: key) { trust in setOwnerTrust(key, trust) }
                 .pickerStyle(.inline)

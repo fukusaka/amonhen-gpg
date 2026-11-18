@@ -50,3 +50,59 @@ extension Keyring {
         return result
     }
 }
+
+/// 鍵を確認済みにした署名の主（Web of Trust の 1 段）。
+public struct Introducer: Sendable, Equatable {
+    public let fingerprint: String
+    public let name: String
+    /// 自分の鍵か。自分の鍵でなければ、所有者信頼を付けた確認済みの鍵。
+    public let byYou: Bool
+    /// 自分の鍵でないときの所有者信頼（`full` か `marginal`）。
+    public let trust: OwnerTrust
+}
+
+extension Keyring {
+    /// 鍵の有効性の根拠になった署名の主。正しく、取り消されていない署名のうち、自分の鍵によるものと、
+    /// 所有者信頼が完全・ある程度で、それ自体が確認済みの鍵によるもの（gpg の pgp 信用モデルと同じ考え）。
+    /// 自分の鍵を先に、次に完全、ある程度の順。同じ鍵は 1 つにまとめる。
+    public func introducers(_ all: [Certification], of key: Key) -> [Introducer] {
+        let own = (usable + notOnThisDevice + history).map(\.key)
+        var found: [Introducer] = []
+        for c in all where c.check == .good && !c.revoked {
+            let isSigner: (Key) -> Bool = { k in
+                guard k.fingerprint.caseInsensitiveCompare(key.fingerprint) != .orderedSame else { return false }
+                if let f = c.signerFingerprint { return k.fingerprint.caseInsensitiveCompare(f) == .orderedSame }
+                return k.fingerprint.uppercased().hasSuffix(c.signerKeyId.uppercased())
+            }
+            let introducer: Introducer?
+            if let mine = own.first(where: isSigner) {
+                introducer = Introducer(fingerprint: mine.fingerprint, name: mine.primaryUserId.map { UserIdParts($0.text).name } ?? mine.keyId,
+                                        byYou: true, trust: .ultimate)
+            } else if let signer = others.first(where: isSigner),
+                      signer.validity == .full || signer.validity == .ultimate,
+                      signer.ownerTrustSetting == .full || signer.ownerTrustSetting == .marginal {
+                introducer = Introducer(fingerprint: signer.fingerprint, name: signer.primaryUserId.map { UserIdParts($0.text).name } ?? signer.keyId,
+                                        byYou: false, trust: signer.ownerTrustSetting)
+            } else {
+                introducer = nil
+            }
+            if let introducer, !found.contains(where: { $0.fingerprint == introducer.fingerprint }) {
+                found.append(introducer)
+            }
+        }
+        let rank: (Introducer) -> Int = { $0.byYou ? 0 : $0.trust == .full ? 1 : 2 }
+        return found.sorted { (rank($0), $0.name) < (rank($1), $1.name) }
+    }
+
+    /// 自分の鍵が、ほかの鍵から受け取った署名の数（署名した鍵ごとに 1 つ。取り消されたものと自分の鍵によるものは数えない）。
+    public func signerCount(_ all: [Certification], of key: Key) -> Int {
+        let own = (usable + notOnThisDevice + history).map(\.key)
+        let signers = all.filter { c in
+            !c.revoked && !own.contains { k in
+                if let f = c.signerFingerprint { return k.fingerprint.caseInsensitiveCompare(f) == .orderedSame }
+                return k.fingerprint.uppercased().hasSuffix(c.signerKeyId.uppercased())
+            }
+        }.map { $0.signerKeyId.uppercased() }
+        return Set(signers).count
+    }
+}

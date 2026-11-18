@@ -382,3 +382,9 @@ extension OwnerTrust {
     /// 他者の鍵に選ばせる値。絶対的（`ultimate`）は自分の鍵のもので、付けると他者の鍵が「自分の鍵」になるので出さない。
     public static let choicesForOthers: [OwnerTrust] = [.unknown, .never, .marginal, .full]
 }
+
+extension OwnKey {
+    /// 秘密鍵がどこにもなく、所有者信頼（絶対的）だけで自分の鍵になっているか（秘密鍵は別の PC にある自分の鍵）。
+    /// こうした鍵だけ、他者の鍵に戻せる（秘密鍵のある鍵は、所有者信頼に関わらず自分の鍵）。
+    public var isMineByTrustOnly: Bool { key.secret == .none }
+}

@@ -948,3 +948,60 @@ func ownerTrustMakesSignedKeysVerified() throws {
     #expect(!OwnerTrust.choicesForOthers.contains(.ultimate))
     #expect(Keyring(keys: try home.gpg.listKeys(), sshKeys: [], now: UInt64(Date().timeIntervalSince1970)).own(carol) == nil)
 }
+
+@Test func findsWhoMadeAKeyVerified() {
+    var me = sampleKey("1111111111111111111111111111111111111111", subkey: "1111000011110000111100001111000011110000", userIds: ["Me <me@example.com>"])
+    me.secret = .available
+    me.validity = .ultimate
+    me.ownerTrust = .ultimate
+    // 完全に信頼する確認済みの Carol、ある程度信頼する確認済みの Dave、信頼を決めていない Erin、信頼するが確認していない Fay
+    var carol = sampleKey("2222222222222222222222222222222222222222", subkey: "2222000022220000222200002222000022220000", userIds: ["Carol <carol@example.net>"])
+    carol.ownerTrust = .full
+    var dave = sampleKey("3333333333333333333333333333333333333333", subkey: "3333000033330000333300003333000033330000", userIds: ["Dave <dave@example.com>"])
+    dave.ownerTrust = .marginal
+    let erin = sampleKey("4444444444444444444444444444444444444444", subkey: "4444000044440000444400004444000044440000", userIds: ["Erin <erin@example.com>"])
+    var fay = sampleKey("5555555555555555555555555555555555555555", subkey: "5555000055550000555500005555000055550000", userIds: ["Fay <fay@example.com>"])
+    fay.ownerTrust = .full
+    fay.validity = .unknown
+    let bob = sampleKey("6666666666666666666666666666666666666666", subkey: "6666000066660000666600006666000066660000", userIds: ["Bob <bob@example.org>"])
+    let ring = Keyring(keys: [me, carol, dave, erin, fay, bob], sshKeys: [], now: 0)
+    func cert(_ signer: Key?, keyId: String? = nil, check: SignatureCheck = .good, revoked: Bool = false) -> Certification {
+        Certification(userId: "Bob <bob@example.org>", signerFingerprint: signer?.fingerprint, signerKeyId: keyId ?? signer!.keyId,
+                      signerUserId: nil, created: 1, expires: nil, exportable: true, check: check, revoked: revoked)
+    }
+    let all = [
+        cert(dave), cert(carol), cert(carol), cert(erin), cert(fay),
+        cert(nil, keyId: "AAAABBBBCCCCDDDD", check: .missingKey),
+        cert(me, revoked: true),
+    ]
+    // 自分の署名は取り消されているので根拠にならない。完全、ある程度の順。同じ鍵は 1 つ
+    #expect(ring.introducers(all, of: bob).map(\.name) == ["Carol", "Dave"])
+    #expect(ring.introducers(all, of: bob).map(\.trust) == [.full, .marginal])
+    #expect(ring.introducers(all + [cert(me)], of: bob).first?.byYou == true)
+    // 受け取った署名は、署名した鍵ごとに数える（取り消しと自分の鍵は数えない。確かめられない鍵も数える）
+    #expect(ring.signerCount(all, of: bob) == 5)
+}
+
+@Test(.enabled(if: gpgAvailable()))
+func marksAnImportedKeyAsYourOwn() throws {
+    // 秘密鍵は別の PC にある自分の鍵。公開鍵だけを取り込むと、まず他者の鍵になる
+    let home = try TemporaryKeyring()
+    let other = try TemporaryKeyring()
+    let fpr = try other.gpg.generateKey(
+        request: GenerateKey(userId: "Alice Home <alice@home.example>", algorithm: nil, capabilities: nil, expires: .never))
+    _ = try home.gpg.import(data: try other.gpg.exportPublicKeys(fingerprints: [fpr], armor: false))
+    let ring = { Keyring(keys: try home.gpg.listKeys(), sshKeys: [], now: UInt64(Date().timeIntervalSince1970)) }
+    #expect(try ring().others.map(\.fingerprint) == [fpr])
+    // 自分の鍵にする（所有者信頼を絶対的に）と、この PC では使えない自分の鍵になる
+    try home.gpg.setOwnerTrust(fingerprint: fpr, trust: .ultimate)
+    let own = try #require(try ring().notOnThisDevice.first)
+    #expect(own.key.fingerprint == fpr)
+    #expect(own.isMineByTrustOnly)
+    // 戻すと、また他者の鍵
+    try home.gpg.setOwnerTrust(fingerprint: fpr, trust: .unknown)
+    #expect(try ring().others.map(\.fingerprint) == [fpr])
+    // 秘密鍵のある鍵は、所有者信頼だけの自分の鍵ではない
+    let mine = try home.gpg.generateKey(
+        request: GenerateKey(userId: "Alice <alice@example.com>", algorithm: nil, capabilities: nil, expires: .never))
+    #expect(try ring().own(mine)?.isMineByTrustOnly == false)
+}
