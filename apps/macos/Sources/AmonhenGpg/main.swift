@@ -49,6 +49,10 @@ struct Options {
 }
 
 let options = Options(CommandLine.arguments)
+// .app に入れずに実行ファイルを起動したとき（開発中）も、メニューや設定の窓の題をアプリの名前にする（.app では Info.plist の名前）
+if Bundle.main.bundleIdentifier == nil {
+    ProcessInfo.processInfo.processName = "Amonhen GPG"
+}
 if let keyserver = options.keyserver {
     Keyserver.current = keyserver
 }
