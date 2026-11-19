@@ -436,6 +436,12 @@ pub fn gpg_version_supported(version: Version) -> bool {
     version.is_supported()
 }
 
+/// 取り込んだ SSH の鍵をバックアップから戻せる一番古い gpg。
+#[uniffi::export]
+pub fn ssh_restore_minimum_version() -> Version {
+    amonhen_gpg_core::SSH_RESTORE_MINIMUM
+}
+
 /// gpg-agent がこの鍵を SSH に出すか。
 #[uniffi::export]
 pub fn ssh_key_enabled(key: &SshKey) -> bool {
@@ -704,5 +710,15 @@ impl Gpg {
 
     pub fn export_ssh_key(&self, fingerprint: String) -> Result<String> {
         Ok(self.inner.export_ssh_key(&fingerprint)?)
+    }
+
+    /// 取り込んだ SSH の鍵を、gpg-agent がパスフレーズで守ったままの形で返す（ファイルに書くのは FE）。
+    pub fn export_ssh_key_backup(&self, keygrip: String) -> Result<Vec<u8>> {
+        Ok(self.inner.export_ssh_key_backup(&keygrip)?)
+    }
+
+    /// バックアップを gpg-agent に戻して SSH に出し、keygrip を返す（gpg 2.5.14 から）。
+    pub fn import_ssh_key_backup(&self, backup: Vec<u8>) -> Result<String> {
+        Ok(self.inner.import_ssh_key_backup(&backup)?)
     }
 }

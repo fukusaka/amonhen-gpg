@@ -802,6 +802,23 @@ func listsSshKeysThatAreNotOpenPgpKeys() throws {
     let original = try String(contentsOf: home.dir.appendingPathComponent("id_ed25519.pub"), encoding: .utf8)
     #expect(try String(contentsOf: out, encoding: .utf8) == original)
 
+    // バックアップは、gpg-agent が守ったままの形で、本人だけが読めるファイルに
+    #expect(ssh.canBackUp)
+    #expect(ssh.backupFileName == "\(ssh.keygrip).key")
+    let backup = home.dir.appendingPathComponent(ssh.backupFileName)
+    try home.gpg.exportSshKeyBackup(ssh, to: backup)
+    #expect(Gpg.isSshKeyBackup(try Data(contentsOf: backup)))
+    #expect(!Gpg.isSshKeyBackup(try Data(contentsOf: file)))
+    let permissions = try FileManager.default.attributesOfItem(atPath: backup.path)[.posixPermissions] as? Int
+    #expect(permissions == 0o600)
+    // 別の鍵束に戻す（gpg 2.5.14 から）
+    let other = try TemporaryKeyring(pinentry: nil)
+    try other.gpg.enableSshSupport()
+    if try other.gpg.version() >= sshRestoreMinimumVersion() {
+        #expect(try other.gpg.importSshKeyBackup(backup: Data(contentsOf: backup)) == ssh.keygrip)
+        #expect(try other.gpg.sshPublicKey(keygrip: ssh.keygrip) == original.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
     // gpg-agent から消す
     try home.gpg.deleteSshKey(keygrip: ssh.keygrip)
     #expect(try home.gpg.sshKeys().filter { $0.comment == "test" }.isEmpty)

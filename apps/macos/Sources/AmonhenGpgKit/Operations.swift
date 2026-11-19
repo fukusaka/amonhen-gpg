@@ -358,7 +358,25 @@ extension SshKey {
     }
 }
 
+extension SshKey {
+    /// バックアップの既定のファイル名。gpg-agent の置き場所（`private-keys-v1.d`）にそのまま置ける名前。
+    public var backupFileName: String { "\(keygrip).key" }
+
+    /// バックアップを書き出せるか（gpg-agent がパスフレーズで守っている、カードにない鍵）。
+    public var canBackUp: Bool { card == nil && protected == true }
+}
+
 extension Gpg {
+    /// ファイルの中身が、取り込んだ SSH の鍵のバックアップ（`exportSshKeyBackup`）か。
+    public static func isSshKeyBackup(_ data: Data) -> Bool {
+        data.starts(with: Data("(21:protected-private-key".utf8))
+    }
+
+    /// 取り込んだ SSH の鍵を、gpg-agent がパスフレーズで守ったままの形でファイルに書く（本人だけが読める 0600）。
+    public func exportSshKeyBackup(_ key: SshKey, to url: URL) throws {
+        try write(exportSshKeyBackup(keygrip: key.keygrip), to: url, permissions: 0o600)
+    }
+
     /// gpg-agent が持つ SSH の鍵の公開鍵を、`authorized_keys` の 1 行の形でファイルに書く（0644）。
     public func exportSshPublicKey(_ key: SshKey, to url: URL) throws {
         try write(Data((sshPublicKey(keygrip: key.keygrip) + "\n").utf8), to: url, permissions: 0o644)

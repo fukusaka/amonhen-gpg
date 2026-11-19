@@ -75,7 +75,7 @@
 "Cannot change the SSH key" = "SSH の鍵を変更できません";
 "Add SSH Key…" = "SSH の鍵を取り込む…";
 "Add SSH Key" = "SSH の鍵を取り込む";
-"Choose a private key file, such as id_ed25519. gpg-agent keeps its own copy; the file is not changed." = "id_ed25519 などの秘密鍵のファイルを選んでください。gpg-agent が自分の写しを持ち、ファイルは変えません。";
+"Choose a private key file, such as id_ed25519, or a backup made with Back Up…. gpg-agent keeps its own copy; the file is not changed." = "id_ed25519 などの秘密鍵のファイルか、「バックアップ…」で作ったファイルを選んでください。gpg-agent が自分の写しを持ち、ファイルは変えません。";
 "SSH key added" = "SSH の鍵を取り込みました";
 "gpg-agent now offers %@ to ssh." = "gpg-agent が %@ を SSH に出すようになりました。";
 "Cannot add the SSH key" = "SSH の鍵を取り込めません";
@@ -363,6 +363,17 @@
 
 /* 取り込んだ SSH の鍵 */
 "Remove from gpg-agent…" = "gpg-agent から消す…";
+"Cannot back up %@" = "%@ はバックアップできません";
+"gpg-agent keeps this key without a passphrase, so a backup would hold the secret key unprotected. To protect it, remove it from gpg-agent and add it again from its key file, entering a passphrase when gpg-agent asks." = "gpg-agent はこの鍵をパスフレーズなしで持っているので、バックアップすると秘密鍵が守られないまま残ります。守るには、gpg-agent から消して鍵のファイルから取り込み直し、gpg-agent に聞かれたらパスフレーズを入れてください。";
+"Back Up SSH Key" = "SSH の鍵のバックアップ";
+"The backup stays protected by the passphrase gpg-agent asked for when the key was added. Keep that passphrase too." = "バックアップは、鍵を取り込んだときに gpg-agent に入れたパスフレーズで守られたままです。そのパスフレーズも控えておいてください。";
+"Saved %@ to %@. To restore it, choose Add SSH Key… and pick this file." = "%1$@ を %2$@ に保存しました。戻すときは「SSH の鍵を取り込む…」でこのファイルを選んでください。";
+"Cannot back up the SSH key" = "SSH の鍵をバックアップできません";
+"Cannot restore the SSH key" = "SSH の鍵を戻せません";
+"Restoring a backup needs gpg %@ or later. With this gpg, quit gpg-agent (gpgconf --kill gpg-agent) and copy the file into the private-keys-v1.d folder of the GnuPG home, named after its keygrip as when it was saved (keygrip.key)." = "バックアップから戻すには gpg %@ 以降が要ります。この gpg では、gpg-agent を止め（gpgconf --kill gpg-agent）、ファイルを GnuPG のホームの private-keys-v1.d フォルダに、保存したときの名前（keygrip.key）のまま写してください。";
+"SSH key restored" = "SSH の鍵を戻しました";
+"gpg-agent now offers the key from %@ to ssh. It is protected by the passphrase it had when it was backed up." = "gpg-agent が %@ の鍵を ssh に出すようになりました。鍵は、バックアップしたときのパスフレーズで守られています。";
+"gpg-agent already has this key." = "gpg-agent はこの鍵をもう持っています。";
 "Remove the SSH key from gpg-agent?" = "SSH の鍵を gpg-agent から消しますか？";
 "gpg-agent deletes its copy of the secret key %@. This cannot be undone. The key file you added it from is not changed; without that file, the key is lost." = "gpg-agent が持つ秘密鍵 %@ を消します。元に戻せません。取り込んだ元の鍵ファイルは変わりません。そのファイルがなければ、鍵は失われます。";
 "SSH key removed" = "SSH の鍵を消しました";

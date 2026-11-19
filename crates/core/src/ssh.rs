@@ -154,15 +154,7 @@ impl Gpg {
     /// OpenPGP の鍵（主鍵・サブ鍵）の秘密鍵は、ここでは消さない（`delete_secret_and_public_key` で鍵ごと消す）。
     pub fn delete_ssh_key(&self, keygrip: &str) -> Result<()> {
         let keygrip = check_keygrip(keygrip)?;
-        let openpgp = self.list_keys()?.iter().any(|k| {
-            std::iter::once(&k.keygrip)
-                .chain(k.subkeys.iter().map(|s| &s.keygrip))
-                .any(|g| {
-                    g.as_deref()
-                        .is_some_and(|g| g.eq_ignore_ascii_case(keygrip))
-                })
-        });
-        if openpgp {
+        if self.belongs_to_openpgp_key(keygrip)? {
             return Err(Error::InvalidArgument {
                 name: "keygrip",
                 message: "the key belongs to an OpenPGP key".into(),
@@ -187,6 +179,18 @@ impl Gpg {
             });
         }
         Ok(())
+    }
+
+    /// keygrip が OpenPGP の鍵（主鍵・サブ鍵）のものか。
+    pub(crate) fn belongs_to_openpgp_key(&self, keygrip: &str) -> Result<bool> {
+        Ok(self.list_keys()?.iter().any(|k| {
+            std::iter::once(&k.keygrip)
+                .chain(k.subkeys.iter().map(|s| &s.keygrip))
+                .any(|g| {
+                    g.as_deref()
+                        .is_some_and(|g| g.eq_ignore_ascii_case(keygrip))
+                })
+        }))
     }
 
     /// 鍵を SSH に出すか決める。終わったあとに gpg-agent に聞き直して確かめる。
@@ -597,7 +601,7 @@ fn replace_file(path: &Path, contents: &str) -> Result<()> {
 }
 
 /// keygrip（40 桁の 16 進数）。
-fn check_keygrip(keygrip: &str) -> Result<&str> {
+pub(crate) fn check_keygrip(keygrip: &str) -> Result<&str> {
     if keygrip.len() == 40 && keygrip.bytes().all(|b| b.is_ascii_hexdigit()) {
         Ok(keygrip)
     } else {

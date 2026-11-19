@@ -4,7 +4,7 @@
 
 ## 要件
 
-- GnuPG の**純粋なフロントエンド**とする。暗号処理・鍵の保管は GnuPG が行い、本アプリは独自に暗号を実装しない。
+- GnuPG の**純粋なフロントエンド**とする。暗号処理・鍵の保管は GnuPG が行い、本アプリは独自に暗号を実装しない。例外は、取り込んだ SSH の鍵のバックアップと戻しで、gpg-agent との受け渡しの包み（AES key wrap）を開き・包み直すことだけ。鍵そのものはパスフレーズで暗号化されたまま。
 - 最初のスコープは**鍵管理**に限る。暗号化・復号・署名・検証は後回し。
 - **UI と BE (core) を完全に分離する。**
 - core は Rust で書き、堅牢にする。
@@ -53,7 +53,7 @@ gpg 本体には JSON / XML 出力がなく、GnuPG プロジェクトは `--wit
 
 ### パスフレーズを扱わない
 
-パスフレーズの入力は gpg-agent が呼ぶ **pinentry** に任せる。本アプリのプロセスはパスフレーズ・秘密鍵の素材に一切触れない。これは「純粋な FE」の最大の利点で、セキュリティ上の境界にもなる。
+パスフレーズの入力は gpg-agent が呼ぶ **pinentry** に任せる。本アプリのプロセスはパスフレーズと平文の秘密鍵の素材に一切触れない（取り込んだ SSH の鍵のバックアップは、パスフレーズで暗号化されたまま通る）。これは「純粋な FE」の最大の利点で、セキュリティ上の境界にもなる。
 
 入力を取り消したときは `Error::Canceled`、パスフレーズが違ったときは `Error::BadPassphrase` を返す（gpg の `ERROR` 行の種類 99・11 で見分ける）。秘密鍵の書き出しの取り消しと、失効証明書を作るときの取り消し・パスフレーズ違いは gpg が `ERROR` を出さないので、`LC_ALL=C` のメッセージで見分ける。FE は取り消しを失敗として知らせなくてよい。
 
@@ -150,6 +150,7 @@ docs/       英語の文書。日本語版は docs/ja/
 | SSH 公開鍵の出力（authorized_keys 用） | `gpg --export-ssh-key <FPR>!`（指した鍵そのもの）。OpenPGP の鍵でない SSH の鍵は Assuan の `READKEY --format=ssh` で、説明は `READKEY` から取る（gpg-agent は代わりに `(none)` と書く） |
 | 取り込んだ SSH の鍵を消す | アプリで確かめてから Assuan の `DELETE_KEY --force`。どの OpenPGP の鍵にも属さない keygrip だけ。終わったあとに gpg-agent に聞き直して確かめる |
 | 既存の SSH 秘密鍵の取り込み | `ssh-add` で gpg-agent に登録（パスフレーズは pinentry） |
+| 取り込んだ SSH の鍵のバックアップと戻し | バックアップ: Assuan の `KEYWRAP_KEY --export` と `EXPORT_KEY --mode1003`（gpg 2.4.0 から）。gpg-agent が保存している形（パスフレーズで守ったまま）で返るので、パスフレーズは聞かない。パスフレーズのない鍵・OpenPGP の鍵・カードの鍵は断る。戻す: `KEYWRAP_KEY --import` と `IMPORT_KEY --mode1003`（gpg 2.5.14 から）のあと、SSH に出す。どちらもセッションごとの鍵で包んで受け渡す（AES key wrap、RFC 3394）ので、コアが包みを開き・包み直し（`aes-kw` crate）、1 つのセッションの中で gpg-agent のソケットに直接話す。gpg-connect-agent は出力を溜めるので、包む鍵を受け取ってから次のコマンドを送れない。gpg 2.4 では、ファイルを `private-keys-v1.d/<keygrip>.key` に置いて戻す |
 
 ## 未決事項
 
