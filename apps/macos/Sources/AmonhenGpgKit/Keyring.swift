@@ -219,6 +219,19 @@ extension Keyring {
     }
 }
 
+extension Keyring {
+    /// 取り込んだ SSH の鍵のバックアップを gpg-agent に戻せるか（`sshRestoreMinimumVersion()` 以降の gpg）。
+    public var canRestoreSshKeyBackup: Bool {
+        gpgVersion.map { $0 >= sshRestoreMinimumVersion() } ?? false
+    }
+}
+
+extension Version: Comparable {
+    public static func < (a: Version, b: Version) -> Bool {
+        (a.major, a.minor, a.patch) < (b.major, b.minor, b.patch)
+    }
+}
+
 extension Version: CustomStringConvertible {
     /// `2.4.6` の形。
     public var description: String { "\(major).\(minor).\(patch)" }

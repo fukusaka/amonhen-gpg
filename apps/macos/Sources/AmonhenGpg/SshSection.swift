@@ -10,6 +10,8 @@ struct SshSection: View {
     @State private var enabling = false
     /// gpg-agent から消すか確かめている鍵。
     @State private var removing: SshKey?
+    /// パスフレーズがないのでバックアップできないと知らせている鍵。
+    @State private var unprotected: SshKey?
 
     var body: some View {
         let support = model.keyring.sshSupport
@@ -25,7 +27,8 @@ struct SshSection: View {
             }
             ForEach(model.keyring.sshOnly, id: \.keygrip) { key in
                 let actions = SshKeyActions(
-                    setEnabled: { setEnabled(key, $0) }, copy: { copy(key) }, export: { export(key) }, remove: { removing = key })
+                    setEnabled: { setEnabled(key, $0) }, copy: { copy(key) }, export: { export(key) },
+                    backUp: { key.canBackUp ? backUp(key) : (unprotected = key) }, remove: { removing = key })
                 SshKeyRow(key: key, actions: actions)
                     .contextMenu { SshKeyMenuItems(key: key, actions: actions) }
                     // 一覧で選べるのは自分の鍵だけ（選んだ鍵の詳細を開くため）
@@ -60,6 +63,14 @@ struct SshSection: View {
             Button(L("Cancel"), role: .cancel) {}
         } message: { key in
             Text(L("gpg-agent deletes its copy of the secret key %@. This cannot be undone. The key file you added it from is not changed; without that file, the key is lost.", key.displayName))
+        }
+        .alert(
+            L("Cannot back up %@", unprotected?.displayName ?? ""),
+            isPresented: Binding(get: { unprotected != nil }, set: { if !$0 { unprotected = nil } })
+        ) {
+            Button(L("OK"), role: .cancel) {}
+        } message: {
+            Text(L("gpg-agent keeps this key without a passphrase, so a backup would hold the secret key unprotected. To protect it, remove it from gpg-agent and add it again from its key file, entering a passphrase when gpg-agent asks."))
         }
     }
 
@@ -103,6 +114,23 @@ struct SshSection: View {
         }
     }
 
+    /// gpg-agent がパスフレーズで守ったままの形で書き出す。パスフレーズは聞かない。
+    private func backUp(_ key: SshKey) {
+        let panel = NSSavePanel()
+        panel.title = L("Back Up SSH Key")
+        panel.message = L("The backup stays protected by the passphrase gpg-agent asked for when the key was added. Keep that passphrase too.")
+        panel.nameFieldStringValue = key.backupFileName
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        Task {
+            switch await model.perform({ try $0.exportSshKeyBackup(key, to: url) }) {
+            case .success:
+                notify(Notice(title: L("Backed up"), message: L("Saved %@ to %@. To restore it, choose Add SSH Key… and pick this file.", key.displayName, url.path)))
+            case let .failure(error):
+                notify(Notice(title: L("Cannot back up the SSH key"), message: describe(error)))
+            }
+        }
+    }
+
     private func remove(_ key: SshKey) {
         let keygrip = key.keygrip
         Task {
@@ -123,15 +151,20 @@ struct SshSection: View {
         }
     }
 
-    /// 既存の SSH 秘密鍵のファイルを選ばせ、gpg-agent に取り込む。パスフレーズは pinentry が聞く。鍵ファイルは変えない。
+    /// 既存の SSH 秘密鍵のファイルか、バックアップを選ばせ、gpg-agent に取り込む。鍵ファイルのパスフレーズは pinentry が聞く。
+    /// バックアップは守られたまま戻す（パスフレーズは聞かない）。選んだファイルは変えない。
     private func addKey() {
         let panel = NSOpenPanel()
         panel.title = L("Add SSH Key")
-        panel.message = L("Choose a private key file, such as id_ed25519. gpg-agent keeps its own copy; the file is not changed.")
+        panel.message = L("Choose a private key file, such as id_ed25519, or a backup made with Back Up…. gpg-agent keeps its own copy; the file is not changed.")
         panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".ssh")
         panel.showsHiddenFiles = true
         panel.canChooseDirectories = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        if let data = try? Data(contentsOf: url), Gpg.isSshKeyBackup(data) {
+            restore(data, from: url)
+            return
+        }
         Task {
             switch await model.perform({ try $0.addSshKey(path: url.path) }) {
             case .success:
@@ -144,11 +177,36 @@ struct SshSection: View {
     }
 }
 
+extension SshSection {
+    /// バックアップを gpg-agent に戻す（gpg 2.5.14 から）。それより古い gpg では、ファイルを置いて戻す方法を知らせる。
+    private func restore(_ data: Data, from url: URL) {
+        guard model.keyring.canRestoreSshKeyBackup else {
+            notify(Notice(
+                title: L("Cannot restore the SSH key"),
+                message: L("Restoring a backup needs gpg %@ or later. With this gpg, quit gpg-agent (gpgconf --kill gpg-agent) and copy the file into the private-keys-v1.d folder of the GnuPG home, named after its keygrip as when it was saved (keygrip.key).",
+                           sshRestoreMinimumVersion().description)))
+            return
+        }
+        Task {
+            switch await model.perform({ try $0.importSshKeyBackup(backup: data) }) {
+            case .success:
+                notify(Notice(title: L("SSH key restored"), message: L("gpg-agent now offers the key from %@ to ssh. It is protected by the passphrase it had when it was backed up.", url.lastPathComponent)))
+            case let .failure(GpgError.Agent(code, _)) where code & 0xFFFF == 32803:
+                // GPG_ERR_EEXIST
+                notify(Notice(title: L("Cannot restore the SSH key"), message: L("gpg-agent already has this key.")))
+            case let .failure(error):
+                notify(Notice(title: L("Cannot restore the SSH key"), message: describe(error)))
+            }
+        }
+    }
+}
+
 /// SSH の鍵ごとの操作。
 struct SshKeyActions {
     var setEnabled: (Bool) -> Void = { _ in }
     var copy: () -> Void = {}
     var export: () -> Void = {}
+    var backUp: () -> Void = {}
     var remove: () -> Void = {}
 }
 
@@ -160,6 +218,8 @@ struct SshKeyMenuItems: View {
     var body: some View {
         Button(L("Copy SSH Public Key"), action: actions.copy)
         Button(L("Export SSH Public Key…"), action: actions.export)
+        Button(L("Back Up…"), action: actions.backUp)
+            .disabled(key.card != nil)
         Divider()
         Button(L("Remove from gpg-agent…"), role: .destructive, action: actions.remove)
     }

@@ -1063,3 +1063,120 @@ fn adds_existing_ssh_keys() {
         Err(Error::NotFound)
     ));
 }
+
+/// 取り込んだ SSH の鍵を、gpg-agent が守ったままの形で書き出し、別の鍵束に戻す。パスフレーズは聞かない
+/// （戻す側の pinentry は取り消すようにしておく）。gpg-agent で戻すのは 2.5.14 から。それより古ければ、ファイルを
+/// `private-keys-v1.d/<keygrip>.key` に置いて戻せることを確かめる。
+#[test]
+fn backs_up_and_restores_ssh_keys() {
+    use amonhen_gpg_core::SSH_RESTORE_MINIMUM;
+
+    const PASSPHRASE: &str = "correct horse battery staple";
+    let found = ["ssh-keygen", "ssh-add"].iter().all(|p| {
+        command("sh")
+            .args(["-c", &format!("command -v {p}")])
+            .stdout(Stdio::null())
+            .status()
+            .is_ok_and(|s| s.success())
+    });
+    if !found {
+        eprintln!("ssh-keygen or ssh-add not found; skipped");
+        return;
+    }
+    let Some(home) = Home::with_pinentry(Some(PASSPHRASE)) else {
+        return;
+    };
+    let gpg = Gpg::new().with_homedir(home.path());
+    gpg.enable_ssh_support().unwrap();
+    let keys = tempfile::tempdir().unwrap();
+    let keygen = |name: &str| {
+        let path = keys.path().join(name);
+        let status = command("ssh-keygen")
+            .args(["-q", "-t", "ed25519", "-C", name, "-N", "", "-f"])
+            .arg(&path)
+            .status()
+            .unwrap();
+        assert!(status.success());
+        path
+    };
+    let find = |gpg: &Gpg, name: &str| {
+        gpg.ssh_keys()
+            .unwrap()
+            .into_iter()
+            .find(|k| k.comment.as_deref() == Some(name))
+    };
+    // gpg-agent はパスフレーズ（pinentry の答え）で守って置く
+    gpg.add_ssh_key(&keygen("id_kept")).unwrap();
+    let kept = find(&gpg, "id_kept").unwrap();
+    assert_eq!(kept.protected, Some(true));
+    let public = gpg.ssh_public_key(&kept.keygrip).unwrap();
+
+    home.answer(None);
+    let backup = gpg.export_ssh_key_backup(&kept.keygrip).unwrap();
+    assert!(backup.starts_with(b"(21:protected-private-key"));
+    // 中身はパスフレーズで守られている（秘密の値 `d` は平文で入っていない）
+    assert!(!backup.windows(4).any(|w| w == b"1:d3"));
+
+    // パスフレーズを空にすると守られずに置かれる。それは書き出さない
+    home.answer(Some(""));
+    gpg.add_ssh_key(&keygen("id_open")).unwrap();
+    let open = find(&gpg, "id_open").unwrap();
+    assert_eq!(open.protected, Some(false));
+    assert!(matches!(
+        gpg.export_ssh_key_backup(&open.keygrip),
+        Err(Error::InvalidArgument {
+            name: "keygrip",
+            ..
+        })
+    ));
+    assert!(matches!(
+        gpg.export_ssh_key_backup(&"0".repeat(40)),
+        Err(Error::NotFound)
+    ));
+
+    // 戻す側
+    let Some(other) = Home::with_pinentry(None) else {
+        return;
+    };
+    let restored = Gpg::new().with_homedir(other.path());
+    if restored.version().unwrap() < SSH_RESTORE_MINIMUM {
+        assert!(matches!(
+            restored.import_ssh_key_backup(&backup),
+            Err(Error::InvalidArgument { name: "gpg", .. })
+        ));
+        // 2.4 系: ファイルを置けば gpg-agent が読む
+        let dir = other.path().join("private-keys-v1.d");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join(format!("{}.key", kept.keygrip)), &backup).unwrap();
+        let key = find(&restored, "id_kept").unwrap();
+        assert_eq!(key.keygrip, kept.keygrip);
+        assert_eq!(key.protected, Some(true));
+        assert_eq!(restored.ssh_public_key(&key.keygrip).unwrap(), public);
+        return;
+    }
+    // SSH サポートが有効でなければ断る
+    assert!(matches!(
+        restored.import_ssh_key_backup(&backup),
+        Err(Error::InvalidArgument { name: "ssh", .. })
+    ));
+    restored.enable_ssh_support().unwrap();
+    assert!(matches!(
+        restored.import_ssh_key_backup(b"(11:private-key(1:a))"),
+        Err(Error::InvalidArgument { name: "backup", .. })
+    ));
+    assert!(matches!(
+        restored.import_ssh_key_backup(b"hello"),
+        Err(Error::InvalidArgument { name: "backup", .. })
+    ));
+    let grip = restored.import_ssh_key_backup(&backup).unwrap();
+    assert_eq!(grip, kept.keygrip);
+    let key = find(&restored, "id_kept").unwrap();
+    assert!(key.enabled());
+    assert_eq!(key.protected, Some(true));
+    assert_eq!(restored.ssh_public_key(&grip).unwrap(), public);
+    // 同じ鍵はもうある
+    assert!(matches!(
+        restored.import_ssh_key_backup(&backup),
+        Err(Error::Agent { .. })
+    ));
+}

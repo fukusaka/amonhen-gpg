@@ -4,7 +4,7 @@
 
 ## Requirements
 
-- A **pure frontend** for GnuPG. GnuPG does the cryptography and stores the keys; the app implements no cryptography of its own.
+- A **pure frontend** for GnuPG. GnuPG does the cryptography and stores the keys; the app implements no cryptography of its own. The one exception is unwrapping and wrapping a key in transit to and from gpg-agent (AES key wrap) when backing up and restoring an imported SSH key; the key itself stays encrypted with its passphrase.
 - The first scope is limited to **key management**. Encryption, decryption, signing and verification come later.
 - **Separate the UI and the BE (core) completely.**
 - The core is written in Rust and made robust.
@@ -53,7 +53,7 @@ gpg itself has no JSON / XML output, and the GnuPG project treats `--with-colons
 
 ### Do not handle passphrases
 
-Passphrase entry is left to **pinentry**, which gpg-agent launches. The app's process never touches passphrases or secret key material. This is the biggest benefit of being "a pure FE", and it is also a security boundary.
+Passphrase entry is left to **pinentry**, which gpg-agent launches. The app's process never touches passphrases or secret key material in the clear (a backup of an imported SSH key passes through it still encrypted with its passphrase). This is the biggest benefit of being "a pure FE", and it is also a security boundary.
 
 When the user cancels the entry, return `Error::Canceled`; when the passphrase is wrong, return `Error::BadPassphrase` (told apart by the kind 99 and 11 in gpg's `ERROR` line). gpg prints no `ERROR` when exporting a secret key is canceled, or when creating a revocation certificate is canceled or gets a wrong passphrase, so these are told apart by the `LC_ALL=C` messages. The FE does not need to report a cancel as a failure.
 
@@ -151,6 +151,7 @@ As "a pure FE", the SSH keys handled are also **the ones gpg-agent manages**.
 | Output the SSH public key (for authorized_keys) | `gpg --export-ssh-key <FPR>!` (the key pointed to, exactly). For SSH keys that are not OpenPGP keys, Assuan `READKEY --format=ssh`, with the comment taken from `READKEY` (gpg-agent writes `(none)` in its place) |
 | Remove an imported SSH key | Assuan `DELETE_KEY --force` after the app's own confirmation, only for keygrips that belong to no OpenPGP key; afterwards, ask gpg-agent again to confirm |
 | Import an existing SSH secret key | Register it in gpg-agent with `ssh-add` (passphrase through pinentry) |
+| Back up and restore an imported SSH key | Back up: Assuan `KEYWRAP_KEY --export` and `EXPORT_KEY --mode1003` (gpg 2.4.0 and later), which return the key as gpg-agent stores it, still protected by its passphrase, so no passphrase is asked. Keys without a passphrase, OpenPGP keys and card keys are refused. Restore: `KEYWRAP_KEY --import` and `IMPORT_KEY --mode1003` (gpg 2.5.14 and later), then offer it to SSH. Both hand the key over wrapped with a per-session key (AES key wrap, RFC 3394), so the core unwraps and wraps it (the `aes-kw` crate) and talks to gpg-agent's socket directly in one session: gpg-connect-agent buffers its output, so it cannot answer the wrapping key before the next command. With gpg 2.4, restore by placing the file as `private-keys-v1.d/<keygrip>.key` |
 
 ## Open questions
 

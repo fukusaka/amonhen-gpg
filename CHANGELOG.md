@@ -6,6 +6,10 @@ notes.
 
 ## Unreleased
 
+### Added
+
+- Back up imported SSH keys from their menu (Back Up…). The backup keeps the passphrase protection gpg-agent gave the key, so no passphrase is asked; keys gpg-agent holds without a passphrase are not backed up. Restore it with Add SSH Key… (needs GnuPG 2.5.14 or later).
+
 ## [0.3.0] - 2026-11-18
 
 The web of trust. Set how far you trust the owners of others' keys, and keys they signed count as verified; the key

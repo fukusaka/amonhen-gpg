@@ -1,5 +1,6 @@
 //! amonhen-gpgui のコア。GnuPG（`gpg`・`gpg-agent`）を起動して結果を解析し、FE に渡す型にする。
-//! FE のことを知らず、暗号の処理は自分でしない。パスフレーズは gpg-agent の pinentry が扱い、ここは触らない。
+//! FE のことを知らず、暗号の処理は自分でしない（例外は、gpg-agent との鍵の受け渡しの包み（`ssh_backup`）だけ）。
+//! パスフレーズは gpg-agent の pinentry が扱い、ここは触らない。
 
 #![deny(unsafe_code)]
 
@@ -15,6 +16,7 @@ mod ownership;
 pub mod process;
 mod revocation;
 mod ssh;
+mod ssh_backup;
 mod staging;
 pub mod status;
 
@@ -33,4 +35,5 @@ pub use revocation::{
     Revocation, RevocationCause, Revocations, SubkeyRevocation, UserIdRevocation, parse_revocations,
 };
 pub use ssh::{SshControl, SshKey, SshSupport};
+pub use ssh_backup::SSH_RESTORE_MINIMUM;
 pub use staging::CodeHost;
