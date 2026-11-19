@@ -68,8 +68,9 @@ swift scripts/make-banner.swift    # docs/images/banner.png
 
 CI (`.github/workflows/ci.yml`) runs the tests on every push and pull request. On `main`, when they pass, it builds a
 signed snapshot and replaces the `snapshot` pre-release. A `v<version>` tag that matches `Cargo.toml` and has passed
-CI is built, notarized and released (`release.yml`). The signing and notarization secrets live in the `release`
-environment.
+CI is built and notarized, then released once approved (`release.yml`). The signing and notarization secrets live in
+the `release` environment; the `publish` environment holds no secrets and requires a reviewer, so the Release is made
+only after someone approves it.
 
 User-visible changes go under `Unreleased` in `CHANGELOG.md` (English only), grouped per release rather than per
 commit. To release:
@@ -81,3 +82,6 @@ commit. To release:
    (`gh workflow run build.yml --ref main`). It builds, signs and notarizes the stable app like a release and keeps the
    zip as an artifact for a week, without making a Release.
 4. Tag that commit `vx.y.z` and push the tag.
+5. When the Release workflow stops at Publish, download the `app` artifact from its run, check the notarized zip, and
+   approve the deployment within a week, while the artifact is kept (Review deployments on the run's page). Rejecting
+   it leaves no Release; to try again later, re-run the failed jobs of the same run.

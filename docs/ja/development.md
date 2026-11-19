@@ -67,8 +67,9 @@ swift scripts/make-banner.swift    # docs/images/banner.png
 
 CI（`.github/workflows/ci.yml`）は、push と pull request のたびにテストを流します。`main` では、通ったら署名した
 snapshot を作り、`snapshot` の pre-release を置き換えます。`Cargo.toml` と同じ版の `v<版>` のタグを打ち、CI が
-通っていれば、ビルドして公証し、正式版を出します（`release.yml`）。署名と公証の secret は、環境 `release` に
-置いてあります。
+通っていれば、ビルドして公証し、承認されたら正式版を出します（`release.yml`）。署名と公証の secret は、環境
+`release` に置いてあります。環境 `publish` は secret を持たず承認者を求めるので、Release は誰かが承認してから
+作られます。
 
 利用者から見える変更は、`CHANGELOG.md`（英語だけ）の `Unreleased` に書きます。コミットごとではなく、リリースごとに
 まとめます。版を出すときは:
@@ -80,3 +81,6 @@ snapshot を作り、`snapshot` の pre-release を置き換えます。`Cargo.t
    （`gh workflow run build.yml --ref main`）。正式版と同じく app を作って署名・公証し、zip を 1 週間、成果物に残す。
    Release は作らない。
 4. そのコミットに `vx.y.z` のタグを打って push する。
+5. Release のワークフローが Publish で止まったら、その実行から成果物 `app` を落とし、公証した zip を確かめて、
+   成果物が残っている 1 週間のうちに承認する（実行の画面の Review deployments）。却下すれば Release は作られない。
+   後でやり直すなら、同じ実行の失敗したジョブを流し直す。
