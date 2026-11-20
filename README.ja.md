@@ -47,7 +47,8 @@ curl -fsSL https://raw.githubusercontent.com/fukusaka/amonhen-gpg/main/scripts/i
 - [画面の方針](docs/ja/ui.md): それぞれの場所に何を出すか、アプリで何ができるか
 - [アーキテクチャ](docs/ja/architecture.md): Rust のコア、バインディング、gpg の動かし方
 - [GPG の GUI の調査](docs/ja/gpg-gui-survey.md)
-- [SSH の鍵・ホストの鍵・git の署名者](docs/ja/ssh-trust.md): 設計のメモ（未決）
+- [SSH の鍵・ホストの鍵・git の署名者](docs/ja/ssh-trust.md): 設計のメモ（git の allowed signers を扱うと決めた）
+- [git の allowed signers](docs/ja/allowed-signers.md): 設計（まだ作っていない）
 - [開発](docs/ja/development.md): ビルド、テスト、画面の確かめ方
 
 ## ライセンス

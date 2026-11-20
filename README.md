@@ -49,7 +49,8 @@ a download, see [Installation](docs/install.md).
 - [Screen policy](docs/ui.md): what each place shows, and what the app can do
 - [Architecture](docs/architecture.md): the Rust core, the bindings and how gpg is driven
 - [Survey of GPG GUIs](docs/gpg-gui-survey.md)
-- [SSH keys, host keys and git signers](docs/ssh-trust.md): design memo, not decided
+- [SSH keys, host keys and git signers](docs/ssh-trust.md): design memo; decided to handle git's allowed signers
+- [git's allowed signers](docs/allowed-signers.md): design, not built yet
 - [Development](docs/development.md): building, testing and checking the screens
 
 ## License

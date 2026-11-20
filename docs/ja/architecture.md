@@ -10,6 +10,7 @@
 - core は Rust で書き、堅牢にする。
 - UI は SwiftUI (macOS) / GTK4 (Linux) / WinUI 3 (Windows) を想定する。
 - **GPG 鍵と SSH 鍵**を扱う。
+- GnuPG の外では、SSH の鍵で署名したコミットを検証するための **git の allowed signers** を扱う。人の SSH の署名用の鍵を curl を使って HTTPS で取り、自分の GPG の鍵で署名した記録を持ち、そこから allowed signers のファイルを書く（[allowed-signers.md](allowed-signers.md)）。
 
 ## 全体構成
 

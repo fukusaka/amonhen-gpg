@@ -1,6 +1,6 @@
 # amonhen-gpgui
 
-Amonhen GPG: GnuPG の純粋なフロントエンド（自分の GPG・SSH の鍵の管理）。
+Amonhen GPG: GnuPG の純粋なフロントエンド（自分の GPG・SSH の鍵の管理）。GnuPG の外では、git の SSH 署名を検証するための allowed signers も扱う（`docs/allowed-signers.md`）。
 
 - コア: Rust
 - FE: SwiftUI（macOS）

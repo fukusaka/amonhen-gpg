@@ -2,9 +2,8 @@
 
 [日本語](ja/ssh-trust.md)
 
-Written on 2026-11-16. A memo to think the problem through, not a decision. The app is defined as a pure front end for
-GnuPG; most of what follows lies outside that definition, so whether to take it on is still open (see
-[Open questions](#open-questions)).
+Written on 2026-11-16 to think the problem through. On 2026-11-20 it was decided to handle git's allowed signers in
+this app (see [Decision](#decision-2026-11-20)); the rest is still open.
 
 ## The problem
 
@@ -118,10 +117,24 @@ can then be decided later.
   prompt, child processes through `amonhen_gpg_core::process::command`, and tests use temporary directories only (never
   the user's `~/.ssh`).
 
+## Decision (2026-11-20)
+
+Thought through from one user's setup: SSH through macOS's ssh-agent (not gpg-agent), git commits signed with GPG,
+known_hosts left untidy but not a problem, and teammates who sign with SSH keys whose keys are too tedious to collect.
+
+- Option 1 is done.
+- git's allowed signers are handled **in this app** (option 2, limited to allowed signers), because collecting,
+  following and retiring signing keys is the real burden, and it fits Staging and the rule "compare the fingerprint,
+  then import". Design: [allowed-signers.md](allowed-signers.md).
+- What is kept per key is how it was checked (taken from the account, or compared with the owner), not a trust level:
+  teammates' keys need no chain of introductions.
+- The allowed signers file is plain text that anyone with access to your home folder can change. The app keeps a
+  record signed with your own GPG key and notices when the file no longer matches it. This does not stop someone who
+  can also change `~/.gitconfig`; ssh trusts files in your home folder in the same way.
+- known_hosts (showing old and duplicate lines) comes next if anything does. Keys held by ssh-agent are not handled.
+
 ## Open questions
 
-- Whether the app stays a pure GnuPG front end (options 1 and 3) or widens (option 2).
-- If it widens: which files the app owns, where they live, and how the user points ssh and git at them.
-- How to tell signing keys from authentication keys when fetching from GitHub (the API lists signing keys separately;
-  `.keys` does not).
+- If the app widens beyond allowed signers: which other files it owns, where they live, and how the user points ssh at
+  them.
 - Whether hashed known_hosts lines can be shown usefully (only matched against a host name the user types).
