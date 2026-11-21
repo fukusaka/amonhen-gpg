@@ -78,7 +78,9 @@ One entry per person, each with their keys, and the lists naming their members. 
           "source": { "host": "github.com", "user": "alice", "fetched": "2026-11-20T10:00:00Z" },
           "checked": "account",
           "accepted": "2026-11-20T10:05:00Z",
-          "valid_before": null
+          "valid_before": null,
+          "valid_after": null,
+          "imported": null
         }
       ]
     }
@@ -87,13 +89,29 @@ One entry per person, each with their keys, and the lists naming their members. 
 }
 ```
 
-- `checked` is `account` (taken from the account as it was) or `fingerprint` (compared with the owner).
+- `checked` is `account` (taken from the account as it was), `fingerprint` (compared with the owner) or `file`
+  (imported from an existing allowed signers file; `imported` keeps the file, the line and when).
+- `valid_after` comes only from an imported line, and is written as `valid-after`.
 - `valid_before` is set when a key is retired, and is written as `valid-before` in the allowed signers file.
 - A list's `id` names its file (lowercase letters, digits and `-`).
 - Every line of the allowed signers file has `namespaces="git"`.
 - One email address per person is enough. git does not compare the committer's address with the file, so their
   commits verify whichever address they use; the address is only what git shows as the signer (tried with OpenSSH
   10.3 and git 2.56).
+
+## Importing an existing file
+
+An allowed signers file you already keep can be read in (Import Allowed Signers File…). The file is not changed.
+
+- Each usable line becomes a key waiting in Keys to Accept, under the email address of its first principal. Accept
+  them one by one or all at once, choosing the list the people go into.
+- Lines that cannot be imported are listed with the reason: a pattern as the first principal (`*@example.com`), a
+  principal that is not an email address, `cert-authority`, `namespaces` without git, a key that cannot be read or
+  cannot sign, an unreadable time, or broken syntax. Other principals on a line are shown but not imported.
+- `valid-after` and `valid-before` are kept. A time without `Z` is read in the computer's time zone.
+- Once the person has a GitHub or GitLab account, Check for Changes compares the imported keys with it: a key on the
+  account as well can be recorded as such (its source becomes the account; how it was checked stays "from a file"),
+  and a key not on any of the person's accounts is shown as such, with Retire.
 
 ## Fetching
 

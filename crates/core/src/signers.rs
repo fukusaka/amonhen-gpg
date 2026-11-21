@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::{Error, Result};
 use crate::gpg::{Gpg, check_fingerprint};
 use crate::process::command;
+use crate::signers_import::ParsedEntry;
 use crate::staging::CodeHost;
 
 pub const RECORD_FILE: &str = "ssh-signers.json";
@@ -75,6 +76,22 @@ pub struct SignerKey {
     pub accepted: String,
     /// 退役させた日時（UTC、RFC 3339）。これより後の署名は検証しない（allowed signers の `valid-before`）。
     pub valid_before: Option<String>,
+    /// これより前の署名は検証しない日時（UTC、RFC 3339。allowed signers の `valid-after`）。取り込んだファイルにあったときだけ。
+    #[serde(default)]
+    pub valid_after: Option<String>,
+    /// 既存の allowed signers のファイルから取り込んだ鍵なら、そのファイルと行。
+    #[serde(default)]
+    pub imported: Option<ImportedFrom>,
+}
+
+/// 鍵を取り込んだファイル。
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ImportedFrom {
+    pub path: String,
+    /// 1 始まり。
+    pub line: u32,
+    /// 取り込んだ日時（UTC、RFC 3339）。
+    pub imported: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -93,6 +110,8 @@ pub enum Checked {
     Account,
     /// 持ち主とフィンガープリントを照らし合わせた。
     Fingerprint,
+    /// 既存の allowed signers のファイルから取り込んだ（そのファイルを書いた人が確かめたもの）。
+    File,
 }
 
 /// 記録の署名の状態。
@@ -279,6 +298,52 @@ impl SignerRecord {
                 checked,
                 accepted,
                 valid_before: None,
+                valid_after: None,
+                imported: None,
+            }),
+        }
+        Ok(())
+    }
+
+    /// 既存の allowed signers のファイルの行（`parse_allowed_signers`）を、`email` の人の鍵として受け入れる。
+    /// 確かめ方は「ファイルから」、期限（`valid-after`・`valid-before`）はファイルのまま。同じ鍵がもうあれば、
+    /// 取り込んだ印だけを足す（確かめ方と期限は変えない）。
+    pub fn import_key(&mut self, email: &str, entry: &ParsedEntry, path: &str) -> Result<()> {
+        let key = normalize_key(&entry.key)?;
+        let fingerprint = ssh_fingerprint(&key)?;
+        for time in [&entry.valid_after, &entry.valid_before]
+            .into_iter()
+            .flatten()
+        {
+            if ssh_time(time).is_none() {
+                return Err(invalid("time", "not a UTC time"));
+            }
+        }
+        let imported = ImportedFrom {
+            path: path.to_owned(),
+            line: entry.line,
+            imported: rfc3339(now()),
+        };
+        let person = self.person_mut(email)?;
+        match person
+            .keys
+            .iter_mut()
+            .find(|k| k.fingerprint == fingerprint)
+        {
+            Some(k) => {
+                if k.imported.is_none() {
+                    k.imported = Some(imported);
+                }
+            }
+            None => person.keys.push(SignerKey {
+                key,
+                fingerprint,
+                source: None,
+                checked: Checked::File,
+                accepted: rfc3339(now()),
+                valid_before: entry.valid_before.clone(),
+                valid_after: entry.valid_after.clone(),
+                imported: Some(imported),
             }),
         }
         Ok(())
@@ -334,6 +399,9 @@ impl SignerRecord {
         for person in members {
             for key in &person.keys {
                 let mut options = String::from("namespaces=\"git\"");
+                if let Some(after) = key.valid_after.as_deref().and_then(ssh_time) {
+                    options.push_str(&format!(",valid-after=\"{after}\""));
+                }
                 if let Some(before) = key.valid_before.as_deref().and_then(ssh_time) {
                     options.push_str(&format!(",valid-before=\"{before}\""));
                 }
@@ -377,10 +445,10 @@ impl SignerRecord {
                 if normalize_key(&key.key)? != key.key {
                     return Err(invalid("key", "a key in the record has extra text"));
                 }
-                if let Some(before) = &key.valid_before
-                    && ssh_time(before).is_none()
-                {
-                    return Err(invalid("valid_before", "not a UTC time"));
+                for time in [&key.valid_before, &key.valid_after].into_iter().flatten() {
+                    if ssh_time(time).is_none() {
+                        return Err(invalid("valid_before", "not a UTC time"));
+                    }
                 }
             }
         }
@@ -620,7 +688,7 @@ pub fn ssh_fingerprint(key: &str) -> Result<String> {
 }
 
 /// allowed signers の principal にするメールアドレス。空白・カンマ・引用符・`*`・`?`（パターンになる）を含まない。
-fn check_email(email: &str) -> Result<&str> {
+pub(crate) fn check_email(email: &str) -> Result<&str> {
     let ok = !email.is_empty()
         && email.len() <= 254
         && email.contains('@')
@@ -676,7 +744,7 @@ fn now() -> u64 {
 }
 
 /// UTC の RFC 3339（`2026-11-21T04:30:00Z`）。
-fn rfc3339(secs: u64) -> String {
+pub(crate) fn rfc3339(secs: u64) -> String {
     let (y, m, d) = civil_from_days((secs / 86_400) as i64);
     let t = secs % 86_400;
     format!(
@@ -688,7 +756,7 @@ fn rfc3339(secs: u64) -> String {
 }
 
 /// RFC 3339 の UTC の時刻（`rfc3339` が書く形）を、allowed signers の時刻（`20261121043000Z`）にする。
-fn ssh_time(rfc3339: &str) -> Option<String> {
+pub(crate) fn ssh_time(rfc3339: &str) -> Option<String> {
     let b = rfc3339.as_bytes();
     let digits = |r: std::ops::Range<usize>| b[r].iter().all(u8::is_ascii_digit);
     let ok = b.len() == 20
@@ -805,6 +873,8 @@ mod tests {
             checked: Checked::Account,
             accepted: "2026-11-21T04:30:00Z".into(),
             valid_before: None,
+            valid_after: None,
+            imported: None,
         });
         record.people[0].keys.push(SignerKey {
             key: KEY.into(),
@@ -813,6 +883,8 @@ mod tests {
             checked: Checked::Account,
             accepted: "2026-11-21T04:30:00Z".into(),
             valid_before: Some("2026-11-22T00:00:00Z".into()),
+            valid_after: None,
+            imported: None,
         });
         assert_eq!(
             record.allowed_signers("work").unwrap(),

@@ -17,6 +17,7 @@ pub mod process;
 mod revocation;
 mod signer_fetch;
 mod signers;
+mod signers_import;
 mod ssh;
 mod ssh_backup;
 mod staging;
@@ -38,9 +39,12 @@ pub use revocation::{
 };
 pub use signer_fetch::{FetchedKey, SignerChanges, fetch_signing_keys, fetch_signing_keys_from};
 pub use signers::{
-    Account, Checked, FileState, KeySource, LoadedSigners, RECORD_FILE, RecordSignature,
-    SIGNATURE_FILE, SIGNERS_FILE_SUFFIX, Signer, SignerKey, SignerList, SignerRecord, SignersFile,
-    normalize_key, signers_file, ssh_fingerprint,
+    Account, Checked, FileState, ImportedFrom, KeySource, LoadedSigners, RECORD_FILE,
+    RecordSignature, SIGNATURE_FILE, SIGNERS_FILE_SUFFIX, Signer, SignerKey, SignerList,
+    SignerRecord, SignersFile, normalize_key, signers_file, ssh_fingerprint,
+};
+pub use signers_import::{
+    ParsedEntry, ParsedSigners, SkipReason, SkippedLine, parse_allowed_signers,
 };
 pub use ssh::{SshControl, SshKey, SshSupport};
 pub use ssh_backup::SSH_RESTORE_MINIMUM;

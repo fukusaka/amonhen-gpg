@@ -28,6 +28,10 @@ pub struct SignerChanges {
     pub new: Vec<FetchedKey>,
     /// このアカウントから取って受け入れた鍵のうち、もうアカウントにないもの（退役させていないもの）。
     pub gone: Vec<String>,
+    /// アカウント以外（ファイル・手）から受け入れた鍵のうち、このアカウントにもあるもの（2 か所で一致した）。
+    pub also: Vec<String>,
+    /// アカウント以外（ファイル・手）から受け入れた鍵のうち、このアカウントにないもの（古い鍵か、別の場所の鍵）。
+    pub absent: Vec<String>,
 }
 
 /// 応答の大きさの上限。鍵の一覧はずっと小さい。
@@ -218,7 +222,29 @@ impl SignerRecord {
             .filter(|k| fetched.iter().all(|f| f.fingerprint != k.fingerprint))
             .map(|k| k.fingerprint.clone())
             .collect();
-        Ok(SignerChanges { new, gone })
+        // アカウントから取っていない鍵（入手元のないもの）を、このアカウントと比べる
+        let elsewhere = || {
+            person
+                .keys
+                .iter()
+                .filter(|k| k.valid_before.is_none() && k.source.is_none())
+        };
+        let on_account =
+            |k: &&crate::signers::SignerKey| fetched.iter().any(|f| f.fingerprint == k.fingerprint);
+        let also = elsewhere()
+            .filter(on_account)
+            .map(|k| k.fingerprint.clone())
+            .collect();
+        let absent = elsewhere()
+            .filter(|k| !on_account(k))
+            .map(|k| k.fingerprint.clone())
+            .collect();
+        Ok(SignerChanges {
+            new,
+            gone,
+            also,
+            absent,
+        })
     }
 }
 

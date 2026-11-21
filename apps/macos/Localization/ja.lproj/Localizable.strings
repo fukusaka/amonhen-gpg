@@ -483,3 +483,34 @@
 "Remove Key" = "鍵を除く";
 "Remove List" = "一覧を除く";
 "No one yet. Add people with Add Person…." = "まだ誰もいません。「人を足す…」で足してください。";
+
+/* 既存の allowed signers のファイルを取り込む */
+"%ld keys wait in Keys to Accept. %ld lines could not be imported; Keys to Accept shows why." = "%ld 個の鍵を受け入れ前の鍵に置きました。取り込めなかった行が %ld 行あります。理由は受け入れ前の鍵に出ています。";
+"Accept All" = "すべて受け入れる";
+"Also on %@" = "%@ にもある";
+"Cannot change the key" = "鍵を変えられません";
+"Cannot read the file" = "ファイルを読めません";
+"Choose an allowed signers file, such as the one gpg.ssh.allowedSignersFile points at. Its keys wait in Keys to Accept; the file is not changed." = "gpg.ssh.allowedSignersFile が指すファイルなど、allowed signers のファイルを選んでください。鍵は受け入れ前の鍵に置き、ファイルは変えません。";
+"From an allowed signers file you chose. Accepting records them as imported from that file; the file is not changed." = "選んだ allowed signers のファイルから読んだ鍵です。受け入れると、そのファイルから取り込んだと記録します。ファイルは変えません。";
+"Import Allowed Signers File" = "allowed signers のファイルを取り込む";
+"Import Allowed Signers File…" = "allowed signers のファイルを取り込む…";
+"Imported from %@" = "%@ から取り込んだ";
+"Its namespaces do not include git." = "namespaces に git がありません。";
+"Keys from %@ (%ld)" = "%@ の鍵（%ld）";
+"Line %ld" = "%ld 行目";
+"Line %ld not imported: %@" = "%ld 行目は取り込みません: %@";
+"No list" = "一覧に入れない";
+"Not on the account" = "アカウントにない";
+"Other addresses (not imported): %@" = "ほかのアドレス（取り込まない）: %@";
+"Put people in" = "入れる一覧";
+"Read %@" = "%@ を読みました";
+"Record as Also on the Account" = "アカウントにもあると記録する";
+"The key cannot be read or cannot sign." = "鍵が読めないか、署名に使えない種類です。";
+"The line cannot be read." = "行が読めません。";
+"The principal is a pattern, not one person." = "principal がパターンで、1 人に決まりません。";
+"The principal is not an email address." = "principal がメールアドレスではありません。";
+"The same key is on %@. Record it, so later checks compare the key with that account." = "同じ鍵が %@ にもあります。記録すると、次からはその鍵をそのアカウントと比べます。";
+"Valid from %@" = "%@ から有効";
+"a file" = "ファイル";
+"cert-authority lines are not handled." = "cert-authority の行は扱いません。";
+"valid-after or valid-before cannot be read." = "valid-after か valid-before が読めません。";

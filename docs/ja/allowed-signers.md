@@ -62,7 +62,9 @@ git -C <リポジトリ> config gpg.ssh.allowedSignersFile "$HOME/Library/Applic
           "source": { "host": "github.com", "user": "alice", "fetched": "2026-11-20T10:00:00Z" },
           "checked": "account",
           "accepted": "2026-11-20T10:05:00Z",
-          "valid_before": null
+          "valid_before": null,
+          "valid_after": null,
+          "imported": null
         }
       ]
     }
@@ -71,11 +73,21 @@ git -C <リポジトリ> config gpg.ssh.allowedSignersFile "$HOME/Library/Applic
 }
 ```
 
-- `checked` は `account`（アカウントから取ったまま）か `fingerprint`（持ち主と照らし合わせた）。
+- `checked` は `account`（アカウントから取ったまま）、`fingerprint`（持ち主と照らし合わせた）、`file`（既存の allowed signers のファイルから取り込んだ。`imported` にファイル・行・日時を持つ）。
+- `valid_after` は、取り込んだ行にあったときだけ持ち、`valid-after` として書く。
 - `valid_before` は鍵を退役させたときに入れ、allowed signers のファイルに `valid-before` として書く。
 - 一覧の `id` はファイルの名前になる（英小文字・数字・`-`）。
 - allowed signers のファイルの各行には `namespaces="git"` を付ける。
 - メールアドレスは 1 人に 1 つで足りる。git はコミットのアドレスとファイルを比べないので、どのアドレスでコミットしても検証できる。アドレスは、git が署名した人として表示するもの（OpenSSH 10.3・git 2.56 で試した）。
+
+## 既存のファイルを取り込む
+
+すでに持っている allowed signers のファイルを読み込める（「allowed signers のファイルを取り込む…」）。ファイルは変えない。
+
+- 取り込める行は、最初の principal のメールアドレスの人の鍵として「受け入れ前の鍵」に置く。1 つずつか、まとめて受け入れ、人を入れる一覧を選ぶ。
+- 取り込めない行は理由を添えて並べる。最初の principal がパターン（`*@example.com`）、principal がメールアドレスでない、`cert-authority`、`namespaces` に git がない、鍵が読めないか署名に使えない、時刻が読めない、書式が読めない。行のほかの principal は見せるだけで取り込まない。
+- `valid-after` と `valid-before` は持つ。`Z` のない時刻は、このコンピュータの時刻帯で読む。
+- 人に GitHub か GitLab のアカウントを付けると、「変化を確かめる」で取り込んだ鍵をアカウントと比べる。アカウントにもある鍵は、そう記録できる（入手元がそのアカウントになり、確かめ方は「ファイルから」のまま）。その人のどのアカウントにもない鍵は、そう出して「退役させる」を出す。
 
 ## 取ってくる
 

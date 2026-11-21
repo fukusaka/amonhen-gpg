@@ -12,11 +12,12 @@ use std::sync::Arc;
 use amonhen_gpg_core::status::Failure;
 use amonhen_gpg_core::{
     Account, Availability, Capabilities, Card, Certification, Checked, CodeHost, Expiry,
-    FetchedKey, FileState, GenerateKey, ImportResult, ImportedKey, Key, KeyOrigin, KeySource,
-    KeyStatus, LoadedSigners, OwnerTrust, RecordSignature, Revocation, RevocationCause,
-    RevocationReason, Revocations, SecretState, SignatureCheck, Signer, SignerChanges, SignerKey,
-    SignerList, SignerRecord, SignersFile, SshControl, SshKey, SshSupport, Subkey,
-    SubkeyRevocation, Tier, UserId, UserIdRevocation, Validity, Version,
+    FetchedKey, FileState, GenerateKey, ImportResult, ImportedFrom, ImportedKey, Key, KeyOrigin,
+    KeySource, KeyStatus, LoadedSigners, OwnerTrust, ParsedEntry, ParsedSigners, RecordSignature,
+    Revocation, RevocationCause, RevocationReason, Revocations, SecretState, SignatureCheck,
+    Signer, SignerChanges, SignerKey, SignerList, SignerRecord, SignersFile, SkipReason,
+    SkippedLine, SshControl, SshKey, SshSupport, Subkey, SubkeyRevocation, Tier, UserId,
+    UserIdRevocation, Validity, Version,
 };
 
 uniffi::setup_scaffolding!();
@@ -87,6 +88,55 @@ pub struct SignerKey {
     pub checked: Checked,
     pub accepted: String,
     pub valid_before: Option<String>,
+    pub valid_after: Option<String>,
+    pub imported: Option<ImportedFrom>,
+}
+
+#[uniffi::remote(Record)]
+pub struct ImportedFrom {
+    pub path: String,
+    pub line: u32,
+    pub imported: String,
+}
+
+#[uniffi::remote(Record)]
+pub struct ParsedEntry {
+    pub line: u32,
+    pub email: String,
+    pub other_principals: Vec<String>,
+    pub key: String,
+    pub fingerprint: String,
+    pub valid_after: Option<String>,
+    pub valid_before: Option<String>,
+}
+
+#[uniffi::remote(Enum)]
+pub enum SkipReason {
+    Pattern,
+    Principal,
+    CertAuthority,
+    NotForGit,
+    Key,
+    Time,
+    Syntax,
+}
+
+#[uniffi::remote(Record)]
+pub struct SkippedLine {
+    pub line: u32,
+    pub reason: SkipReason,
+}
+
+#[uniffi::remote(Record)]
+pub struct ParsedSigners {
+    pub entries: Vec<ParsedEntry>,
+    pub skipped: Vec<SkippedLine>,
+}
+
+/// 既存の allowed signers のファイルの中身を読む（ssh-keygen を起動する）。
+#[uniffi::export]
+pub fn parse_allowed_signers(text: String) -> Result<ParsedSigners> {
+    Ok(amonhen_gpg_core::parse_allowed_signers(&text)?)
 }
 
 #[uniffi::remote(Record)]
@@ -100,6 +150,7 @@ pub struct KeySource {
 pub enum Checked {
     Account,
     Fingerprint,
+    File,
 }
 
 #[uniffi::remote(Record)]
@@ -149,6 +200,8 @@ pub struct FetchedKey {
 pub struct SignerChanges {
     pub new: Vec<FetchedKey>,
     pub gone: Vec<String>,
+    pub also: Vec<String>,
+    pub absent: Vec<String>,
 }
 
 /// 記録を変える操作。記録は値として渡し、変えたものを返す（FE は保存するまで手元に持つ）。
@@ -166,6 +219,12 @@ pub enum SignerEdit {
         key: String,
         source: Option<KeySource>,
         checked: Checked,
+    },
+    /// 既存の allowed signers のファイルの行を受け入れる（`path` はそのファイル）。
+    ImportKey {
+        email: String,
+        entry: ParsedEntry,
+        path: String,
     },
     RetireKey {
         email: String,
@@ -212,6 +271,7 @@ pub fn edit_signer_record(mut record: SignerRecord, edit: SignerEdit) -> Result<
             source,
             checked,
         } => record.accept_key(&email, &key, source, checked)?,
+        SignerEdit::ImportKey { email, entry, path } => record.import_key(&email, &entry, &path)?,
         SignerEdit::RetireKey { email, fingerprint } => record.retire_key(&email, &fingerprint)?,
         SignerEdit::RemoveKey { email, fingerprint } => record.remove_key(&email, &fingerprint)?,
         SignerEdit::AddList { id, name } => record.add_list(&id, &name)?,

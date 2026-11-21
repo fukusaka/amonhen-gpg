@@ -40,6 +40,11 @@ struct SignersView: View {
                     }
                     .help(L("The key of yours that signs the record of signers"))
                 }
+                Button(action: importFile) {
+                    Label(L("Import Allowed Signers File…"), systemImage: "square.and.arrow.down")
+                }
+                .help(L("Import Allowed Signers File…"))
+                .disabled(signer == nil)
                 Button {
                     addingList = true
                 } label: {
@@ -147,6 +152,7 @@ struct SignersView: View {
             } actions: {
                 Button(L("New List…")) { addingList = true }
                 Button(L("Add Person…")) { addingPerson = true }
+                Button(L("Import Allowed Signers File…"), action: importFile)
             }
         } else {
             list
@@ -200,6 +206,14 @@ struct SignersView: View {
                             showKeysToAccept: showKeysToAccept,
                             retire: { retiring = KeyRef(email: person.email, fingerprint: $0) },
                             removeKey: { removingKey = KeyRef(email: person.email, fingerprint: $0) },
+                            recordAlso: { fingerprint, source in
+                                guard let key = person.keys.first(where: { $0.fingerprint == fingerprint }) else { return }
+                                Task {
+                                    await save(
+                                        [.acceptKey(email: person.email, key: key.key, source: source, checked: .account)],
+                                        title: L("Cannot change the key"))
+                                }
+                            },
                             check: { Task { await model.check(person) } },
                             addTo: { list in
                                 Task { await save([.addMember(list: list, email: person.email)], title: L("Cannot change the list")) }
@@ -243,6 +257,29 @@ struct SignersView: View {
 
     private func fileState(_ list: SignerList) -> FileState? {
         model.loaded?.files.first { $0.list == list.id }?.state
+    }
+
+    /// 既存の allowed signers のファイルを選ばせて読み、行を受け入れ前の鍵に置く。ファイルは変えない。
+    private func importFile() {
+        let panel = NSOpenPanel()
+        panel.title = L("Import Allowed Signers File")
+        panel.message = L("Choose an allowed signers file, such as the one gpg.ssh.allowedSignersFile points at. Its keys wait in Keys to Accept; the file is not changed.")
+        panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".ssh")
+        panel.showsHiddenFiles = true
+        panel.canChooseDirectories = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        Task {
+            switch await model.readFile(url) {
+            case let .success(count):
+                let skipped = model.skipped.filter { $0.path == url.path }.count
+                notify(Notice(
+                    title: L("Read %@", url.lastPathComponent),
+                    message: L("%ld keys wait in Keys to Accept. %ld lines could not be imported; Keys to Accept shows why.", count, skipped)))
+                if count > 0 || skipped > 0 { showKeysToAccept() }
+            case let .failure(error):
+                notify(Notice(title: L("Cannot read the file"), message: describe(error)))
+            }
+        }
     }
 
     /// 記録を変えて保存する。取り消しは知らせない。
@@ -293,6 +330,8 @@ struct SignerRowActions {
     var showKeysToAccept: () -> Void = {}
     var retire: (String) -> Void = { _ in }
     var removeKey: (String) -> Void = { _ in }
+    /// ファイルなどから受け入れた鍵が、アカウントにもあったと記録する。
+    var recordAlso: (String, KeySource) -> Void = { _, _ in }
     var check: () -> Void = {}
     var addTo: (String) -> Void = { _ in }
     var remove: () -> Void = {}
@@ -346,8 +385,11 @@ private struct SignerRow: View {
                 .foregroundStyle(lists.isEmpty ? .orange : .secondary)
             ForEach(person.keys, id: \.fingerprint) { key in
                 AcceptedKeyRow(
-                    key: key, gone: changes?.gone.contains(key.fingerprint) == true,
-                    retire: { actions.retire(key.fingerprint) }, remove: { actions.removeKey(key.fingerprint) })
+                    key: key,
+                    gone: changes?.gone.contains(key.fingerprint) == true || changes?.absent.contains(key.fingerprint) == true,
+                    also: changes?.also[key.fingerprint],
+                    retire: { actions.retire(key.fingerprint) }, remove: { actions.removeKey(key.fingerprint) },
+                    recordAlso: { actions.recordAlso(key.fingerprint, $0) })
             }
             if let new = changes?.new, !new.isEmpty {
                 HStack {
@@ -363,7 +405,7 @@ private struct SignerRow: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
-            if let changes, changes.new.isEmpty, changes.gone.isEmpty, changes.failures.isEmpty {
+            if let changes, changes.isEmpty {
                 Text(L("No changes on the accounts."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -378,8 +420,11 @@ private struct AcceptedKeyRow: View {
     let key: SignerKey
     /// アカウントから消えた鍵。
     let gone: Bool
+    /// アカウントにもあった（ファイルなどから受け入れた鍵）。
+    let also: KeySource?
     let retire: () -> Void
     let remove: () -> Void
+    let recordAlso: (KeySource) -> Void
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -394,6 +439,11 @@ private struct AcceptedKeyRow: View {
                     .foregroundStyle(gone ? .orange : .secondary)
             }
             Spacer()
+            if let also {
+                Button(L("Record as Also on the Account")) { recordAlso(also) }
+                    .controlSize(.small)
+                    .help(L("The same key is on %@. Record it, so later checks compare the key with that account.", Account(host: also.host, user: also.user).display))
+            }
             if gone, !key.retired {
                 Button(L("Retire"), action: retire)
                     .controlSize(.small)
@@ -414,14 +464,25 @@ private struct AcceptedKeyRow: View {
     }
 
     private var detail: String {
-        var parts = [key.checked == .fingerprint ? L("Compared with the owner") : L("As taken from the account")]
+        var parts: [String]
+        switch key.checked {
+        case .fingerprint: parts = [L("Compared with the owner")]
+        case .account: parts = [L("As taken from the account")]
+        case .file: parts = [L("Imported from %@", key.imported.map { "\(($0.path as NSString).lastPathComponent):\($0.line)" } ?? L("a file"))]
+        }
         if let source = key.source {
             parts.append(Account(host: source.host, user: source.user).display)
+        }
+        if let after = key.validAfter {
+            parts.append(L("Valid from %@", Signers.date(after).map { $0.formatted(date: .abbreviated, time: .shortened) } ?? after))
+        }
+        if let also {
+            parts.append(L("Also on %@", Account(host: also.host, user: also.user).display))
         }
         if let before = key.validBefore {
             parts.append(L("Retired %@", Signers.date(before).map { $0.formatted(date: .abbreviated, time: .shortened) } ?? before))
         } else if gone {
-            parts.append(L("No longer on the account"))
+            parts.append(key.source == nil ? L("Not on the account") : L("No longer on the account"))
         }
         return parts.joined(separator: " · ")
     }
@@ -466,6 +527,84 @@ private struct CompareSshKeySheet: View {
         }
         .padding(20)
         .frame(width: 520)
+    }
+}
+
+/// 受け入れ前の鍵の画面の、既存の allowed signers のファイルから読んだ行の段。ファイルごとに、入れる一覧を選んで
+/// 受け入れる（まとめても 1 つずつでも）。取り込めなかった行は理由を添えて見せる。
+struct PendingImportedKeys: View {
+    let model: SignersModel
+    let keyring: KeyringModel
+    var notify: (Notice) -> Void = { _ in }
+    /// ファイルごとの、入れる一覧（空ならどの一覧にも入れない）。
+    @State private var lists: [String: String] = [:]
+
+    var body: some View {
+        let paths = Array(Set(model.imports.map(\.path) + model.skipped.map(\.path))).sorted()
+        ForEach(paths, id: \.self) { path in
+            let items = model.imports.filter { $0.path == path }
+            let skipped = model.skipped.filter { $0.path == path }
+            VStack(alignment: .leading, spacing: 8) {
+                Text(L("Keys from %@ (%ld)", (path as NSString).lastPathComponent, items.count)).font(.headline)
+                Text(L("From an allowed signers file you chose. Accepting records them as imported from that file; the file is not changed."))
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                HStack {
+                    Picker(L("Put people in"), selection: Binding(get: { lists[path] ?? "" }, set: { lists[path] = $0 })) {
+                        Text(L("No list")).tag("")
+                        ForEach(model.record.lists, id: \.id) { Text($0.name).tag($0.id) }
+                    }
+                    .fixedSize()
+                    Spacer()
+                    Button(L("Accept All")) { accept(items, path: path) }
+                        .disabled(items.isEmpty || model.saving || model.signer(in: keyring.keyring) == nil)
+                    Button(L("Discard")) { model.discardImports(from: path) }
+                }
+                ForEach(items) { item in
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Image(systemName: "doc.badge.plus").foregroundStyle(.blue)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.entry.email).font(.headline)
+                            Text(item.entry.fingerprint)
+                                .font(.caption.monospaced())
+                                .textSelection(.enabled)
+                            Text(detail(item.entry))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button(L("Accept")) { accept([item], path: path) }
+                            .controlSize(.small)
+                            .disabled(model.saving || model.signer(in: keyring.keyring) == nil)
+                    }
+                }
+                ForEach(skipped, id: \.line.line) { skip in
+                    Label(L("Line %ld not imported: %@", Int(skip.line.line), L(skip.line.reason.englishDescription)), systemImage: "minus.circle")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+                Divider()
+            }
+        }
+    }
+
+    private func detail(_ entry: ParsedEntry) -> String {
+        var parts = [L("Line %ld", Int(entry.line))]
+        if !entry.otherPrincipals.isEmpty {
+            parts.append(L("Other addresses (not imported): %@", entry.otherPrincipals.joined(separator: ", ")))
+        }
+        if let after = entry.validAfter {
+            parts.append(L("Valid from %@", Signers.date(after).map { $0.formatted(date: .abbreviated, time: .shortened) } ?? after))
+        }
+        if let before = entry.validBefore {
+            parts.append(L("Retired %@", Signers.date(before).map { $0.formatted(date: .abbreviated, time: .shortened) } ?? before))
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private func accept(_ items: [PendingImport], path: String) {
+        let list = lists[path].flatMap { $0.isEmpty ? nil : $0 }
+        Task { await model.acceptImports(items, list: list, keyring: keyring, notify: notify) }
     }
 }
 

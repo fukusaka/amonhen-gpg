@@ -13,6 +13,9 @@ final class SignersModel {
     /// 取ってきている人。
     private(set) var checking: Set<String> = []
     private(set) var saving = false
+    /// 既存の allowed signers のファイルから読んだ、受け入れ前の行と、取り込めなかった行。アプリを終えると消える。
+    private(set) var imports: [PendingImport] = []
+    private(set) var skipped: [(path: String, line: SkippedLine)] = []
 
     init(dir: URL = Signers.defaultDirectory()) {
         self.dir = dir
@@ -88,6 +91,52 @@ final class SignersModel {
         return result
     }
 
+    /// 既存の allowed signers のファイルを読み、行を受け入れ前にする（ファイルは変えない）。読めた行の数を返す。
+    func readFile(_ url: URL) async -> Result<Int, Error> {
+        let path = url.path
+        let result = await Task.detached { () -> Result<ParsedSigners, Error> in
+            Result { try parseAllowedSigners(text: try String(contentsOf: url, encoding: .utf8)) }
+        }.value
+        guard case let .success(parsed) = result else {
+            return result.map { _ in 0 }
+        }
+        // 同じファイルを読み直したら置き換える
+        imports.removeAll { $0.path == path }
+        skipped.removeAll { $0.path == path }
+        let record = record
+        let accepted = Set(record.people.flatMap { p in p.keys.filter { !$0.retired }.map { "\(p.email) \($0.fingerprint)" } })
+        let fresh = parsed.entries.filter { !accepted.contains("\($0.email) \($0.fingerprint)") }
+        imports += fresh.map { PendingImport(entry: $0, path: path) }
+        skipped += parsed.skipped.map { (path: path, line: $0) }
+        return .success(fresh.count)
+    }
+
+    /// 読んだ行を受け入れる（まとめて 1 回で署名する）。`list` があれば、その一覧に入れる。
+    func acceptImports(_ items: [PendingImport], list: String?, keyring: KeyringModel, notify: (Notice) -> Void) async {
+        var edits: [SignerEdit] = []
+        var people = Set(record.people.map(\.email))
+        for item in items {
+            let email = item.entry.email
+            if !people.contains(email) {
+                edits.append(.addPerson(email: email, account: nil))
+                people.insert(email)
+            }
+            edits.append(.importKey(email: email, entry: item.entry, path: item.path))
+            if let list {
+                edits.append(.addMember(list: list, email: email))
+            }
+        }
+        if await save(edits, keyring: keyring, title: L("Cannot accept the key"), notify: notify) {
+            let done = Set(items.map(\.id))
+            imports.removeAll { done.contains($0.id) }
+        }
+    }
+
+    func discardImports(from path: String) {
+        imports.removeAll { $0.path == path }
+        skipped.removeAll { $0.path == path }
+    }
+
     /// 人のアカウントから鍵を取り直す。
     func check(_ person: Signer) async {
         guard !person.accounts.isEmpty, !checking.contains(person.email) else { return }
@@ -115,8 +164,12 @@ final class SignersModel {
                 continue
             }
             let current = Set(person.keys.filter { !$0.retired }.map(\.fingerprint))
+            // 入手元を記録した鍵は、もう「アカウントにもある」と比べる必要がない
+            let sourced = Set(person.keys.filter { $0.source != nil }.map(\.fingerprint))
             change.new.removeAll { current.contains($0.key.fingerprint) }
             change.gone.removeAll { !current.contains($0) }
+            change.absent.removeAll { !current.contains($0) || sourced.contains($0) }
+            change.also = change.also.filter { current.contains($0.key) && !sourced.contains($0.key) }
             changes[email] = change
         }
     }
