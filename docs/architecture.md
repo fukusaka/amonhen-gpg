@@ -10,6 +10,7 @@
 - The core is written in Rust and made robust.
 - The UIs are SwiftUI (macOS) / GTK4 (Linux) / WinUI 3 (Windows).
 - Handle **GPG keys and SSH keys**.
+- Beyond GnuPG, keep **git's allowed signers** for verifying commits signed with SSH keys: fetch people's SSH signing keys over HTTPS with curl, keep a record signed with your own GPG key, and write the allowed signers file from it (see [allowed-signers.md](allowed-signers.md)).
 
 ## Overall structure
 
