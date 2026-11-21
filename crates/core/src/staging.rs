@@ -158,9 +158,11 @@ impl Gpg {
 
 /// 利用者ごとに公開鍵を `https://<ホスト>/<名前>.gpg` で出している、コードを置くサービス。
 /// 出しているのは、その利用者がアカウントに登録した鍵（コミットの署名を確かめるためのもの）。
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum CodeHost {
+    #[serde(rename = "github.com")]
     GitHub,
+    #[serde(rename = "gitlab.com")]
     GitLab,
 }
 
@@ -172,8 +174,14 @@ impl CodeHost {
         }
     }
 
-    /// `user` の公開鍵の URL。名前はそのサービスで使える文字だけを受け付ける（URL や gpg の引数を壊さないように）。
+    /// `user` の公開鍵の URL。
     pub fn key_url(self, user: &str) -> Result<String> {
+        let user = self.check_user(user)?;
+        Ok(format!("https://{}/{user}.gpg", self.host()))
+    }
+
+    /// そのサービスの利用者の名前か。そのサービスで使える文字だけを受け付ける（URL や gpg の引数を壊さないように）。
+    pub(crate) fn check_user(self, user: &str) -> Result<&str> {
         let ok = match self {
             // 英数字とハイフン、39 文字まで。ハイフンで始まらず終わらない
             CodeHost::GitHub => {
@@ -191,7 +199,7 @@ impl CodeHost {
         } && user.starts_with(|c: char| c.is_ascii_alphanumeric())
             && user.ends_with(|c: char| c.is_ascii_alphanumeric());
         if ok {
-            Ok(format!("https://{}/{user}.gpg", self.host()))
+            Ok(user)
         } else {
             Err(Error::InvalidArgument {
                 name: "user",

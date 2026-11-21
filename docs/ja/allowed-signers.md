@@ -19,6 +19,7 @@ git は SSH の署名を、`gpg.ssh.allowedSignersFile` で指すファイルと
 ## アプリがすること
 
 - **人を追う。** GitHub か GitLab のアカウントと、その人が署名に使うメールアドレスで人を足す。アプリはそのアカウントの SSH の署名用の鍵を取ってくる。
+- **一覧に分ける。** 人は一覧（たとえばチームごと、リポジトリごと）に入れる。一覧ごとに allowed signers のファイルを 1 つ書く。同じ人が複数の一覧に入ってよく、鍵は人ごとに 1 か所で持つ。
 - **照らし合わせてから受け入れる。** 取ってきた鍵は、GPG の鍵と同じく「受け入れ前の鍵」に入る。鍵ごとに、アカウントから取ったまま受け入れるか、持ち主とフィンガープリントを照らし合わせてから受け入れる。
 - **変化を確かめる。** 求められたときに、追っているアカウントをすべて取り直し、差だけを見せる。新しい鍵は「受け入れ前の鍵」へ。アカウントから消えた鍵は、その日を `valid-before` にして退役させるよう提案する（それまでに署名したコミットは検証できたまま）。利用者なしに受け入れたり退役させたりはしない。
 - **署名した記録を持つ。** どの鍵が誰のもので、どう確かめたかの記録を、自分の GPG の鍵で署名する。allowed signers のファイルは記録から書く。
@@ -32,21 +33,20 @@ git は SSH の署名を、`gpg.ssh.allowedSignersFile` で指すファイルと
 |---|---|
 | `ssh-signers.json` | 記録（下） |
 | `ssh-signers.json.sig` | 自分の鍵による記録の分離署名（`gpg --detach-sign`。pinentry を通す） |
-| `allowed_signers` | 記録から書く、git が読むファイル |
+| `<一覧>.allowed_signers` | 一覧ごとに記録から書く、git が読むファイル |
 
-allowed signers のファイルは一時ファイルに書いて古いファイルに rename で置き換え、git が半端な中身を読まないようにする。普通のファイルのままにする。アプリが中身を渡す名前付きパイプも git で使えるが（OpenSSH 10.3・git 2.56 で試した。検証するコミットごとに 2 回開かれる）、渡す側がいないと git が止まる。
+allowed signers のファイルは一時ファイルに書いて古いファイルに rename で置き換え、git が半端な中身を読まないようにする。一覧を除くと、そのファイルも消す。普通のファイルのままにする。アプリが中身を渡す名前付きパイプも git で使えるが（OpenSSH 10.3・git 2.56 で試した。検証するコミットごとに 2 回開かれる）、渡す側がいないと git が止まる。
 
-アプリは、git にこのファイルを指させるコマンドと、git がもう指しているかを見せる。
+git は、すべてのリポジトリにも、1 つのリポジトリにもファイルを指せる（git 2.56 で試した。リポジトリの設定が優先され、`includeIf` でフォルダごとに選ぶこともできる）。アプリは一覧のファイルを指させるコマンドを見せ、実行は利用者に任せる。
 
 ```sh
-git config --global gpg.ssh.allowedSignersFile "$HOME/Library/Application Support/Amonhen GPG/allowed_signers"
+git config --global gpg.ssh.allowedSignersFile "$HOME/Library/Application Support/Amonhen GPG/work.allowed_signers"
+git -C <リポジトリ> config gpg.ssh.allowedSignersFile "$HOME/Library/Application Support/Amonhen GPG/work.allowed_signers"
 ```
-
-git が別のファイルを指していれば、そう知らせて、そのままにする。
 
 ### 記録
 
-人ごとに 1 つ、それぞれの鍵を持つ。たとえば:
+人ごとに 1 つ、それぞれの鍵を持ち、一覧が入れる人を持つ。たとえば:
 
 ```json
 {
@@ -66,12 +66,14 @@ git が別のファイルを指していれば、そう知らせて、そのま�
         }
       ]
     }
-  ]
+  ],
+  "lists": [{ "id": "work", "name": "Work", "members": ["alice@example.com"] }]
 }
 ```
 
 - `checked` は `account`（アカウントから取ったまま）か `fingerprint`（持ち主と照らし合わせた）。
 - `valid_before` は鍵を退役させたときに入れ、allowed signers のファイルに `valid-before` として書く。
+- 一覧の `id` はファイルの名前になる（英小文字・数字・`-`）。
 - allowed signers のファイルの各行には `namespaces="git"` を付ける。
 - メールアドレスは 1 人に 1 つで足りる。git はコミットのアドレスとファイルを比べないので、どのアドレスでコミットしても検証できる。アドレスは、git が署名した人として表示するもの（OpenSSH 10.3・git 2.56 で試した）。
 
@@ -95,13 +97,16 @@ git が別のファイルを指していれば、そう知らせて、そのま�
 
 ## 今はしない
 
-- リポジトリにコミットしてチームで共有する allowed signers のファイル。
+- リポジトリにコミットしてチームで共有する allowed signers のファイル（git は相対パスで読める）。
 - `gpg.ssh.revocationFile` と `cert-authority` の行。
 - 自前の GitLab と GitHub Enterprise。
 - known_hosts と、ssh-agent が持つ鍵。
 
+## 2026-11-21 に決めたこと
+
+- **署名する鍵。** 他者の鍵を確認済みにするときと同じく、どの自分の鍵で記録に署名するかを選ぶ。検証は、自分の鍵（gpg が究極の信頼とみなす鍵）のどれの署名でも通す。自分の鍵を替えたら、次に変えるときに新しい鍵で署名し直すだけ。
+- **画面。** 自分の鍵・他者の鍵・受け入れ前の鍵と並べて、新しい場所 **git の署名者** を足す。一覧、人とその鍵、鍵ごとの確かめ方、「変化を確かめる」をここにまとめる。
+
 ## 未決事項
 
-- 自分の鍵が複数あるとき、どれで記録に署名するか。その鍵が期限切れになったり替わったりしたときにどうするか。
-- 人とその鍵を画面のどこに出すか。他者の鍵の、その人の GPG の鍵の隣か、別の一覧か。
 - Linux と Windows でのフォルダ。

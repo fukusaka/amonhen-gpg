@@ -10,6 +10,8 @@ publish.workspace = true
 # gpg-agent との鍵の受け渡しの包み（ssh_backup）。暗号の処理はこれだけ
 aes-kw = { version = "0.3.1", default-features = false }
 serde = { version = "1.0.229", features = ["derive"] }
+# git の allowed signers の記録（signers）
+serde_json = "1"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
