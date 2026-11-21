@@ -152,10 +152,10 @@ struct StagingView: View {
             }
             if model.keys.isEmpty {
                 ContentUnavailableView(
-                    L("Staging"), systemImage: "tray",
+                    L("Keys to Accept"), systemImage: "tray",
                     description: Text(L("Keys found on keyservers or through WKD will be kept here until you import them.")))
             } else {
-                Text(L("Keys in staging (%ld)", model.keys.count)).font(.headline)
+                Text(L("Keys to accept (%ld)", model.keys.count)).font(.headline)
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 12) {
                         ForEach(model.keys, id: \.fingerprint) { key in

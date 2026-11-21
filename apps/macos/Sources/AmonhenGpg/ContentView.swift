@@ -10,7 +10,7 @@ enum Place: String, Hashable, CaseIterable {
         switch self {
         case .mine: L("My Keys")
         case .others: L("Others' Keys")
-        case .staging: L("Staging")
+        case .staging: L("Keys to Accept")
         }
     }
 

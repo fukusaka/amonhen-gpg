@@ -51,7 +51,7 @@ One screen at a time:
 
 Launch options: `--homedir <dir>`, `--gpg <path>` (comes before the gpg chosen in Settings), `--keyserver <url>`, `--snapshot <file.png>` (capture the window
 and exit), `--place mine|others|staging`, `--sheet extend|create|revoke|certify|details|detailnames|detailkeys|detailsignatures|otherdetails|delete|userids`,
-`--stage <file>` (put a key file into staging first), `--appearance light|dark`, `--search <text>` (fill the search
+`--stage <file>` (put a key file into Keys to Accept first), `--appearance light|dark`, `--search <text>` (fill the search
 field). `--place`, `--search`, `--stage` and `--appearance` also work without `--snapshot`, to open a window that is driven and
 captured by other means (`screencapture` needs Screen Recording, which a session over ssh does not have).
 

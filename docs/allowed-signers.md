@@ -24,10 +24,10 @@ The file is plain text that anyone with access to your home folder can change, a
 
 - **Follow people.** You add a person as an account on GitHub or GitLab together with the email address they sign
   with. The app fetches that account's SSH signing keys.
-- **Compare before accepting.** Fetched keys go to Staging, as GPG keys do. You accept each key, either as fetched
+- **Compare before accepting.** Fetched keys go to Keys to Accept, as GPG keys do. You accept each key, either as fetched
   from the account, or after comparing its fingerprint with the owner.
 - **Check for changes.** On request, the app fetches every followed account again and shows only the difference: new
-  keys go to Staging; keys no longer on the account are proposed for retirement with `valid-before` set to that day,
+  keys go to Keys to Accept; keys no longer on the account are proposed for retirement with `valid-before` set to that day,
   so commits signed before stay verified. Nothing is accepted or retired without you.
 - **Keep a signed record.** The record of who each key belongs to and how it was checked is signed with your own GPG
   key. The allowed signers file is written from the record.

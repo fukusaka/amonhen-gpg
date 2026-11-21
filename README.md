@@ -22,7 +22,7 @@ and log in with, and where (this Mac or a smart card), and warns before a key ex
   passphrase. Revoke a key and tell others by sending it to a keyserver.
 - **Others' keys** — Mark a key as verified only after comparing its fingerprint with its owner, and see who verified
   it. Keys found by email address (WKD or keys.openpgp.org), by fingerprint, or as published by a GitHub or GitLab
-  user wait in a staging keyring until you import them.
+  user wait in Keys to Accept until you import them.
 - **SSH** — Use an authentication subkey for SSH through gpg-agent, turn SSH support on, add existing SSH keys and copy
   the public key for `authorized_keys`.
 - **A pure front end** — GnuPG does all the cryptography. Passphrases go to pinentry and never through the app.
