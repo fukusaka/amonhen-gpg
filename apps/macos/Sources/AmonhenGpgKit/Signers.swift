@@ -64,6 +64,8 @@ public enum Signers {
     public static func changes(record: SignerRecord, person: Signer) -> PersonChanges {
         var result = PersonChanges()
         let fetched = now()
+        // どのアカウントにもない鍵だけを「アカウントにない」とする（アカウントごとの結果の共通部分）
+        var absent: Set<String>?
         for account in person.accounts {
             do {
                 let keys = try fetchSigningKeys(host: account.host, user: account.user)
@@ -76,10 +78,15 @@ public enum Signers {
                 for gone in changes.gone where !result.gone.contains(gone) {
                     result.gone.append(gone)
                 }
+                for also in changes.also where result.also[also] == nil {
+                    result.also[also] = KeySource(host: account.host, user: account.user, fetched: fetched)
+                }
+                absent = absent.map { $0.intersection(changes.absent) } ?? Set(changes.absent)
             } catch {
                 result.failures.append(AccountFailure(account: account, error: error))
             }
         }
+        result.absent = person.keys.map(\.fingerprint).filter { (absent ?? []).contains($0) && result.also[$0] == nil }
         result.checked = fetched
         return result
     }
@@ -101,13 +108,17 @@ public struct PersonChanges: Sendable {
     public var new: [PendingKey] = []
     /// そのアカウントから消えた鍵のフィンガープリント。
     public var gone: [String] = []
+    /// ファイルなどから受け入れた鍵のうち、アカウントにもあるもの（フィンガープリントと、見つけたアカウント）。
+    public var also: [String: KeySource] = [:]
+    /// ファイルなどから受け入れた鍵のうち、どのアカウントにもないもの。
+    public var absent: [String] = []
     public var failures: [AccountFailure] = []
     /// 確かめた時刻（RFC 3339）。
     public var checked: String?
 
     public init() {}
 
-    public var isEmpty: Bool { new.isEmpty && gone.isEmpty && failures.isEmpty }
+    public var isEmpty: Bool { new.isEmpty && gone.isEmpty && also.isEmpty && absent.isEmpty && failures.isEmpty }
 }
 
 extension SignerKey {
@@ -126,5 +137,34 @@ extension SignerRecord {
     /// `email` の人が入っている一覧。
     public func lists(of email: String) -> [SignerList] {
         lists.filter { $0.members.contains(email) }
+    }
+}
+
+/// 既存の allowed signers のファイルから読んだ、受け入れ前の行。
+public struct PendingImport: Sendable, Hashable, Identifiable {
+    public let entry: ParsedEntry
+    /// 読んだファイル。
+    public let path: String
+
+    public var id: String { "\(path)#\(entry.line)" }
+
+    public init(entry: ParsedEntry, path: String) {
+        self.entry = entry
+        self.path = path
+    }
+}
+
+extension SkipReason {
+    /// 画面に出す理由（英語。訳は FE）。
+    public var englishDescription: String {
+        switch self {
+        case .pattern: "The principal is a pattern, not one person."
+        case .principal: "The principal is not an email address."
+        case .certAuthority: "cert-authority lines are not handled."
+        case .notForGit: "Its namespaces do not include git."
+        case .key: "The key cannot be read or cannot sign."
+        case .time: "valid-after or valid-before cannot be read."
+        case .syntax: "The line cannot be read."
+        }
     }
 }

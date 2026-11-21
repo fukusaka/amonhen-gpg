@@ -1072,4 +1072,16 @@ func marksAnImportedKeyAsYourOwn() throws {
     let text = try String(contentsOfFile: signersFile(dir: dir, list: "work"), encoding: .utf8)
     #expect(text.contains("bob@example.com namespaces=\"git\" ssh-ed25519 "))
     #expect(!loaded.record.people[0].keys[0].retired)
+
+    // 既存の allowed signers のファイルを読んで取り込む
+    let body = line.split(separator: " ").prefix(2).joined(separator: " ")
+    let parsed = try parseAllowedSigners(text: "carol@example.com valid-after=\"20260101Z\" \(body)\n*@example.com \(body)\n")
+    #expect(parsed.entries.map(\.email) == ["carol@example.com"])
+    #expect(parsed.skipped.map(\.reason) == [.pattern])
+    var imported = try editSignerRecord(record: record, edit: .addPerson(email: "carol@example.com", account: nil))
+    imported = try editSignerRecord(record: imported, edit: .importKey(email: "carol@example.com", entry: parsed.entries[0], path: "/x/allowed_signers"))
+    let carol = try #require(imported.people.first { $0.email == "carol@example.com" }?.keys.first)
+    #expect(carol.checked == .file)
+    #expect(carol.validAfter == "2026-01-01T00:00:00Z")
+    #expect(carol.imported?.line == 1)
 }

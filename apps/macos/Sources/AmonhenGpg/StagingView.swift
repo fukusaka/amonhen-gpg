@@ -153,7 +153,7 @@ struct StagingView: View {
             if model.failure != nil || model.message != nil {
                 ResultBox(text: model.failure ?? model.message ?? "", isFailure: model.failure != nil, note: leftoverNote)
             }
-            if model.keys.isEmpty, signers.pending.isEmpty {
+            if model.keys.isEmpty, signers.pending.isEmpty, signers.imports.isEmpty, signers.skipped.isEmpty {
                 ContentUnavailableView(
                     L("Keys to Accept"), systemImage: "tray",
                     description: Text(L("Keys found on keyservers, through WKD or on GitHub and GitLab, and SSH signing keys fetched for SSH Signers, wait here until you accept them.")))
@@ -174,6 +174,10 @@ struct StagingView: View {
                         if !signers.pending.isEmpty {
                             PendingSshKeys(model: signers, keyring: model.main, notify: notify)
                                 .padding(.top, model.keys.isEmpty ? 0 : 12)
+                        }
+                        if !signers.imports.isEmpty || !signers.skipped.isEmpty {
+                            PendingImportedKeys(model: signers, keyring: model.main, notify: notify)
+                                .padding(.top, 12)
                         }
                     }
                 }

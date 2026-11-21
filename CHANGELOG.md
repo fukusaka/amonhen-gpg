@@ -10,6 +10,7 @@ notes.
 
 - Back up imported SSH keys from their menu (Back Up…). The backup keeps the passphrase protection gpg-agent gave the key, so no passphrase is asked; keys gpg-agent holds without a passphrase are not backed up. Restore it with Add SSH Key… (needs GnuPG 2.5.14 or later).
 - SSH Signers, a new place that keeps git's allowed signers for commits others sign with SSH keys. Add people with their GitHub or GitLab account; their SSH signing keys are fetched with curl and wait in Keys to Accept until you accept each one, as taken from the account or after comparing the fingerprint. Check for Changes fetches them again; retire keys that are gone or no longer trusted, so older commits stay verified. People go into lists, each written as its own allowed signers file to point `gpg.ssh.allowedSignersFile` at; the app never changes git's settings. The record is signed with your own key, and changes made outside the app are reported.
+- Import an existing allowed signers file into SSH Signers (Import Allowed Signers File…). Its lines wait in Keys to Accept to be accepted one by one or all at once into a list, keeping `valid-after` and `valid-before`; lines that cannot be imported are listed with the reason. Check for Changes then compares the imported keys with the person's GitHub or GitLab account.
 
 ### Changed
 
