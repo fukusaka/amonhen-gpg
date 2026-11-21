@@ -15,6 +15,7 @@ mod model;
 mod ownership;
 pub mod process;
 mod revocation;
+mod signers;
 mod ssh;
 mod ssh_backup;
 mod staging;
@@ -33,6 +34,11 @@ pub use model::{
 pub use ownership::{Availability, KeyStatus, Tier};
 pub use revocation::{
     Revocation, RevocationCause, Revocations, SubkeyRevocation, UserIdRevocation, parse_revocations,
+};
+pub use signers::{
+    Account, Checked, FileState, KeySource, LoadedSigners, RECORD_FILE, RecordSignature,
+    SIGNATURE_FILE, SIGNERS_FILE_SUFFIX, Signer, SignerKey, SignerList, SignerRecord, SignersFile,
+    normalize_key, signers_file, ssh_fingerprint,
 };
 pub use ssh::{SshControl, SshKey, SshSupport};
 pub use ssh_backup::SSH_RESTORE_MINIMUM;

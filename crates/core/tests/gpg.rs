@@ -1180,3 +1180,235 @@ fn backs_up_and_restores_ssh_keys() {
         Err(Error::Agent { .. })
     ));
 }
+
+/// SSH の鍵を一時ディレクトリに作り、公開鍵の行と、秘密鍵のファイルを返す。ssh-keygen がなければ `None`。
+fn ssh_key(dir: &Path, name: &str) -> Option<(String, std::path::PathBuf)> {
+    let path = dir.join(name);
+    let ok = command("ssh-keygen")
+        .args(["-q", "-t", "ed25519", "-N", "", "-C", name, "-f"])
+        .arg(&path)
+        .stdout(Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success());
+    ok.then(|| {
+        let line = std::fs::read_to_string(path.with_extension("pub")).unwrap();
+        (line.trim().to_owned(), path)
+    })
+}
+
+#[test]
+fn keeps_allowed_signers() {
+    use amonhen_gpg_core::{
+        Account, Checked, FileState, KeySource, RECORD_FILE, RecordSignature, SIGNATURE_FILE,
+        SignerRecord, signers_file,
+    };
+    let Some(home) = Home::new() else {
+        eprintln!("gpg not found; skipped");
+        return;
+    };
+    let keys = tempfile::tempdir().unwrap();
+    let Some((alice_ssh, alice_secret)) = ssh_key(keys.path(), "alice") else {
+        eprintln!("ssh-keygen not found; skipped");
+        return;
+    };
+    let gpg = Gpg::new().with_homedir(home.path());
+    let me = gpg.generate_key(&alice()).unwrap();
+    let dir = home.path().join("signers");
+
+    // 記録がなければ空
+    let loaded = gpg.load_signers(&dir).unwrap();
+    assert_eq!(loaded.signature, RecordSignature::NoRecord);
+    assert!(loaded.files.is_empty());
+    assert!(loaded.record.people.is_empty());
+
+    let mut record = SignerRecord::new();
+    let account = Account {
+        host: CodeHost::GitHub,
+        user: "alice".into(),
+    };
+    record
+        .add_person("alice@example.com", Some(account))
+        .unwrap();
+    let source = KeySource {
+        host: CodeHost::GitHub,
+        user: "alice".into(),
+        fetched: "2026-11-21T00:00:00Z".into(),
+    };
+    record
+        .accept_key(
+            "alice@example.com",
+            &alice_ssh,
+            Some(source),
+            Checked::Account,
+        )
+        .unwrap();
+    // 同じ鍵をもう一度受け入れると、照らし合わせたほうを残す
+    record
+        .accept_key("alice@example.com", &alice_ssh, None, Checked::Fingerprint)
+        .unwrap();
+    record
+        .accept_key("alice@example.com", &alice_ssh, None, Checked::Account)
+        .unwrap();
+    let key = &record.people[0].keys;
+    assert_eq!(key.len(), 1);
+    assert_eq!(key[0].checked, Checked::Fingerprint);
+    assert!(key[0].fingerprint.starts_with("SHA256:"));
+    assert!(key[0].source.is_some());
+    assert!(!key[0].key.ends_with("alice"), "comment is dropped");
+    assert!(matches!(
+        record.accept_key("nobody@example.com", &alice_ssh, None, Checked::Account),
+        Err(Error::NotFound)
+    ));
+    assert!(matches!(
+        record.accept_key(
+            "alice@example.com",
+            "ssh-ed25519 AAAAnotakeyatallAAAA",
+            None,
+            Checked::Account
+        ),
+        Err(Error::Tool { .. })
+    ));
+
+    // 一覧に入れた人だけを書く
+    record.add_person("bob@example.com", None).unwrap();
+    let (bob_ssh, _) = ssh_key(keys.path(), "bob").unwrap();
+    record
+        .accept_key("bob@example.com", &bob_ssh, None, Checked::Account)
+        .unwrap();
+    record.add_list("work", "Work").unwrap();
+    record.add_member("work", "alice@example.com").unwrap();
+    record.add_list("old", "Old").unwrap();
+    record.add_member("old", "bob@example.com").unwrap();
+    let work = signers_file(&dir, "work");
+
+    gpg.save_signers(&dir, &record, &me).unwrap();
+    let text = std::fs::read_to_string(&work).unwrap();
+    assert!(
+        text.contains("alice@example.com namespaces=\"git\" ssh-ed25519 "),
+        "{text}"
+    );
+    assert!(!text.contains("bob@example.com"), "{text}");
+    // 一覧を除くと、そのファイルも消える
+    record.remove_list("old").unwrap();
+    gpg.save_signers(&dir, &record, &me).unwrap();
+    assert!(!signers_file(&dir, "old").exists());
+    let loaded = gpg.load_signers(&dir).unwrap();
+    assert_eq!(loaded.record, record);
+    assert_eq!(
+        loaded.signature,
+        RecordSignature::Valid { signer: me.clone() }
+    );
+    assert_eq!(loaded.files.len(), 1);
+    assert_eq!(loaded.files[0].list, "work");
+    assert_eq!(loaded.files[0].path, work);
+    assert_eq!(loaded.files[0].state, FileState::Matches);
+    // 一時ファイルを残さない
+    let mut names: Vec<_> = std::fs::read_dir(&dir)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().into_string().unwrap())
+        .collect();
+    names.sort();
+    assert_eq!(names, [RECORD_FILE, SIGNATURE_FILE, "work.allowed_signers"]);
+
+    // git がこのファイルで署名を検証できる（git がなければ飛ばす）
+    let repo = keys.path().join("repo");
+    let git = |args: &[&str]| {
+        command("git")
+            .arg("-C")
+            .arg(&repo)
+            .args(args)
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .output()
+    };
+    std::fs::create_dir(&repo).unwrap();
+    if git(&["init", "-q"]).is_ok_and(|o| o.status.success()) {
+        let config = [
+            ("user.name", "Alice".to_owned()),
+            ("user.email", "alice@example.com".to_owned()),
+            ("gpg.format", "ssh".to_owned()),
+            ("user.signingkey", alice_secret.display().to_string()),
+            ("gpg.ssh.allowedSignersFile", work.display().to_string()),
+        ];
+        for (k, v) in &config {
+            assert!(git(&["config", k, v]).unwrap().status.success());
+        }
+        assert!(
+            git(&["commit", "-q", "-S", "--allow-empty", "-m", "one"])
+                .unwrap()
+                .status
+                .success()
+        );
+        let out = git(&["log", "-1", "--format=%G? %GS"]).unwrap();
+        assert_eq!(
+            String::from_utf8_lossy(&out.stdout).trim(),
+            "G alice@example.com"
+        );
+
+        // 退役させると、それより後の署名は検証しない（git はコミットの時刻で比べる）
+        let fingerprint = record.people[0].keys[0].fingerprint.clone();
+        record
+            .retire_key("alice@example.com", &fingerprint)
+            .unwrap();
+        gpg.save_signers(&dir, &record, &me).unwrap();
+        let text = std::fs::read_to_string(&work).unwrap();
+        assert!(text.contains(",valid-before=\""), "{text}");
+        std::thread::sleep(std::time::Duration::from_secs(2));
+        assert!(
+            git(&["commit", "-q", "-S", "--allow-empty", "-m", "two"])
+                .unwrap()
+                .status
+                .success()
+        );
+        let out = git(&["log", "-2", "--format=%G?"]).unwrap();
+        assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "U\nG");
+    } else {
+        eprintln!("git not found; skipped the git check");
+    }
+
+    // 知らないうちの変更に気づく
+    std::fs::write(&work, "x@example.com ssh-ed25519 AAAA\n").unwrap();
+    assert_eq!(
+        gpg.load_signers(&dir).unwrap().files[0].state,
+        FileState::Differs
+    );
+    let json = std::fs::read_to_string(dir.join(RECORD_FILE)).unwrap();
+    std::fs::write(
+        dir.join(RECORD_FILE),
+        json.replace("alice@example.com", "mallory@example.com"),
+    )
+    .unwrap();
+    assert_eq!(
+        gpg.load_signers(&dir).unwrap().signature,
+        RecordSignature::Invalid
+    );
+    std::fs::remove_file(dir.join(SIGNATURE_FILE)).unwrap();
+    assert_eq!(
+        gpg.load_signers(&dir).unwrap().signature,
+        RecordSignature::Missing
+    );
+
+    // 自分の鍵でない鍵の署名は通さない（他者の鍵として取り込み、秘密鍵を消す）
+    gpg.save_signers(&dir, &record, &me).unwrap();
+    let mut bob = alice();
+    bob.user_id = "Bob <bob@example.com>".into();
+    let bob = gpg.generate_key(&bob).unwrap();
+    gpg.save_signers(&dir, &record, &bob).unwrap();
+    let public = gpg.export_public_keys(&[&bob], false).unwrap();
+    gpg.delete_secret_and_public_key(&bob).unwrap();
+    gpg.import(&public).unwrap();
+    assert_eq!(
+        gpg.load_signers(&dir).unwrap().signature,
+        RecordSignature::Invalid
+    );
+
+    // 壊れた記録と読めない版は読まない
+    std::fs::write(dir.join(RECORD_FILE), "{").unwrap();
+    assert!(matches!(gpg.load_signers(&dir), Err(Error::Parse { .. })));
+    std::fs::write(dir.join(RECORD_FILE), r#"{"version":2,"people":[]}"#).unwrap();
+    assert!(matches!(gpg.load_signers(&dir), Err(Error::Parse { .. })));
+    // 書けない署名者なら、どのファイルも変えない
+    let before = std::fs::read(dir.join(RECORD_FILE)).unwrap();
+    assert!(gpg.save_signers(&dir, &record, &bob).is_err());
+    assert_eq!(std::fs::read(dir.join(RECORD_FILE)).unwrap(), before);
+}
