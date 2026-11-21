@@ -378,6 +378,8 @@ impl AskpassState {
             let path = path.to_owned();
             move |source| Error::Io { path, source }
         };
+        // mode を付けるのは Unix だけ
+        #[cfg_attr(not(unix), allow(unused_mut))]
         let mut builder = std::fs::DirBuilder::new();
         #[cfg(unix)]
         {

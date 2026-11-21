@@ -9,11 +9,14 @@
 //! ままで、包みは受け渡しのためだけのもの。包みを開き・包み直すため、ここだけは gpg-agent のソケットに直接話す
 //! （gpg-connect-agent は出力を溜めるので、同じセッションの中で応答を読んでから次を送れない）。
 
+#[cfg(unix)]
 use std::io::{BufRead, BufReader, Write};
+#[cfg(unix)]
 use std::path::PathBuf;
 
 use aes_kw::{KeyInit, KwAes128};
 
+#[cfg(unix)]
 use crate::gpg::percent_decode;
 use crate::ssh::check_keygrip;
 use crate::{Error, Gpg, Result, Version};
@@ -191,6 +194,7 @@ struct Assuan {
 }
 
 /// 応答の終わり。
+#[cfg(unix)]
 enum End {
     Ok,
     Inquire(String),
@@ -339,6 +343,7 @@ impl Assuan {
 }
 
 /// Assuan のエスケープ（`%XX`）を解いて足す。
+#[cfg(any(unix, test))]
 fn unescape_into(bytes: &[u8], out: &mut Vec<u8>) {
     let mut i = 0;
     while i < bytes.len() {

@@ -233,10 +233,18 @@ fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
     era * 146_097 + doe - 719_468
 }
 
-/// この時刻帯での時刻を UNIX 時刻にする（夏時間も含めて mktime に任せる）。
-#[cfg(unix)]
+/// この時刻帯での時刻を UNIX 時刻にする（夏時間も含めて、C ランタイムの mktime に任せる）。
+#[cfg(any(unix, windows))]
 #[allow(unsafe_code)]
 fn local_to_epoch(y: i64, m: i64, d: i64, h: i64, mi: i64, s: i64) -> Option<i64> {
+    // Windows の libc クレートは mktime を出していないので、UCRT の _mktime64 を宣言する
+    #[cfg(windows)]
+    unsafe extern "C" {
+        #[link_name = "_mktime64"]
+        fn mktime(tm: *mut libc::tm) -> i64;
+    }
+    #[cfg(unix)]
+    use libc::mktime;
     // SAFETY: ゼロ埋めの tm に値を入れて mktime に渡すだけ。mktime は渡した tm だけを書き換える。
     unsafe {
         let mut tm: libc::tm = std::mem::zeroed();
@@ -247,13 +255,14 @@ fn local_to_epoch(y: i64, m: i64, d: i64, h: i64, mi: i64, s: i64) -> Option<i64
         tm.tm_min = mi as i32;
         tm.tm_sec = s as i32;
         tm.tm_isdst = -1;
-        let t = libc::mktime(&mut tm);
+        let t = mktime(&mut tm);
+        #[allow(clippy::unnecessary_cast)]
         (t != -1).then_some(t as i64)
     }
 }
 
-/// Unix 以外では、時刻帯を確かめる道をまだ作っていない（`Z` の付いた時刻だけを読む）。
-#[cfg(not(unix))]
+/// ほかの OS では、時刻帯を確かめる道を作っていない（`Z` の付いた時刻だけを読む）。
+#[cfg(not(any(unix, windows)))]
 fn local_to_epoch(_: i64, _: i64, _: i64, _: i64, _: i64, _: i64) -> Option<i64> {
     None
 }
@@ -334,6 +343,10 @@ mod tests {
         // 時刻帯のない時刻は、この時刻帯で読む（どの時刻帯でも 1 日以内にずれる）
         let local = parse_time("20261121").unwrap();
         assert!(local.starts_with("2026-11-2"), "{local}");
+        // この時刻帯の 0 時と UTC の 0 時の差は、時刻帯のずれ（±14 時間以内、15 分の倍数）
+        let utc = days_from_civil(2026, 11, 21) * 86_400;
+        let offset = utc - local_to_epoch(2026, 11, 21, 0, 0, 0).unwrap();
+        assert!(offset.abs() <= 14 * 3600 && offset % 900 == 0, "{offset}");
         assert_eq!(days_from_civil(1970, 1, 1), 0);
         assert_eq!(days_from_civil(2026, 11, 21) * 86_400, 1_795_219_200);
     }

@@ -7,8 +7,8 @@
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::Stdio;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::process::{Child, Output, Stdio};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
@@ -646,11 +646,72 @@ pub fn normalize_key(line: &str) -> Result<String> {
     if !TYPES.contains(&kind) {
         return Err(invalid("key", &format!("unsupported key type `{kind}`")));
     }
-    let base64 = |c: char| c.is_ascii_alphanumeric() || "+/=".contains(c);
-    if body.len() < 16 || !body.chars().all(base64) {
+    let blob = decode_base64(body).ok_or_else(|| invalid("key", "not an SSH public key"))?;
+    if !well_framed(kind, &blob) {
         return Err(invalid("key", "not an SSH public key"));
     }
     Ok(format!("{kind} {body}"))
+}
+
+/// 鍵の本体（SSH の形の欄の列）が、種類どおりの数の欄で、余りなく読めるか。先頭の欄は種類と同じ。暗号としての正しさ
+/// は見ない（ssh-keygen に任せる）。ssh-keygen は公開鍵として読めないものを秘密鍵として読み直し、パスフレーズを
+/// 聞こうとする。Windows ではそれがコンソールで入力を待ち、終わらないので、渡す前に形だけ確かめる。
+fn well_framed(kind: &str, blob: &[u8]) -> bool {
+    let fields = match kind {
+        "ssh-ed25519" => 2,
+        "ssh-rsa" | "sk-ssh-ed25519@openssh.com" => 3,
+        "sk-ecdsa-sha2-nistp256@openssh.com" => 4,
+        _ if kind.starts_with("ecdsa-sha2-") => 3,
+        _ => return false,
+    };
+    let mut rest = blob;
+    for i in 0..fields {
+        let Some((len, tail)) = rest.split_first_chunk::<4>() else {
+            return false;
+        };
+        let len = u32::from_be_bytes(*len) as usize;
+        if len == 0 || tail.len() < len {
+            return false;
+        }
+        let (field, tail) = tail.split_at(len);
+        if i == 0 && field != kind.as_bytes() {
+            return false;
+        }
+        rest = tail;
+    }
+    rest.is_empty()
+}
+
+/// 標準の base64（埋め草つき）を解く。読めなければ `None`。
+fn decode_base64(text: &str) -> Option<Vec<u8>> {
+    let text = text.as_bytes();
+    if text.is_empty() || !text.len().is_multiple_of(4) {
+        return None;
+    }
+    let value = |c: u8| match c {
+        b'A'..=b'Z' => Some(c - b'A'),
+        b'a'..=b'z' => Some(c - b'a' + 26),
+        b'0'..=b'9' => Some(c - b'0' + 52),
+        b'+' => Some(62),
+        b'/' => Some(63),
+        _ => None,
+    };
+    let pad = text.iter().rev().take_while(|&&c| c == b'=').count();
+    if pad > 2 {
+        return None;
+    }
+    let mut out = Vec::with_capacity(text.len() / 4 * 3);
+    for (n, chunk) in text.chunks(4).enumerate() {
+        let last = n == text.len() / 4 - 1;
+        let mut acc = 0u32;
+        for (i, &c) in chunk.iter().enumerate() {
+            let v = if last && i >= 4 - pad { 0 } else { value(c)? };
+            acc = acc << 6 | u32::from(v);
+        }
+        let bytes = acc.to_be_bytes();
+        out.extend_from_slice(&bytes[1..if last { 4 - pad } else { 4 }]);
+    }
+    Some(out)
 }
 
 /// 公開鍵の SHA256 のフィンガープリント（`SHA256:...`）を ssh-keygen で求める。鍵として読めなければ誤り。
@@ -675,7 +736,14 @@ pub fn ssh_fingerprint(key: &str) -> Result<String> {
             .write_all(format!("{key}\n").as_bytes())
             .map_err(spawn_error)?;
     }
-    let out = child.wait_with_output().map_err(spawn_error)?;
+    let out = wait_with_timeout(child, KEYGEN_TIMEOUT).map_err(spawn_error)?;
+    let Some(out) = out else {
+        return Err(Error::Tool {
+            program,
+            code: None,
+            stderr: "timed out".into(),
+        });
+    };
     let stdout = String::from_utf8_lossy(&out.stdout);
     match stdout.split_ascii_whitespace().nth(1) {
         Some(f) if out.status.success() && f.starts_with("SHA256:") => Ok(f.to_owned()),
@@ -685,6 +753,23 @@ pub fn ssh_fingerprint(key: &str) -> Result<String> {
             stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
         }),
     }
+}
+
+/// ssh-keygen を待つ上限。鍵 1 つのフィンガープリントはすぐ終わる。
+const KEYGEN_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// 子の終わりを `limit` まで待って出力を返す。過ぎたら子を止めて `None`。出力は小さい（パイプは詰まらない）前提。
+fn wait_with_timeout(mut child: Child, limit: Duration) -> std::io::Result<Option<Output>> {
+    let start = Instant::now();
+    while child.try_wait()?.is_none() {
+        if start.elapsed() >= limit {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Ok(None);
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    child.wait_with_output().map(Some)
 }
 
 /// allowed signers の principal にするメールアドレス。空白・カンマ・引用符・`*`・`?`（パターンになる）を含まない。
@@ -836,8 +921,25 @@ mod tests {
             "ssh-dss AAAAB3NzaC1kc3MAAACBAP",
             "ssh-ed25519 not\"base64\"atall",
             "ssh-ed25519 AAAA",
+            // Windows の ssh-keygen が止まった鍵: base64 だが鍵の形ではない
+            "ssh-ed25519 AAAAbrokenbrokenbrokenAAAA",
+            // 種類が行と違う
+            "ssh-rsa AAAAC3NzaC1lZDI1NTE5AAAAIO9vaIjchjlw1Meq/+2WNnjXNbJMV6vLwmwhn4OE4LZZ",
+            // 欄が足りない・余る
+            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5",
+            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIO9vaIjchjlw1Meq/+2WNnjXNbJMV6vLwmwhn4OE4LZZAA==",
         ] {
             assert!(normalize_key(bad).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn decodes_base64() {
+        assert_eq!(decode_base64("aGVsbG8=").unwrap(), b"hello");
+        assert_eq!(decode_base64("aGk=").unwrap(), b"hi");
+        assert_eq!(decode_base64("aGV5").unwrap(), b"hey");
+        for bad in ["", "aGk", "a===", "aG=k", "aGk!"] {
+            assert!(decode_base64(bad).is_none(), "{bad}");
         }
     }
 
