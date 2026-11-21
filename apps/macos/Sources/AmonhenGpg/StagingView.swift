@@ -126,6 +126,9 @@ final class StagingModel {
 /// 一時保管（docs/ui.md）。鍵サーバー・WKD・GitHub・GitLab で探した鍵、ファイルで受け取った鍵を、確かめてから取り込むか捨てる。
 struct StagingView: View {
     let model: StagingModel
+    /// SSH の署名者のために取ってきた、受け入れ前の SSH の鍵。
+    let signers: SignersModel
+    var notify: (Notice) -> Void = { _ in }
     @State private var text = ""
 
     var body: some View {
@@ -150,14 +153,16 @@ struct StagingView: View {
             if model.failure != nil || model.message != nil {
                 ResultBox(text: model.failure ?? model.message ?? "", isFailure: model.failure != nil, note: leftoverNote)
             }
-            if model.keys.isEmpty {
+            if model.keys.isEmpty, signers.pending.isEmpty {
                 ContentUnavailableView(
                     L("Keys to Accept"), systemImage: "tray",
-                    description: Text(L("Keys found on keyservers or through WKD will be kept here until you import them.")))
+                    description: Text(L("Keys found on keyservers, through WKD or on GitHub and GitLab, and SSH signing keys fetched for SSH Signers, wait here until you accept them.")))
             } else {
-                Text(L("Keys to accept (%ld)", model.keys.count)).font(.headline)
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 12) {
+                        if !model.keys.isEmpty {
+                            Text(L("Keys to accept (%ld)", model.keys.count)).font(.headline)
+                        }
                         ForEach(model.keys, id: \.fingerprint) { key in
                             StagedKeyRow(key: key, isNew: model.lastFound.contains(key.fingerprint), working: model.working) {
                                 Task { await model.importKey(key) }
@@ -165,6 +170,10 @@ struct StagingView: View {
                                 Task { await model.discard(key) }
                             }
                             Divider()
+                        }
+                        if !signers.pending.isEmpty {
+                            PendingSshKeys(model: signers, keyring: model.main, notify: notify)
+                                .padding(.top, model.keys.isEmpty ? 0 : 12)
                         }
                     }
                 }

@@ -7,7 +7,7 @@ import SwiftUI
 /// - `--homedir <dir>`: 鍵の置き場所（既定は `GNUPGHOME` か `~/.gnupg`）
 /// - `--snapshot <file.png>`: 窓を開いて、その窓を画像に撮って終わる（見た目の確認用。使えた鍵は開いておく。初めは
 ///   起動したアプリに「画面収録」の許可が要る）
-/// - `--place mine|others|staging`: 開く場所（撮らずに開くときも効く）
+/// - `--place mine|others|staging|signers`: 開く場所（撮らずに開くときも効く）
 /// - `--sheet extend|create|revoke|certify|details|detailnames|detailkeys|detailsignatures|otherdetails|delete|userids`: 一覧の代わりに、シートの中身を撮る（最初の自分の鍵で）
 /// - `--appearance light|dark`: 見た目を決める（既定はシステムの設定）
 /// - `--search <text>`: 一覧の検索欄にこの語を入れておく（撮らずに開くときも効く）
@@ -61,6 +61,8 @@ if let keyserver = options.keyserver {
 let model = KeyringModel(program: GpgProgram.resolve(option: options.gpg), homedir: options.homedir)
 /// 一時保管は起動ごとに一時ディレクトリに作り、終わるときに捨てる。落ちて残った前の一時保管は、起動したときに捨てる。
 let staging = StagingModel(main: model, dir: Staging.directory(in: FileManager.default.temporaryDirectory))
+/// SSH の署名者の記録とファイル（~/Library/Application Support/Amonhen GPG）。
+let signers = SignersModel()
 
 struct GpgApp: App {
     @NSApplicationDelegateAdaptor var delegate: AppDelegate
@@ -71,11 +73,11 @@ struct GpgApp: App {
                 SheetPreview(model: model, kind: sheet)
             } else if options.snapshot != nil {
                 // 鍵束は起動する前に読んである
-                ContentView(model: model, staging: staging, place: options.place, query: options.search ?? "", showsHistory: true)
+                ContentView(model: model, staging: staging, signers: signers, place: options.place, query: options.search ?? "", showsHistory: true)
                     .frame(minWidth: 720, minHeight: 420)
             } else {
                 // --place・--search は撮らずに開くときも効く（別の Mac で画面を操作して確かめるため）
-                ContentView(model: model, staging: staging, place: options.place, query: options.search ?? "")
+                ContentView(model: model, staging: staging, signers: signers, place: options.place, query: options.search ?? "")
                     .frame(minWidth: 720, minHeight: 420)
                     .task { await model.reload() }
             }

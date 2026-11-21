@@ -25,7 +25,10 @@ and log in with, and where (this Mac or a smart card), and warns before a key ex
   user wait in Keys to Accept until you import them.
 - **SSH** — Use an authentication subkey for SSH through gpg-agent, turn SSH support on, add existing SSH keys and copy
   the public key for `authorized_keys`.
-- **A pure front end** — GnuPG does all the cryptography. Passphrases go to pinentry and never through the app.
+- **SSH Signers** — Keep git's allowed signers for commits others sign with SSH keys: follow people's GitHub or GitLab
+  accounts, accept each signing key after checking it, retire old ones, and write one file per team or repository.
+  The record is signed with your own key.
+- **A pure front end** — GnuPG and curl do all the cryptography. Passphrases go to pinentry and never through the app.
 
 > [!WARNING]
 > This is a work in progress. Features may change without notice, and it comes with no warranty. Keep backups of your
@@ -50,7 +53,7 @@ a download, see [Installation](docs/install.md).
 - [Architecture](docs/architecture.md): the Rust core, the bindings and how gpg is driven
 - [Survey of GPG GUIs](docs/gpg-gui-survey.md)
 - [SSH keys, host keys and git signers](docs/ssh-trust.md): design memo; decided to handle git's allowed signers
-- [git's allowed signers](docs/allowed-signers.md): design, not built yet
+- [git's allowed signers](docs/allowed-signers.md): design of SSH Signers
 - [Development](docs/development.md): building, testing and checking the screens
 
 ## License

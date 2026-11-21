@@ -2,15 +2,16 @@ import AmonhenGpgKit
 import AppKit
 import SwiftUI
 
-/// 画面の 3 つの場所（docs/ui.md）。
+/// 画面の場所（docs/ui.md）。SSH の署名者（git の allowed signers）は docs/allowed-signers.md。
 enum Place: String, Hashable, CaseIterable {
-    case mine, others, staging
+    case mine, others, staging, signers
 
     var title: String {
         switch self {
         case .mine: L("My Keys")
         case .others: L("Others' Keys")
         case .staging: L("Keys to Accept")
+        case .signers: L("SSH Signers")
         }
     }
 
@@ -19,6 +20,7 @@ enum Place: String, Hashable, CaseIterable {
         case .mine: "key.fill"
         case .others: "person.2"
         case .staging: "tray"
+        case .signers: "signature"
         }
     }
 }
@@ -26,6 +28,7 @@ enum Place: String, Hashable, CaseIterable {
 struct ContentView: View {
     let model: KeyringModel
     let staging: StagingModel
+    let signers: SignersModel
     @State var place: Place = .mine
     /// 一覧の検索の語（自分の鍵と他者の鍵。一時保管には鍵サーバーを探す欄が別にあるので使わない）。
     @State var query = ""
@@ -91,7 +94,8 @@ struct ContentView: View {
                             model: model, query: query, filter: othersFilter, importKeys: importKeys, notify: { notice = $0 },
                             showAll: { othersFilter = .all })
                             .searchable(text: $query, placement: .toolbar, prompt: L("Name, email or fingerprint"))
-                    case .staging: StagingView(model: staging)
+                    case .staging: StagingView(model: staging, signers: signers, notify: { notice = $0 })
+                    case .signers: SignersView(model: signers, keyring: model, notify: { notice = $0 }, showKeysToAccept: { place = .staging })
                     }
                 }
             }
@@ -124,14 +128,17 @@ struct ContentView: View {
                     }
                     .help(othersFilter == .all ? L("Filter") : othersFilter.title)
                 }
-                if place != .staging {
+                if place == .mine || place == .others {
                     Button(action: importKeys) {
                         Label(L("Import…"), systemImage: "square.and.arrow.down")
                     }
                     .help(L("Import…"))
                 }
                 Button {
-                    Task { await model.reload() }
+                    Task {
+                        await model.reload()
+                        if place == .signers { await signers.reload(model.gpg) }
+                    }
                 } label: {
                     Label(L("Reload"), systemImage: "arrow.clockwise")
                 }
@@ -251,6 +258,7 @@ struct ContentView: View {
         case .mine: model.keyring.usable.count + model.keyring.notOnThisDevice.count + model.keyring.history.count
         case .others: model.keyring.others.count
         case .staging: 0
+        case .signers: signers.record.people.count
         }
     }
 
