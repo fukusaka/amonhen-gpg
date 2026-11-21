@@ -1022,3 +1022,54 @@ func marksAnImportedKeyAsYourOwn() throws {
         request: GenerateKey(userId: "Alice <alice@example.com>", algorithm: nil, capabilities: nil, expires: .never))
     #expect(try ring().own(mine)?.isMineByTrustOnly == false)
 }
+
+@Test func makesSignerListIdsAndGitCommands() {
+    #expect(Signers.listId(for: "Work", existing: []) == "work")
+    #expect(Signers.listId(for: "  My Team / OSS ", existing: []) == "my-team-oss")
+    #expect(Signers.listId(for: "仕事", existing: []) == "list")
+    #expect(Signers.listId(for: "Work", existing: ["work", "work-2"]) == "work-3")
+    #expect(Signers.shellQuoted("/a b/it's") == "'/a b/it'\\''s'")
+    #expect(Signers.globalCommand(path: "/x y/work.allowed_signers")
+        == "git config --global gpg.ssh.allowedSignersFile '/x y/work.allowed_signers'")
+    #expect(Signers.repositoryCommand(path: "/w.allowed_signers") == "git config gpg.ssh.allowedSignersFile '/w.allowed_signers'")
+    #expect(Signers.defaultDirectory().path.hasSuffix("Library/Application Support/Amonhen GPG"))
+    #expect(Signers.date(Signers.now()) != nil)
+    #expect(Account(host: .gitLab, user: "bob").display == "gitlab.com/bob")
+}
+
+/// 記録を変えて署名して保存し、読み直す（コアの結合テストの、FFI を通した版）。
+@Test func keepsSignersThroughTheBinding() throws {
+    let home = try TemporaryKeyring()
+    let me = try home.gpg.generateKey(request: GenerateKey(
+        userId: "Alice <alice@example.com>", algorithm: "ed25519",
+        capabilities: Capabilities(certify: true, sign: true, encrypt: false, authenticate: false), expires: .never))
+    let dir = home.dir.appendingPathComponent("signers").path
+    let sshDir = home.dir.appendingPathComponent("ssh")
+    try FileManager.default.createDirectory(at: sshDir, withIntermediateDirectories: true)
+    let keygen = Process()
+    keygen.executableURL = URL(fileURLWithPath: "/usr/bin/ssh-keygen")
+    keygen.arguments = ["-q", "-t", "ed25519", "-N", "", "-C", "bob", "-f", sshDir.appendingPathComponent("bob").path]
+    try keygen.run()
+    keygen.waitUntilExit()
+    let line = try String(contentsOf: sshDir.appendingPathComponent("bob.pub"), encoding: .utf8)
+
+    #expect(try home.gpg.loadSigners(dir: dir).signature == .noRecord)
+    var record = newSignerRecord()
+    for edit: SignerEdit in [
+        .addPerson(email: "bob@example.com", account: Account(host: .gitHub, user: "bob")),
+        .acceptKey(email: "bob@example.com", key: line, source: nil, checked: .fingerprint),
+        .addList(id: "work", name: "Work"),
+        .addMember(list: "work", email: "bob@example.com"),
+    ] {
+        record = try editSignerRecord(record: record, edit: edit)
+    }
+    #expect(throws: GpgError.self) { try editSignerRecord(record: record, edit: .addList(id: "Bad Id", name: "x")) }
+    try home.gpg.saveSigners(dir: dir, record: record, signer: me)
+    let loaded = try home.gpg.loadSigners(dir: dir)
+    #expect(loaded.signature == .valid(signer: me))
+    #expect(loaded.files.map(\.state) == [.matches])
+    #expect(loaded.record.lists(of: "bob@example.com").map(\.id) == ["work"])
+    let text = try String(contentsOfFile: signersFile(dir: dir, list: "work"), encoding: .utf8)
+    #expect(text.contains("bob@example.com namespaces=\"git\" ssh-ed25519 "))
+    #expect(!loaded.record.people[0].keys[0].retired)
+}

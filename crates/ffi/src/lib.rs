@@ -11,10 +11,12 @@ use std::sync::Arc;
 
 use amonhen_gpg_core::status::Failure;
 use amonhen_gpg_core::{
-    Availability, Capabilities, Card, Certification, CodeHost, Expiry, GenerateKey, ImportResult,
-    ImportedKey, Key, KeyOrigin, KeyStatus, OwnerTrust, Revocation, RevocationCause,
-    RevocationReason, Revocations, SecretState, SignatureCheck, SshControl, SshKey, SshSupport,
-    Subkey, SubkeyRevocation, Tier, UserId, UserIdRevocation, Validity, Version,
+    Account, Availability, Capabilities, Card, Certification, Checked, CodeHost, Expiry,
+    FetchedKey, FileState, GenerateKey, ImportResult, ImportedKey, Key, KeyOrigin, KeySource,
+    KeyStatus, LoadedSigners, OwnerTrust, RecordSignature, Revocation, RevocationCause,
+    RevocationReason, Revocations, SecretState, SignatureCheck, Signer, SignerChanges, SignerKey,
+    SignerList, SignerRecord, SignersFile, SshControl, SshKey, SshSupport, Subkey,
+    SubkeyRevocation, Tier, UserId, UserIdRevocation, Validity, Version,
 };
 
 uniffi::setup_scaffolding!();
@@ -53,6 +55,195 @@ pub struct Key {
 pub enum CodeHost {
     GitHub,
     GitLab,
+}
+
+// git の allowed signers（docs/allowed-signers.md）
+
+#[uniffi::remote(Record)]
+pub struct SignerRecord {
+    pub version: u32,
+    pub people: Vec<Signer>,
+    pub lists: Vec<SignerList>,
+}
+
+#[uniffi::remote(Record)]
+pub struct Signer {
+    pub email: String,
+    pub accounts: Vec<Account>,
+    pub keys: Vec<SignerKey>,
+}
+
+#[uniffi::remote(Record)]
+pub struct Account {
+    pub host: CodeHost,
+    pub user: String,
+}
+
+#[uniffi::remote(Record)]
+pub struct SignerKey {
+    pub key: String,
+    pub fingerprint: String,
+    pub source: Option<KeySource>,
+    pub checked: Checked,
+    pub accepted: String,
+    pub valid_before: Option<String>,
+}
+
+#[uniffi::remote(Record)]
+pub struct KeySource {
+    pub host: CodeHost,
+    pub user: String,
+    pub fetched: String,
+}
+
+#[uniffi::remote(Enum)]
+pub enum Checked {
+    Account,
+    Fingerprint,
+}
+
+#[uniffi::remote(Record)]
+pub struct SignerList {
+    pub id: String,
+    pub name: String,
+    pub members: Vec<String>,
+}
+
+#[uniffi::remote(Enum)]
+pub enum RecordSignature {
+    NoRecord,
+    Valid { signer: String },
+    Missing,
+    Invalid,
+}
+
+#[uniffi::remote(Enum)]
+pub enum FileState {
+    Matches,
+    Missing,
+    Differs,
+}
+
+#[uniffi::remote(Record)]
+pub struct SignersFile {
+    pub list: String,
+    pub path: PathBuf,
+    pub state: FileState,
+}
+
+#[uniffi::remote(Record)]
+pub struct LoadedSigners {
+    pub record: SignerRecord,
+    pub signature: RecordSignature,
+    pub files: Vec<SignersFile>,
+}
+
+#[uniffi::remote(Record)]
+pub struct FetchedKey {
+    pub key: String,
+    pub fingerprint: String,
+    pub title: Option<String>,
+}
+
+#[uniffi::remote(Record)]
+pub struct SignerChanges {
+    pub new: Vec<FetchedKey>,
+    pub gone: Vec<String>,
+}
+
+/// 記録を変える操作。記録は値として渡し、変えたものを返す（FE は保存するまで手元に持つ）。
+#[derive(uniffi::Enum)]
+pub enum SignerEdit {
+    AddPerson {
+        email: String,
+        account: Option<Account>,
+    },
+    RemovePerson {
+        email: String,
+    },
+    AcceptKey {
+        email: String,
+        key: String,
+        source: Option<KeySource>,
+        checked: Checked,
+    },
+    RetireKey {
+        email: String,
+        fingerprint: String,
+    },
+    RemoveKey {
+        email: String,
+        fingerprint: String,
+    },
+    AddList {
+        id: String,
+        name: String,
+    },
+    RenameList {
+        id: String,
+        name: String,
+    },
+    RemoveList {
+        id: String,
+    },
+    AddMember {
+        list: String,
+        email: String,
+    },
+    RemoveMember {
+        list: String,
+        email: String,
+    },
+}
+
+#[uniffi::export]
+pub fn new_signer_record() -> SignerRecord {
+    SignerRecord::new()
+}
+
+#[uniffi::export]
+pub fn edit_signer_record(mut record: SignerRecord, edit: SignerEdit) -> Result<SignerRecord> {
+    match edit {
+        SignerEdit::AddPerson { email, account } => record.add_person(&email, account)?,
+        SignerEdit::RemovePerson { email } => record.remove_person(&email)?,
+        SignerEdit::AcceptKey {
+            email,
+            key,
+            source,
+            checked,
+        } => record.accept_key(&email, &key, source, checked)?,
+        SignerEdit::RetireKey { email, fingerprint } => record.retire_key(&email, &fingerprint)?,
+        SignerEdit::RemoveKey { email, fingerprint } => record.remove_key(&email, &fingerprint)?,
+        SignerEdit::AddList { id, name } => record.add_list(&id, &name)?,
+        SignerEdit::RenameList { id, name } => record.rename_list(&id, &name)?,
+        SignerEdit::RemoveList { id } => record.remove_list(&id)?,
+        SignerEdit::AddMember { list, email } => record.add_member(&list, &email)?,
+        SignerEdit::RemoveMember { list, email } => record.remove_member(&list, &email)?,
+    }
+    Ok(record)
+}
+
+/// 一覧の allowed signers のファイルの場所。
+#[uniffi::export]
+pub fn signers_file(dir: PathBuf, list: String) -> PathBuf {
+    amonhen_gpg_core::signers_file(&dir, &list)
+}
+
+/// `host` の利用者の SSH の署名用の鍵を取ってくる（curl。時間がかかる）。
+#[uniffi::export]
+pub fn fetch_signing_keys(host: CodeHost, user: String) -> Result<Vec<FetchedKey>> {
+    Ok(amonhen_gpg_core::fetch_signing_keys(host, &user)?)
+}
+
+#[uniffi::export]
+pub fn signer_changes(
+    record: &SignerRecord,
+    email: String,
+    host: CodeHost,
+    user: String,
+    fetched: Vec<FetchedKey>,
+) -> Result<SignerChanges> {
+    Ok(record.changes(&email, host, &user, &fetched)?)
 }
 
 #[uniffi::remote(Enum)]
@@ -720,5 +911,15 @@ impl Gpg {
     /// バックアップを gpg-agent に戻して SSH に出し、keygrip を返す（gpg 2.5.14 から）。
     pub fn import_ssh_key_backup(&self, backup: Vec<u8>) -> Result<String> {
         Ok(self.inner.import_ssh_key_backup(&backup)?)
+    }
+
+    // git の allowed signers
+
+    pub fn load_signers(&self, dir: PathBuf) -> Result<LoadedSigners> {
+        Ok(self.inner.load_signers(&dir)?)
+    }
+
+    pub fn save_signers(&self, dir: PathBuf, record: SignerRecord, signer: String) -> Result<()> {
+        Ok(self.inner.save_signers(&dir, &record, &signer)?)
     }
 }

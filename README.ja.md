@@ -24,7 +24,10 @@
   「受け入れ前の鍵」に置きます。
 - **SSH** — 認証用のサブ鍵を gpg-agent 経由で SSH に使う。SSH サポートを有効にする。既存の SSH の鍵を取り込む。
   `authorized_keys` に書く公開鍵をコピーする。
-- **純粋なフロントエンド** — 暗号の処理はすべて GnuPG が行います。パスフレーズは pinentry が聞き、アプリは触れません。
+- **SSH の署名者** — 他の人が SSH の鍵で署名したコミットのための、git の allowed signers を保つ。GitHub・GitLab の
+  アカウントを追い、署名用の鍵を確かめてから受け入れ、古い鍵は退役させ、チームやリポジトリごとにファイルを書く。
+  記録は自分の鍵で署名します。
+- **純粋なフロントエンド** — 暗号の処理はすべて GnuPG と curl が行います。パスフレーズは pinentry が聞き、アプリは触れません。
 
 > [!WARNING]
 > 開発の途中です。機能は予告なく変わることがあります。保証はありません。秘密鍵のバックアップは取っておいてください。
@@ -48,7 +51,7 @@ curl -fsSL https://raw.githubusercontent.com/fukusaka/amonhen-gpg/main/scripts/i
 - [アーキテクチャ](docs/ja/architecture.md): Rust のコア、バインディング、gpg の動かし方
 - [GPG の GUI の調査](docs/ja/gpg-gui-survey.md)
 - [SSH の鍵・ホストの鍵・git の署名者](docs/ja/ssh-trust.md): 設計のメモ（git の allowed signers を扱うと決めた）
-- [git の allowed signers](docs/ja/allowed-signers.md): 設計（まだ作っていない）
+- [git の allowed signers](docs/ja/allowed-signers.md): SSH の署名者の設計
 - [開発](docs/ja/development.md): ビルド、テスト、画面の確かめ方
 
 ## ライセンス

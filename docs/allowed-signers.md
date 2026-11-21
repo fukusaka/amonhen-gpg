@@ -3,7 +3,7 @@
 [日本語](ja/allowed-signers.md)
 
 Written on 2026-11-20. Follows [SSH keys, host keys and git signers](ssh-trust.md), which decided to handle git's
-allowed signers in this app. Not built yet.
+allowed signers in this app. Built as the SSH Signers place.
 
 ## Goal
 
@@ -130,8 +130,9 @@ GitHub allows 60 unauthenticated requests per hour, enough for checking a team b
 - **Signing key.** You choose which of your keys signs the record, as when you verify someone's key. A signature by
   any of your own keys (ones gpg trusts ultimately) is accepted, so after replacing your key the record is simply
   signed again with the new one on the next change.
-- **Screen.** A new place, **git Signers**, next to My Keys, Others' Keys and Keys to Accept: lists, people and their keys,
-  how each key was checked, and Check for Changes.
+- **Screen.** A new place, **SSH Signers**, next to My Keys, Others' Keys and Keys to Accept: lists, people and their keys,
+  how each key was checked, and Check for Changes. It is named after SSH because allowed signers cover only
+  SSH-signed commits; git leaves GPG-signed commits to gpg, so their signers are verified in Others' Keys.
 
 ## Open questions
 
