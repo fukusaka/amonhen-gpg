@@ -6,6 +6,12 @@ notes.
 
 ## Unreleased
 
+## [0.4.0] - 2026-11-22
+
+SSH signers for git. Keep the SSH keys others sign commits with as git's allowed signers: fetch them from a GitHub or
+GitLab account, or import an existing allowed signers file, accept each one in Keys to Accept (formerly Staging), and
+write a file per list for `gpg.ssh.allowedSignersFile`. Imported SSH keys can also be backed up.
+
 ### Added
 
 - Back up imported SSH keys from their menu (Back Up…). The backup keeps the passphrase protection gpg-agent gave the key, so no passphrase is asked; keys gpg-agent holds without a passphrase are not backed up. Restore it with Add SSH Key… (needs GnuPG 2.5.14 or later).
