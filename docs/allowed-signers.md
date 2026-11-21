@@ -24,6 +24,8 @@ The file is plain text that anyone with access to your home folder can change, a
 
 - **Follow people.** You add a person as an account on GitHub or GitLab together with the email address they sign
   with. The app fetches that account's SSH signing keys.
+- **Keep lists.** People go into lists, for example one per team or per repository. Each list becomes its own
+  allowed signers file. A person can be in several lists; their keys are kept once.
 - **Compare before accepting.** Fetched keys go to Staging, as GPG keys do. You accept each key, either as fetched
   from the account, or after comparing its fingerprint with the owner.
 - **Check for changes.** On request, the app fetches every followed account again and shows only the difference: new
@@ -43,23 +45,24 @@ never changes git's configuration.
 |---|---|
 | `ssh-signers.json` | The record (below) |
 | `ssh-signers.json.sig` | Detached signature of the record by your own key (`gpg --detach-sign`, through pinentry) |
-| `allowed_signers` | Written from the record, for git to read |
+| `<list>.allowed_signers` | One per list, written from the record, for git to read |
 
-The allowed signers file is written to a temporary file and renamed over the old one, so git never reads half a file.
+Each allowed signers file is written to a temporary file and renamed over the old one, so git never reads half a file.
+Removing a list removes its file.
 It stays a regular file: a named pipe served by the app also works with git (tried with OpenSSH 10.3 and git 2.56,
 two opens per verified commit), but git hangs when nothing serves it.
 
-The app shows the command to point git at the file, and whether git already does:
+git can point at a file for all repositories or for one (tried with git 2.56; a repository's own setting wins, and
+`includeIf` can choose by folder). The app shows the commands for a list's file, and leaves running them to you:
 
 ```sh
-git config --global gpg.ssh.allowedSignersFile "$HOME/Library/Application Support/Amonhen GPG/allowed_signers"
+git config --global gpg.ssh.allowedSignersFile "$HOME/Library/Application Support/Amonhen GPG/work.allowed_signers"
+git -C <repository> config gpg.ssh.allowedSignersFile "$HOME/Library/Application Support/Amonhen GPG/work.allowed_signers"
 ```
-
-If git points somewhere else, the app says so and leaves it.
 
 ### The record
 
-One entry per person, each with their keys. A sketch:
+One entry per person, each with their keys, and the lists naming their members. A sketch:
 
 ```json
 {
@@ -79,12 +82,14 @@ One entry per person, each with their keys. A sketch:
         }
       ]
     }
-  ]
+  ],
+  "lists": [{ "id": "work", "name": "Work", "members": ["alice@example.com"] }]
 }
 ```
 
 - `checked` is `account` (taken from the account as it was) or `fingerprint` (compared with the owner).
 - `valid_before` is set when a key is retired, and is written as `valid-before` in the allowed signers file.
+- A list's `id` names its file (lowercase letters, digits and `-`).
 - Every line of the allowed signers file has `namespaces="git"`.
 - One email address per person is enough. git does not compare the committer's address with the file, so their
   commits verify whichever address they use; the address is only what git shows as the signer (tried with OpenSSH
@@ -115,13 +120,19 @@ GitHub allows 60 unauthenticated requests per hour, enough for checking a team b
 
 ## Not now
 
-- An allowed signers file committed in a repository and shared by a team.
+- An allowed signers file committed in a repository and shared by a team (git reads one by a relative path).
 - `gpg.ssh.revocationFile`, and `cert-authority` lines.
 - Self-hosted GitLab and GitHub Enterprise.
 - known_hosts, and keys held by ssh-agent.
 
+## Decided on 2026-11-21
+
+- **Signing key.** You choose which of your keys signs the record, as when you verify someone's key. A signature by
+  any of your own keys (ones gpg trusts ultimately) is accepted, so after replacing your key the record is simply
+  signed again with the new one on the next change.
+- **Screen.** A new place, **git Signers**, next to My Keys, Others' Keys and Staging: lists, people and their keys,
+  how each key was checked, and Check for Changes.
+
 ## Open questions
 
-- Which of your keys signs the record when you have several, and what happens when that key expires or is replaced.
-- Where the person and their keys appear on screen: next to their GPG key in Others' Keys, or as their own list.
 - The folder on Linux and Windows.
