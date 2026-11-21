@@ -5,7 +5,11 @@ name: CI
 on:
   push:
     branches: [main]
+  # 文書だけを変える PR では流さない。main への push はいつも流す（release.yml がタグのコミットの CI を確かめるため）。
   pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
 
 # 既定では何も許さず、要るものだけをジョブで許す。
 permissions: {}
