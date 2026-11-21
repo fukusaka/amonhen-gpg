@@ -1412,3 +1412,139 @@ fn keeps_allowed_signers() {
     assert!(gpg.save_signers(&dir, &record, &bob).is_err());
     assert_eq!(std::fs::read(dir.join(RECORD_FILE)).unwrap(), before);
 }
+
+/// 決まった応答を返す HTTP サーバー（127.0.0.1 の空いたポート）。`routes` は（パス、状態、本体）。
+fn serve(routes: Vec<(String, u16, String)>) -> String {
+    use std::io::{BufRead, BufReader, Write};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    std::thread::spawn(move || {
+        for stream in listener.incoming() {
+            let Ok(mut stream) = stream else { break };
+            let mut line = String::new();
+            BufReader::new(&stream).read_line(&mut line).unwrap();
+            let path = line.split(' ').nth(1).unwrap_or("").to_owned();
+            let (status, body) = routes
+                .iter()
+                .find(|(p, _, _)| *p == path)
+                .map(|(_, s, b)| (*s, b.clone()))
+                .unwrap_or((404, "{\"message\":\"Not Found\"}".into()));
+            let _ = write!(
+                stream,
+                "HTTP/1.1 {status} X\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+        }
+    });
+    format!("http://{addr}")
+}
+
+#[test]
+fn fetches_ssh_signing_keys() {
+    use amonhen_gpg_core::{Checked, KeySource, SignerRecord, fetch_signing_keys_from};
+    let dir = tempfile::tempdir().unwrap();
+    let (Some((a, _)), Some((b, _)), Some((c, _))) = (
+        ssh_key(dir.path(), "a"),
+        ssh_key(dir.path(), "b"),
+        ssh_key(dir.path(), "c"),
+    ) else {
+        eprintln!("ssh-keygen not found; skipped");
+        return;
+    };
+    let found = command("curl")
+        .arg("--version")
+        .stdout(Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success());
+    if !found {
+        eprintln!("curl not found; skipped");
+        return;
+    }
+    let json = |s: &str| serde_json_escape(s);
+    let api = serve(vec![
+        (
+            "/users/alice/ssh_signing_keys?per_page=100".into(),
+            200,
+            format!(
+                r#"[{{"id":1,"key":"{}","title":"laptop"}},{{"id":2,"key":"{}","title":""}},{{"id":3,"key":"{}"}}]"#,
+                json(&a),
+                json(&b),
+                json(&a)
+            ),
+        ),
+        (
+            "/users/bob/keys?per_page=100".into(),
+            200,
+            format!(
+                r#"[{{"key":"{}","usage_type":"auth"}},{{"key":"{}","usage_type":"signing"}},{{"key":"{}","usage_type":"auth_and_signing"}}]"#,
+                json(&a),
+                json(&b),
+                json(&c)
+            ),
+        ),
+        (
+            "/users/limited/ssh_signing_keys?per_page=100".into(),
+            403,
+            "{\"message\":\"rate limit\"}".into(),
+        ),
+    ]);
+
+    let keys = fetch_signing_keys_from(&api, CodeHost::GitHub, "alice").unwrap();
+    assert_eq!(keys.len(), 2, "duplicates are dropped");
+    assert_eq!(keys[0].title.as_deref(), Some("laptop"));
+    assert_eq!(keys[1].title, None);
+    assert!(!keys[0].key.ends_with(" a"), "comment is dropped");
+    let gitlab = fetch_signing_keys_from(&api, CodeHost::GitLab, "bob").unwrap();
+    assert_eq!(gitlab.len(), 2, "auth-only keys are skipped");
+    assert_eq!(gitlab[0].fingerprint, keys[1].fingerprint);
+    assert!(matches!(
+        fetch_signing_keys_from(&api, CodeHost::GitHub, "ghost"),
+        Err(Error::NotFound)
+    ));
+    match fetch_signing_keys_from(&api, CodeHost::GitHub, "limited") {
+        Err(Error::Tool { stderr, .. }) => assert!(stderr.contains("HTTP 403"), "{stderr}"),
+        other => panic!("{other:?}"),
+    }
+
+    // 記録との差: 受け入れていない鍵は新しく、アカウントから消えた鍵は消えたとする
+    let mut record = SignerRecord::new();
+    record.add_person("alice@example.com", None).unwrap();
+    let source = KeySource {
+        host: CodeHost::GitHub,
+        user: "alice".into(),
+        fetched: "2026-11-21T00:00:00Z".into(),
+    };
+    for key in [&a, &c] {
+        record
+            .accept_key(
+                "alice@example.com",
+                key,
+                Some(source.clone()),
+                Checked::Account,
+            )
+            .unwrap();
+    }
+    let changes = record
+        .changes("alice@example.com", CodeHost::GitHub, "alice", &keys)
+        .unwrap();
+    assert_eq!(changes.new, [keys[1].clone()]);
+    let c_fingerprint = record.people[0].keys[1].fingerprint.clone();
+    assert_eq!(changes.gone, std::slice::from_ref(&c_fingerprint));
+    // 退役させた鍵は消えたとしない。ほかのアカウントの鍵とも比べない
+    record
+        .retire_key("alice@example.com", &c_fingerprint)
+        .unwrap();
+    let changes = record
+        .changes("alice@example.com", CodeHost::GitHub, "alice", &keys)
+        .unwrap();
+    assert!(changes.gone.is_empty());
+    let changes = record
+        .changes("alice@example.com", CodeHost::GitLab, "alice", &[])
+        .unwrap();
+    assert!(changes.gone.is_empty());
+}
+
+/// JSON の文字列の中に入れられる形にする（鍵の行には `"` と `\` は出ないが、念のため）。
+fn serde_json_escape(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('"', "\\\"")
+}

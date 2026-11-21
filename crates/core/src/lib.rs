@@ -15,6 +15,7 @@ mod model;
 mod ownership;
 pub mod process;
 mod revocation;
+mod signer_fetch;
 mod signers;
 mod ssh;
 mod ssh_backup;
@@ -35,6 +36,7 @@ pub use ownership::{Availability, KeyStatus, Tier};
 pub use revocation::{
     Revocation, RevocationCause, Revocations, SubkeyRevocation, UserIdRevocation, parse_revocations,
 };
+pub use signer_fetch::{FetchedKey, SignerChanges, fetch_signing_keys, fetch_signing_keys_from};
 pub use signers::{
     Account, Checked, FileState, KeySource, LoadedSigners, RECORD_FILE, RecordSignature,
     SIGNATURE_FILE, SIGNERS_FILE_SUFFIX, Signer, SignerKey, SignerList, SignerRecord, SignersFile,
