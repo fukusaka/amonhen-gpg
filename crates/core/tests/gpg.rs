@@ -1266,7 +1266,8 @@ fn keeps_allowed_signers() {
             None,
             Checked::Account
         ),
-        Err(Error::Tool { .. })
+        // 鍵の形でないものは ssh-keygen に渡す前に弾く
+        Err(Error::InvalidArgument { .. })
     ));
 
     // 一覧に入れた人だけを書く

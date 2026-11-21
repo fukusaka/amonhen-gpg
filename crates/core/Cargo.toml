@@ -13,7 +13,8 @@ serde = { version = "1.0.229", features = ["derive"] }
 # git の allowed signers の記録（signers）
 serde_json = "1"
 
-[target.'cfg(unix)'.dependencies]
+# Unix: 子のシグナルマスク（process）と mktime。Windows: tm（mktime は C ランタイムの _mktime64 を自分で宣言する）
+[target.'cfg(any(unix, windows))'.dependencies]
 libc = "0.2"
 
 [dev-dependencies]
