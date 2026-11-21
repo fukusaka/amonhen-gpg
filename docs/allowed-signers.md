@@ -26,10 +26,10 @@ The file is plain text that anyone with access to your home folder can change, a
   with. The app fetches that account's SSH signing keys.
 - **Keep lists.** People go into lists, for example one per team or per repository. Each list becomes its own
   allowed signers file. A person can be in several lists; their keys are kept once.
-- **Compare before accepting.** Fetched keys go to Staging, as GPG keys do. You accept each key, either as fetched
+- **Compare before accepting.** Fetched keys go to Keys to Accept, as GPG keys do. You accept each key, either as fetched
   from the account, or after comparing its fingerprint with the owner.
 - **Check for changes.** On request, the app fetches every followed account again and shows only the difference: new
-  keys go to Staging; keys no longer on the account are proposed for retirement with `valid-before` set to that day,
+  keys go to Keys to Accept; keys no longer on the account are proposed for retirement with `valid-before` set to that day,
   so commits signed before stay verified. Nothing is accepted or retired without you.
 - **Keep a signed record.** The record of who each key belongs to and how it was checked is signed with your own GPG
   key. The allowed signers file is written from the record.
@@ -130,7 +130,7 @@ GitHub allows 60 unauthenticated requests per hour, enough for checking a team b
 - **Signing key.** You choose which of your keys signs the record, as when you verify someone's key. A signature by
   any of your own keys (ones gpg trusts ultimately) is accepted, so after replacing your key the record is simply
   signed again with the new one on the next change.
-- **Screen.** A new place, **git Signers**, next to My Keys, Others' Keys and Staging: lists, people and their keys,
+- **Screen.** A new place, **git Signers**, next to My Keys, Others' Keys and Keys to Accept: lists, people and their keys,
   how each key was checked, and Check for Changes.
 
 ## Open questions

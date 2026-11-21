@@ -72,7 +72,7 @@ The app's three places and its rule "compare the fingerprint, then import" fit t
 |---|---|---|
 | My Keys | Your keys, by whether they can be used | Your SSH secret keys: where each one is, whether it is offered to SSH, where its public key is registered |
 | Others' Keys | Keys you verified | People's SSH signing keys with their email address (allowed signers); host keys (known_hosts) |
-| Staging | Keys fetched from a keyserver, WKD, GitHub, GitLab or a file | Host keys from `ssh-keyscan`, compared with `api.github.com/meta` or SSHFP in DNS; people's keys fetched from GitHub or GitLab, compared with their owner |
+| Keys to Accept | Keys fetched from a keyserver, WKD, GitHub, GitLab or a file | Host keys from `ssh-keyscan`, compared with `api.github.com/meta` or SSHFP in DNS; people's keys fetched from GitHub or GitLab, compared with their owner |
 
 ## Options
 
@@ -97,10 +97,10 @@ For a separate front end (option 3):
 For one app (option 2):
 
 - Your own keys are one list. An SSH key held by gpg-agent would otherwise appear in both apps.
-- Staging and fingerprint comparison would be built twice.
+- Keys to Accept and fingerprint comparison would be built twice.
 
 A middle way: design the SSH and git side as its own front end, but share the Rust code (a separate crate in this
-repository, using `amonhen_gpg_core::process::command` and the same staging idea), and read gpg-agent's SSH keys
+repository, using `amonhen_gpg_core::process::command` and the same idea as Keys to Accept), and read gpg-agent's SSH keys
 from this app's core rather than managing them twice. Whether it ships as a second app or as a section of this one
 can then be decided later.
 
@@ -124,7 +124,7 @@ known_hosts left untidy but not a problem, and teammates who sign with SSH keys 
 
 - Option 1 is done.
 - git's allowed signers are handled **in this app** (option 2, limited to allowed signers), because collecting,
-  following and retiring signing keys is the real burden, and it fits Staging and the rule "compare the fingerprint,
+  following and retiring signing keys is the real burden, and it fits Keys to Accept and the rule "compare the fingerprint,
   then import". Design: [allowed-signers.md](allowed-signers.md).
 - What is kept per key is how it was checked (taken from the account, or compared with the owner), not a trust level:
   teammates' keys need no chain of introductions.

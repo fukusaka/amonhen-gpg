@@ -119,7 +119,7 @@ docs/       documents in English; the Japanese versions are in docs/ja/
 
 ## Key management scope (stage 1)
 
-For the screen policy (your own keys are the main focus; other people's keys and staging are in separate places), see [ui.md](ui.md).
+For the screen policy (your own keys are the main focus; other people's keys and Keys to Accept are in separate places), see [ui.md](ui.md).
 
 ### GPG keys
 
