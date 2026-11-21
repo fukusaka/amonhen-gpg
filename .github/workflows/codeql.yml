@@ -6,7 +6,11 @@ name: CodeQL
 on:
   push:
     branches: [main]
+  # 文書だけを変える PR では流さない（main への push では流す）。
   pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
   schedule:
     # 依存や CodeQL の規則が新しくなったときのために、週に 1 回も流す。
     - cron: '23 4 * * 1'

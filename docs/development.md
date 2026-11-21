@@ -66,9 +66,10 @@ swift scripts/make-banner.swift    # docs/images/banner.png
 
 ## Releases
 
-CI (`.github/workflows/ci.yml`) runs the tests on every push and pull request. On `main`, when they pass, it builds a
-signed snapshot and replaces the `snapshot` pre-release. A `v<version>` tag that matches `Cargo.toml` and has passed
-CI is built and notarized, then released once approved (`release.yml`). The signing and notarization secrets live in
+CI (`.github/workflows/ci.yml`) runs the tests on every push to `main` and on pull requests, except pull requests that
+only change Markdown files or `docs/` (CodeQL skips those too). On `main`, when they pass, it builds a signed snapshot
+and replaces the `snapshot` pre-release. A `v<version>` tag that matches `Cargo.toml` and has passed CI is built and
+notarized, then released once approved (`release.yml`). The signing and notarization secrets live in
 the `release` environment; the `publish` environment holds no secrets and requires a reviewer, so the Release is made
 only after someone approves it.
 

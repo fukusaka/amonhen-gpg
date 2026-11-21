@@ -65,7 +65,7 @@ swift scripts/make-banner.swift    # docs/images/banner.png
 
 ## リリース
 
-CI（`.github/workflows/ci.yml`）は、push と pull request のたびにテストを流します。`main` では、通ったら署名した
+CI（`.github/workflows/ci.yml`）は、`main` への push と pull request のたびにテストを流します。ただし、Markdown のファイルか `docs/` だけを変える pull request では流しません（CodeQL も同じ）。`main` では、通ったら署名した
 snapshot を作り、`snapshot` の pre-release を置き換えます。`Cargo.toml` と同じ版の `v<版>` のタグを打ち、CI が
 通っていれば、ビルドして公証し、承認されたら正式版を出します（`release.yml`）。署名と公証の secret は、環境
 `release` に置いてあります。環境 `publish` は secret を持たず承認者を求めるので、Release は誰かが承認してから
