@@ -1548,3 +1548,102 @@ fn fetches_ssh_signing_keys() {
 fn serde_json_escape(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
 }
+
+#[test]
+fn imports_allowed_signers_files() {
+    use amonhen_gpg_core::{
+        Checked, FetchedKey, SignerRecord, SkipReason, parse_allowed_signers, ssh_fingerprint,
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let (Some((a, _)), Some((b, _))) = (ssh_key(dir.path(), "a"), ssh_key(dir.path(), "b")) else {
+        eprintln!("ssh-keygen not found; skipped");
+        return;
+    };
+    let text = format!(
+        "# team\n\
+         alice@example.com,alice@work.example namespaces=\"git\",valid-after=\"20260101Z\" {a}\n\
+         \n\
+         bob@example.com {b}\n\
+         *@example.com {a}\n\
+         ca@example.com cert-authority {a}\n\
+         carol@example.com namespaces=\"file\" {b}\n\
+         dave@example.com ssh-ed25519 AAAAbrokenbrokenbrokenAAAA\n"
+    );
+    let parsed = parse_allowed_signers(&text).unwrap();
+    let lines: Vec<_> = parsed
+        .entries
+        .iter()
+        .map(|e| (e.line, e.email.as_str()))
+        .collect();
+    assert_eq!(lines, [(2, "alice@example.com"), (4, "bob@example.com")]);
+    assert_eq!(parsed.entries[0].other_principals, ["alice@work.example"]);
+    assert_eq!(
+        parsed.entries[0].valid_after.as_deref(),
+        Some("2026-01-01T00:00:00Z")
+    );
+    assert_eq!(parsed.entries[0].fingerprint, ssh_fingerprint(&a).unwrap());
+    let skipped: Vec<_> = parsed.skipped.iter().map(|s| (s.line, s.reason)).collect();
+    assert_eq!(
+        skipped,
+        [
+            (5, SkipReason::Pattern),
+            (6, SkipReason::CertAuthority),
+            (7, SkipReason::NotForGit),
+            (8, SkipReason::Key)
+        ]
+    );
+
+    // 記録に取り込む: 確かめ方は「ファイルから」、期限はファイルのまま
+    let mut record = SignerRecord::new();
+    for e in &parsed.entries {
+        record.add_person(&e.email, None).unwrap();
+        record
+            .import_key(&e.email, e, "/team/allowed_signers")
+            .unwrap();
+    }
+    record.add_list("team", "Team").unwrap();
+    record.add_member("team", "alice@example.com").unwrap();
+    let key = &record.people[0].keys[0];
+    assert_eq!(key.checked, Checked::File);
+    assert_eq!(
+        key.imported.as_ref().map(|i| (i.path.as_str(), i.line)),
+        Some(("/team/allowed_signers", 2))
+    );
+    let text = record.allowed_signers("team").unwrap();
+    assert!(
+        text.contains("namespaces=\"git\",valid-after=\"20260101000000Z\" ssh-ed25519 "),
+        "{text}"
+    );
+    // 同じ鍵をもう一度取り込んでも増えない
+    record
+        .import_key("alice@example.com", &parsed.entries[0], "/other")
+        .unwrap();
+    assert_eq!(record.people[0].keys.len(), 1);
+    assert_eq!(
+        record.people[0].keys[0].imported.as_ref().unwrap().path,
+        "/team/allowed_signers"
+    );
+
+    // アカウントと比べる: ファイルの鍵がアカウントにもあれば also、なければ absent
+    let fetched = |k: &str| FetchedKey {
+        key: k.to_owned(),
+        fingerprint: ssh_fingerprint(k).unwrap(),
+        title: None,
+    };
+    let alice = record
+        .changes(
+            "alice@example.com",
+            CodeHost::GitHub,
+            "alice",
+            &[fetched(&a), fetched(&b)],
+        )
+        .unwrap();
+    assert_eq!(alice.also, [ssh_fingerprint(&a).unwrap()]);
+    assert!(alice.absent.is_empty() && alice.gone.is_empty());
+    assert_eq!(alice.new.len(), 1, "b is new for alice");
+    let bob = record
+        .changes("bob@example.com", CodeHost::GitHub, "bob", &[])
+        .unwrap();
+    assert_eq!(bob.absent, [ssh_fingerprint(&b).unwrap()]);
+    assert!(bob.also.is_empty());
+}
