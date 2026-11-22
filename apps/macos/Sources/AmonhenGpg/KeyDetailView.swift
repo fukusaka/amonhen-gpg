@@ -17,6 +17,8 @@ struct KeyDetailView: View {
     var initialTab: Tab = .overview
     /// 確認済みにする（未確認の他者の鍵のとき。窓の上に確認のシートを出す）。
     var certify: ((Key) -> Void)?
+    /// 入手元から取り直す（他者の鍵のとき。受け入れ前の鍵に置く）。
+    var refresh: ((Key) -> Void)?
     @State private var loaded: [Certification]?
     /// 失効の理由と説明（鍵・サブ鍵・UID のどれかが失効しているときだけ読む）。
     @State private var revocations: Revocations?
@@ -29,6 +31,10 @@ struct KeyDetailView: View {
             HStack(alignment: .firstTextBaseline) {
                 Text(key.primaryUserId?.text ?? key.fingerprint).font(.title2.bold())
                 Spacer()
+                if let refresh, model.keyring.own(key.fingerprint) == nil {
+                    Button(L("Fetch Again")) { refresh(key) }
+                        .help(L("Fetch this key again from where it came from, or from the keyserver, to get a new expiry or a revocation. It waits in Keys to Accept until you update it."))
+                }
                 if let certify, key.canCertify {
                     Button(L("Mark as Verified…")) { certify(key) }
                 }
@@ -469,15 +475,22 @@ struct SignatureGrid: View {
 /// 鍵ごとの窓。フィンガープリントで開き、同じ鍵なら同じ窓を前に出す。鍵束から消えた鍵なら、そう出す。
 struct KeyWindow: View {
     let model: KeyringModel
+    let staging: StagingModel
     let fingerprint: String
     @State private var certifying: Key?
     @State private var notice: Notice?
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         if let key = model.keyring.own(fingerprint)?.key
             ?? model.keyring.others.first(where: { $0.fingerprint.caseInsensitiveCompare(fingerprint) == .orderedSame })
         {
-            KeyDetailView(model: model, key: key) { certifying = $0 }
+            KeyDetailView(model: model, key: key, certify: { certifying = $0 }, refresh: { key in
+                // 取ってきた鍵は主の窓の受け入れ前の鍵に出る
+                staging.reveal()
+                openWindow(id: "main")
+                Task { await staging.refresh(key) }
+            })
                 .frame(minWidth: 520, minHeight: 420)
             .navigationTitle(key.primaryUserId.map { UserIdParts($0.text).name } ?? key.fingerprint)
             .sheet(item: Binding(get: { certifying.map(IdentifiedKey.init) }, set: { certifying = $0?.key })) { item in

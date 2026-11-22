@@ -90,7 +90,7 @@ struct GpgApp: App {
         // 鍵ごとの窓（詳細）。フィンガープリントで開くので、同じ鍵は同じ窓になる。
         WindowGroup(id: "key", for: String.self) { $fingerprint in
             if let fingerprint {
-                KeyWindow(model: model, fingerprint: fingerprint)
+                KeyWindow(model: model, staging: staging, fingerprint: fingerprint)
             }
         }
         .defaultSize(width: 620, height: 640)

@@ -145,11 +145,11 @@ struct SignersView: View {
                 L("No key of yours can sign"), systemImage: "signature",
                 description: Text(L("The record of signers is signed with a key of yours. Create or import a key that can sign on this Mac.")))
         } else if model.record.people.isEmpty, model.record.lists.isEmpty {
-            ContentUnavailableView {
-                Label(L("No signers yet"), systemImage: "signature")
-            } description: {
-                Text(L("Add the people whose SSH-signed commits you want git to verify. Their signing keys are fetched from GitHub or GitLab, and you accept each one. Put people into lists, one file per team or repository."))
-            } actions: {
+            EmptyPlace(
+                L("No signers yet"), systemImage: "signature",
+                message: L("Add the people whose SSH-signed commits you want git to verify. Their signing keys are fetched from GitHub or GitLab, and you accept each one. Put people into lists, one file per team or repository."),
+                diagram: .sshSigners
+            ) {
                 Button(L("New List…")) { addingList = true }
                 Button(L("Add Person…")) { addingPerson = true }
                 Button(L("Import Allowed Signers File…"), action: importFile)

@@ -36,6 +36,25 @@ final class StagingModel {
         }
     }
 
+    /// この場所を出すよう頼んだ回数（鍵の窓から取り直したとき、主の窓をこの場所に切り替える）。
+    private(set) var revealed = 0
+
+    func reveal() { revealed += 1 }
+
+    /// 鍵束にある鍵を入手元から取り直して、ここに置く（取り込むと、鍵束の鍵が更新される）。
+    func refresh(_ key: Key) async {
+        let fingerprint = key.fingerprint
+        await run(search: true) { staging in
+            let found = Set(try staging.refresh(key).keys.map(\.fingerprint))
+            return (found.contains(fingerprint) ? nil : L("No copy of this key was found where it came from or on the keyserver."), found)
+        }
+    }
+
+    /// 鍵束にもある鍵（取り込むと更新になる）。
+    func existing(_ key: Key) -> Key? {
+        main.keyring.own(key.fingerprint)?.key ?? main.keyring.others.first { $0.fingerprint == key.fingerprint }
+    }
+
     func add(_ urls: [URL]) async {
         await run(search: true) { staging in
             var found = Set<String>()
@@ -49,9 +68,10 @@ final class StagingModel {
     func importKey(_ key: Key) async {
         let name = key.primaryUserId?.text ?? key.fingerprint
         let fingerprint = key.fingerprint
+        let update = existing(key) != nil
         await run { staging in
             try staging.importKey(fingerprint)
-            return (L("Imported %@ into Others' Keys.", name), nil)
+            return (update ? L("Updated %@ in your keyring.", name) : L("Imported %@ into Others' Keys.", name), nil)
         }
         await main.reload()
     }
@@ -130,16 +150,28 @@ struct StagingView: View {
     let signers: SignersModel
     var notify: (Notice) -> Void = { _ in }
     @State private var text = ""
+    /// 探す種類（次に開いたときも同じ）。
+    @AppStorage("StagingSearchKind") private var kind = StagingQuery.Kind.email
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                TextField(L("Email address, fingerprint, or github:name"), text: $text, prompt: Text(L("Email address, fingerprint, or github:name")))
-                    .help(L("Search WKD and keys.openpgp.org by email address or fingerprint, or fetch the keys a GitHub or GitLab user publishes with github:name or gitlab:name."))
+                Picker(L("Search by"), selection: $kind) {
+                    ForEach(StagingQuery.Kind.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
+                .labelsHidden()
+                .fixedSize()
+                .help(L("Email addresses search WKD, then keys.openpgp.org. Fingerprints search keys.openpgp.org. GitHub and GitLab fetch the keys a user publishes."))
+                TextField(kind.prompt, text: $text, prompt: Text(kind.prompt))
+                    .help(L("Pasting an email address, a fingerprint, github:name, gitlab:name or a profile URL picks the kind for you."))
                     .textFieldStyle(.roundedBorder)
                     .onSubmit(find)
+                    .onChange(of: text) {
+                        // 貼ったものが別の種類として読めれば、種類を合わせる（名前だけは GitHub・GitLab で区別できない）
+                        if let other = StagingQuery(text)?.kind, other != kind { kind = other }
+                    }
                 Button(L("Find"), action: find)
-                    .disabled(StagingQuery(text) == nil || model.working)
+                    .disabled(StagingQuery(text, as: kind) == nil || model.working)
                 Button(L("From File…"), action: openFiles)
                     .disabled(model.working)
                 if model.working {
@@ -154,9 +186,11 @@ struct StagingView: View {
                 ResultBox(text: model.failure ?? model.message ?? "", isFailure: model.failure != nil, note: leftoverNote)
             }
             if model.keys.isEmpty, signers.pending.isEmpty, signers.imports.isEmpty, signers.skipped.isEmpty {
-                ContentUnavailableView(
+                // 上の欄と同じ VStack の中なので、広げないと左上に寄る
+                EmptyPlace(
                     L("Keys to Accept"), systemImage: "tray",
-                    description: Text(L("Keys found on keyservers, through WKD or on GitHub and GitLab, and SSH signing keys fetched for SSH Signers, wait here until you accept them.")))
+                    message: L("Keys found on keyservers, through WKD or on GitHub and GitLab, and SSH signing keys fetched for SSH Signers, wait here until you accept them."),
+                    diagram: .keysToAccept)
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 12) {
@@ -164,7 +198,9 @@ struct StagingView: View {
                             Text(L("Keys to accept (%ld)", model.keys.count)).font(.headline)
                         }
                         ForEach(model.keys, id: \.fingerprint) { key in
-                            StagedKeyRow(key: key, isNew: model.lastFound.contains(key.fingerprint), working: model.working) {
+                            StagedKeyRow(
+                                key: key, existing: model.existing(key), isNew: model.lastFound.contains(key.fingerprint), working: model.working
+                            ) {
                                 Task { await model.importKey(key) }
                             } discard: {
                                 Task { await model.discard(key) }
@@ -194,7 +230,7 @@ struct StagingView: View {
     }
 
     private func find() {
-        guard let query = StagingQuery(text), !model.working else { return }
+        guard let query = StagingQuery(text, as: kind), !model.working else { return }
         Task { await model.find(query) }
     }
 
@@ -213,6 +249,8 @@ struct StagingView: View {
 /// 一時保管の鍵ひとつ。取り込む前に確かめられるよう、UID をすべてとフィンガープリント、入手元、作成日を出す。
 struct StagedKeyRow: View {
     let key: Key
+    /// 鍵束にある同じ鍵（取り込むと更新になる）。手元の版の期限と並べて見せる。
+    var existing: Key?
     /// 直前に探して見つかった鍵か。
     var isNew = false
     let working: Bool
@@ -222,13 +260,23 @@ struct StagedKeyRow: View {
     var body: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 4) {
-                if isNew {
-                    Text(L("Just found"))
-                        .font(.caption.bold())
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.accentColor, in: Capsule())
+                HStack(spacing: 6) {
+                    if isNew {
+                        Text(L("Just found"))
+                            .font(.caption.bold())
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.accentColor, in: Capsule())
+                    }
+                    if existing != nil {
+                        Text(L("In your keyring"))
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .overlay(Capsule().strokeBorder(.secondary.opacity(0.5)))
+                    }
                 }
                 ForEach(Array(key.userIds.filter { !$0.attribute }.enumerated()), id: \.offset) { index, uid in
                     Text(uid.text)
@@ -240,9 +288,15 @@ struct StagedKeyRow: View {
                     .font(.callout.monospaced())
                     .textSelection(.enabled)
                 Text(details).font(.caption).foregroundStyle(.secondary)
+                if let existing {
+                    Text(L("Your copy: %@", expiryWord(existing) ?? ""))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             Spacer()
-            Button(L("Import"), action: importKey)
+            Button(existing == nil ? L("Import") : L("Update"), action: importKey)
+                .help(existing == nil ? "" : L("Merge this copy into the key in your keyring (a new expiry, revocations, subkeys and signatures)."))
                 .disabled(working)
             Button(L("Discard"), action: discard)
                 .disabled(working)
@@ -259,15 +313,22 @@ struct StagedKeyRow: View {
         if let created = key.created {
             parts.append(L("Created %@", Date(timeIntervalSince1970: TimeInterval(created)).formatted(date: .abbreviated, time: .omitted)))
         }
-        switch key.validity {
-        case .revoked: parts.append(L("Revoked"))
-        case .expired: parts.append(L("Expired"))
-        default:
-            if let expires = key.expires {
-                parts.append(L("Expires %@", Date(timeIntervalSince1970: TimeInterval(expires)).formatted(date: .abbreviated, time: .omitted)))
-            }
+        if let word = expiryWord(key, always: false) {
+            parts.append(word)
         }
         return parts.joined(separator: " · ")
+    }
+
+    /// 失効・期限切れ・期限。`always` なら期限のない鍵は「期限なし」。
+    private func expiryWord(_ key: Key, always: Bool = true) -> String? {
+        let day = { (seconds: UInt64) in Date(timeIntervalSince1970: TimeInterval(seconds)).formatted(date: .abbreviated, time: .omitted) }
+        switch key.validity {
+        case .revoked: return L("Revoked")
+        case .expired: return key.expires.map { L("Expired on %@", day($0)) } ?? L("Expired")
+        default:
+            if let expires = key.expires { return L("Expires %@", day(expires)) }
+            return always ? L("Never expires") : nil
+        }
     }
 }
 
@@ -291,5 +352,26 @@ struct ResultBox: View {
         }
         .padding(10)
         .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+extension StagingQuery.Kind {
+    var title: String {
+        switch self {
+        case .email: L("Email Address")
+        case .fingerprint: L("Fingerprint")
+        case .gitHub: "GitHub"
+        case .gitLab: "GitLab"
+        }
+    }
+
+    /// 検索欄の中の案内。
+    var prompt: String {
+        switch self {
+        case .email: L("alice@example.com")
+        case .fingerprint: L("Full fingerprint (40 or 64 hex digits)")
+        case .gitHub: L("GitHub user name")
+        case .gitLab: L("GitLab user name")
+        }
     }
 }

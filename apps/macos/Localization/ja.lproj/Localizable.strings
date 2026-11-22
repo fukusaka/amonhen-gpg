@@ -199,9 +199,15 @@
 "%@ is now verified in your keyring." = "%@ を確認済みにしました。";
 
 /* 受け入れ前の鍵（コードでは staging） */
-"Email address, fingerprint, or github:name" = "メールアドレス・フィンガープリント・github:名前";
-"Search WKD and keys.openpgp.org by email address or fingerprint, or fetch the keys a GitHub or GitLab user publishes with github:name or gitlab:name." = "メールアドレスかフィンガープリントで WKD と keys.openpgp.org を探します。github:名前・gitlab:名前 で、GitHub・GitLab の利用者が公開している鍵を取ってきます。";
 "Find" = "探す";
+"Search by" = "探す種類";
+"Email Address" = "メールアドレス";
+"Email addresses search WKD, then keys.openpgp.org. Fingerprints search keys.openpgp.org. GitHub and GitLab fetch the keys a user publishes." = "メールアドレスは WKD を、なければ keys.openpgp.org を探します。フィンガープリントは keys.openpgp.org を探します。GitHub・GitLab は、利用者が公開している鍵を取ってきます。";
+"Pasting an email address, a fingerprint, github:name, gitlab:name or a profile URL picks the kind for you." = "メールアドレス・フィンガープリント・github:名前・gitlab:名前・プロフィールの URL を貼ると、種類も合わせます。";
+"alice@example.com" = "alice@example.com";
+"Full fingerprint (40 or 64 hex digits)" = "完全なフィンガープリント（16 進で 40 か 64 桁）";
+"GitHub user name" = "GitHub のユーザー名";
+"GitLab user name" = "GitLab のユーザー名";
 "From File…" = "ファイルから…";
 "Found keys stay here and are not in your keyring until you import them. Compare the fingerprint with its owner before importing. Keys left here are discarded when the app quits." = "見つけた鍵はここに置かれ、取り込むまで鍵束には入りません。取り込む前に、フィンガープリントを持ち主と照らし合わせてください。ここに残した鍵は、アプリを終了すると捨てます。";
 "No key was found." = "鍵は見つかりませんでした。";
@@ -514,3 +520,29 @@
 "a file" = "ファイル";
 "cert-authority lines are not handled." = "cert-authority の行は扱いません。";
 "valid-after or valid-before cannot be read." = "valid-after か valid-before が読めません。";
+
+/* 流れの図（空の画面） */
+"Keyservers and WKD" = "鍵サーバー・WKD";
+"GitHub and GitLab" = "GitHub・GitLab";
+"Files" = "ファイル";
+"Compare fingerprints" = "フィンガープリントを照らし合わせる";
+"Import GPG keys" = "GPG の鍵を取り込む";
+"Accept SSH keys" = "SSH の鍵を受け入れる";
+"Accounts" = "アカウント";
+"Allowed signers files" = "allowed signers のファイル";
+"Check and accept" = "確かめて受け入れる";
+"People and keys" = "人と鍵";
+"Signed with your key" = "自分の鍵で署名した記録";
+"Lists" = "一覧";
+"One file each" = "一覧ごとに 1 つのファイル";
+
+/* 他者の鍵を取り直す */
+"Fetch Again" = "取り直す";
+"Fetch this key again from where it came from, or from the keyserver, to get a new expiry or a revocation. It waits in Keys to Accept until you update it." = "この鍵を入手元か鍵サーバーから取り直し、延ばした期限や失効を受け取ります。更新するまで、受け入れ前の鍵に置きます。";
+"No copy of this key was found where it came from or on the keyserver." = "入手元にも鍵サーバーにも、この鍵は見つかりませんでした。";
+"Updated %@ in your keyring." = "鍵束の %@ を更新しました。";
+"In your keyring" = "鍵束にあり";
+"Your copy: %@" = "手元の鍵: %@";
+"Update" = "更新";
+"Merge this copy into the key in your keyring (a new expiry, revocations, subkeys and signatures)." = "この鍵を、鍵束にある同じ鍵に合わせます（新しい期限・失効・サブ鍵・署名）。";
+"Never expires" = "期限なし";

@@ -57,6 +57,39 @@ public enum StagingQuery: Equatable, Sendable {
     }
 }
 
+extension StagingQuery {
+    /// 探す種類（受け入れ前の鍵の検索欄の左で選ぶ）。
+    public enum Kind: String, CaseIterable, Sendable {
+        case email, fingerprint, gitHub, gitLab
+    }
+
+    public var kind: Kind {
+        switch self {
+        case .email: .email
+        case .fingerprint: .fingerprint
+        case .codeHost(.gitHub, _): .gitHub
+        case .codeHost(.gitLab, _): .gitLab
+        }
+    }
+
+    /// 選んだ種類として読む。GitHub・GitLab は名前だけでよい（`github:名前` やプロフィールの URL も読む）。
+    /// ほかの種類として読めるもの（GitHub を選んでいてメールアドレス）は受け付けない。
+    public init?(_ text: String, as kind: Kind) {
+        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let query: StagingQuery?
+        switch kind {
+        case .email, .fingerprint:
+            query = StagingQuery(text)
+        case .gitHub:
+            query = StagingQuery(text).flatMap { $0.kind == .gitHub ? $0 : nil } ?? StagingQuery("github:" + text)
+        case .gitLab:
+            query = StagingQuery(text).flatMap { $0.kind == .gitLab ? $0 : nil } ?? StagingQuery("gitlab:" + text)
+        }
+        guard let query, query.kind == kind else { return nil }
+        self = query
+    }
+}
+
 /// 一時保管の鍵束（docs/ui.md の「一時保管」）。鍵サーバーや WKD で取ってきた鍵をまずここに入れ、確かめてから
 /// 本来の鍵束に公開鍵だけを移す。中身はアプリの終わりに捨てる。
 public final class Staging: @unchecked Sendable {
@@ -125,6 +158,40 @@ public final class Staging: @unchecked Sendable {
         case let .fingerprint(fpr): try staging().receiveKeys(fingerprints: [fpr], keyserver: Keyserver.current)
         case let .codeHost(host, user): try staging().fetchFromCodeHost(host: host, user: user)
         }
+    }
+
+    /// 鍵束にある鍵（`key`）を入手元から取り直して一時保管に入れる（期限の延長・失効・新しいサブ鍵を受け取るため）。
+    /// `Staging.refreshQueries` の順に引き、その鍵が見つかったところでやめる。最後の引き方の誤りだけを投げる。
+    @discardableResult
+    public func refresh(_ key: Key) throws -> ImportResult {
+        let queries = Self.refreshQueries(for: key)
+        for query in queries.dropLast() {
+            if let result = try? find(query), result.keys.contains(where: { $0.fingerprint == key.fingerprint }) {
+                return result
+            }
+        }
+        return try find(queries[queries.count - 1])
+    }
+
+    /// 取り直すときに引く順。WKD から来た鍵はそのメールアドレスで、GitHub・GitLab から来た鍵はそのアカウントで引き、
+    /// どれも最後は鍵サーバーをフィンガープリントで引く（入手元が分からない鍵も）。
+    public static func refreshQueries(for key: Key) -> [StagingQuery] {
+        var queries: [StagingQuery] = []
+        switch key.origin {
+        case .wkd:
+            let emails = key.userIds.filter { !$0.attribute && $0.validity != .revoked }.compactMap { UserIdParts($0.text).email }
+            if let email = emails.first, let query = StagingQuery(email, as: .email) {
+                queries.append(query)
+            }
+        case .url:
+            if let url = key.originUrl, let query = StagingQuery(url), case .codeHost = query {
+                queries.append(query)
+            }
+        default:
+            break
+        }
+        queries.append(.fingerprint(key.fingerprint))
+        return queries
     }
 
     /// ファイルなどで受け取った鍵を一時保管に入れる（秘密鍵は入れない）。

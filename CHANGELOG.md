@@ -6,6 +6,16 @@ notes.
 
 ## Unreleased
 
+### Added
+
+- Fetch Again on others' keys (in the row menu and the key window) fetches the key again from where it came from (WKD or a GitHub or GitLab account) or from the keyserver, to get a new expiry or a revocation. The copy waits in Keys to Accept, marked In your keyring with the expiry of your copy, and Update merges it into your keyring.
+
+### Changed
+
+- Keys to Accept is now last in the sidebar, after SSH Signers.
+- Keys to Accept has a pop-up menu to choose what to search by: email address, fingerprint, GitHub or GitLab. For GitHub and GitLab, the user name is enough. Pasting an email address, a fingerprint, `github:name` or a profile URL still works and picks the kind.
+- When empty, Keys to Accept and SSH Signers show a diagram of where keys come from and where they go. The empty Keys to Accept is centered instead of sitting at the top left.
+
 ## [0.4.0] - 2026-11-22
 
 SSH signers for git. Keep the SSH keys others sign commits with as git's allowed signers: fetch them from a GitHub or

@@ -4,7 +4,8 @@ import SwiftUI
 
 /// 画面の場所（docs/ui.md）。SSH の署名者（git の allowed signers）は docs/allowed-signers.md。
 enum Place: String, Hashable, CaseIterable {
-    case mine, others, staging, signers
+    // サイドバーの順。受け入れ前の鍵は、鍵の置き場所でなく通り道なので最後
+    case mine, others, signers, staging
 
     var title: String {
         switch self {
@@ -92,7 +93,11 @@ struct ContentView: View {
                     case .others:
                         OthersView(
                             model: model, query: query, filter: othersFilter, importKeys: importKeys, notify: { notice = $0 },
-                            showAll: { othersFilter = .all })
+                            showAll: { othersFilter = .all },
+                            refresh: { key in
+                                place = .staging
+                                Task { await staging.refresh(key) }
+                            })
                             .searchable(text: $query, placement: .toolbar, prompt: L("Name, email or fingerprint"))
                     case .staging: StagingView(model: staging, signers: signers, notify: { notice = $0 })
                     case .signers: SignersView(model: signers, keyring: model, notify: { notice = $0 }, showKeysToAccept: { place = .staging })
@@ -105,6 +110,8 @@ struct ContentView: View {
                 }
             }
             .navigationTitle(place.title)
+            // 鍵の窓で取り直したとき
+            .onChange(of: staging.revealed) { place = .staging }
             .toolbar {
                 if place == .mine {
                     Button {
@@ -835,6 +842,8 @@ struct OthersView: View {
     var notify: (Notice) -> Void = { _ in }
     /// 絞り込みを外す（絞り込んで 1 つもないとき）。
     var showAll: () -> Void = {}
+    /// 入手元から取り直して、受け入れ前の鍵に置く。
+    var refresh: (Key) -> Void = { _ in }
     @State private var certifying: Key?
     @Environment(\.openWindow) private var openWindow
     @State private var deleting: Key?
@@ -1003,6 +1012,8 @@ struct OthersView: View {
         Button(L("Details…")) { openWindow(id: "key", value: key.fingerprint) }
         Button(L("Mark as Verified…")) { certifying = key }
             .disabled(!key.canCertify)
+        Button(L("Fetch Again")) { refresh(key) }
+            .help(L("Fetch this key again from where it came from, or from the keyserver, to get a new expiry or a revocation. It waits in Keys to Accept until you update it."))
         Button(L("Mark as My Key…")) { claiming = key }
         Menu(L("Owner Trust")) {
             OwnerTrustPicker(key: key) { trust in setOwnerTrust(key, trust) }
