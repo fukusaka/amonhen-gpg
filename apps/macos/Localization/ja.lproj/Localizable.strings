@@ -535,3 +535,14 @@
 "Signed with your key" = "自分の鍵で署名した記録";
 "Lists" = "一覧";
 "One file each" = "一覧ごとに 1 つのファイル";
+
+/* 他者の鍵を取り直す */
+"Fetch Again" = "取り直す";
+"Fetch this key again from where it came from, or from the keyserver, to get a new expiry or a revocation. It waits in Keys to Accept until you update it." = "この鍵を入手元か鍵サーバーから取り直し、延ばした期限や失効を受け取ります。更新するまで、受け入れ前の鍵に置きます。";
+"No copy of this key was found where it came from or on the keyserver." = "入手元にも鍵サーバーにも、この鍵は見つかりませんでした。";
+"Updated %@ in your keyring." = "鍵束の %@ を更新しました。";
+"In your keyring" = "鍵束にあり";
+"Your copy: %@" = "手元の鍵: %@";
+"Update" = "更新";
+"Merge this copy into the key in your keyring (a new expiry, revocations, subkeys and signatures)." = "この鍵を、鍵束にある同じ鍵に合わせます（新しい期限・失効・サブ鍵・署名）。";
+"Never expires" = "期限なし";

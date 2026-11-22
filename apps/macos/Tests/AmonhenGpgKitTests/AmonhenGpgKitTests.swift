@@ -705,6 +705,24 @@ func passphrasesThroughPinentry() throws {
     #expect(StagingQuery(fpr)?.kind == .fingerprint)
 }
 
+@Test func refreshesFromWhereTheKeyCameFrom() {
+    let fpr = "5DDA16B5FFEADD5E944BD9DFBB8F6AF01166B837"
+    func key(_ origin: KeyOrigin, url: String? = nil, uids: [String] = ["Alice <alice@example.org>"]) -> Key {
+        var key = sampleKey(fpr, subkey: "2222222222222222222222222222222222222222", userIds: uids)
+        key.origin = origin
+        key.originUrl = url
+        return key
+    }
+    #expect(Staging.refreshQueries(for: key(.keyserver)) == [.fingerprint(fpr)])
+    #expect(Staging.refreshQueries(for: key(.unknown)) == [.fingerprint(fpr)])
+    #expect(Staging.refreshQueries(for: key(.wkd)) == [.email("alice@example.org"), .fingerprint(fpr)])
+    // メールアドレスのない UID だけなら、鍵サーバーだけ
+    #expect(Staging.refreshQueries(for: key(.wkd, uids: ["Alice"])) == [.fingerprint(fpr)])
+    #expect(Staging.refreshQueries(for: key(.url, url: "https://github.com/web-flow.gpg")) == [.codeHost(.gitHub, "web-flow"), .fingerprint(fpr)])
+    // GitHub・GitLab 以外の URL は引き直せないので、鍵サーバー
+    #expect(Staging.refreshQueries(for: key(.url, url: "https://example.com/key.asc")) == [.fingerprint(fpr)])
+}
+
 @Test(.enabled(if: gpgAvailable()))
 func stagingKeepsKeysApartUntilImported() throws {
     let bob = try TemporaryKeyring()

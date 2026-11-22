@@ -6,6 +6,10 @@ notes.
 
 ## Unreleased
 
+### Added
+
+- Fetch Again on others' keys (in the row menu and the key window) fetches the key again from where it came from (WKD or a GitHub or GitLab account) or from the keyserver, to get a new expiry or a revocation. The copy waits in Keys to Accept, marked In your keyring with the expiry of your copy, and Update merges it into your keyring.
+
 ### Changed
 
 - Keys to Accept is now last in the sidebar, after SSH Signers.
