@@ -37,7 +37,10 @@ pub use ownership::{Availability, KeyStatus, Tier};
 pub use revocation::{
     Revocation, RevocationCause, Revocations, SubkeyRevocation, UserIdRevocation, parse_revocations,
 };
-pub use signer_fetch::{FetchedKey, SignerChanges, fetch_signing_keys, fetch_signing_keys_from};
+pub use signer_fetch::{
+    AccountProfile, CandidateSource, FetchedKey, PrincipalCandidate, SignerChanges,
+    fetch_account_profile, fetch_account_profile_from, fetch_signing_keys, fetch_signing_keys_from,
+};
 pub use signers::{
     Account, Checked, FileState, ImportedFrom, KeySource, LoadedSigners, RECORD_FILE,
     RecordSignature, SIGNATURE_FILE, SIGNERS_FILE_SUFFIX, Signer, SignerKey, SignerList,

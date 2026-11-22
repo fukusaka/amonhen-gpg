@@ -8,6 +8,7 @@ notes.
 
 ### Added
 
+- Searching Keys to Accept for a GitHub or GitLab user also fetches the account's SSH signing keys. Choose the email address git shows as the signer from guesses about the account (addresses GitHub verified, the addresses in its OpenPGP keys, the public profile, the no-reply address) or type another, then accept them into SSH Signers; the account is linked to the person for Check for Changes.
 - Fetch Again on others' keys (in the row menu and the key window) fetches the key again from where it came from (WKD or a GitHub or GitLab account) or from the keyserver, to get a new expiry or a revocation. The copy waits in Keys to Accept, marked In your keyring with the expiry of your copy, and Update merges it into your keyring.
 
 ### Changed

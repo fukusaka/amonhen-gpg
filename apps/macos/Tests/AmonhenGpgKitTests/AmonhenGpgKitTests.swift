@@ -1123,3 +1123,19 @@ func marksAnImportedKeyAsYourOwn() throws {
     #expect(carol.validAfter == "2026-01-01T00:00:00Z")
     #expect(carol.imported?.line == 1)
 }
+
+@Test func ordersPrincipalCandidates() {
+    let searched = SearchedAccount(
+        account: Account(host: .gitHub, user: "alice"), keys: [],
+        candidates: [
+            PrincipalCandidate(email: "alice@work.example", source: .verified),
+            PrincipalCandidate(email: "alice@example.com", source: .profile),
+            PrincipalCandidate(email: "1+alice@users.noreply.github.com", source: .noReply),
+        ],
+        fetched: "2026-01-01T00:00:00Z")
+    let merged = searched.candidates(addingUserIds: ["ALICE@work.example", "a@home.example", "alice@example.com"])
+    #expect(merged.map(\.email) == ["alice@work.example", "a@home.example", "alice@example.com", "1+alice@users.noreply.github.com"])
+    #expect(merged.map(\.source) == [.verified, .userId, .userId, .noReply])
+    let edits = searched.edits(accepting: [], as: "alice@example.com", checked: .account)
+    #expect(edits.count == 1)
+}

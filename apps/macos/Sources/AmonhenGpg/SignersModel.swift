@@ -16,6 +16,9 @@ final class SignersModel {
     /// 既存の allowed signers のファイルから読んだ、受け入れ前の行と、取り込めなかった行。アプリを終えると消える。
     private(set) var imports: [PendingImport] = []
     private(set) var skipped: [(path: String, line: SkippedLine)] = []
+    /// 受け入れ前の鍵で GitHub・GitLab のアカウントを探したとき、一緒に取ってきた SSH の鍵。アプリを終えると消える。
+    private(set) var searched: [SearchedAccount] = []
+    private(set) var searching = false
 
     init(dir: URL = Signers.defaultDirectory()) {
         self.dir = dir
@@ -130,6 +133,41 @@ final class SignersModel {
             let done = Set(items.map(\.id))
             imports.removeAll { done.contains($0.id) }
         }
+    }
+
+    /// 受け入れ前の鍵で探したアカウントの SSH の鍵を取ってくる。同じアカウントの前の結果は置き換える。
+    /// 鍵がなかったときと、取れなかったときは、知らせる文を返す。
+    func search(_ host: CodeHost, _ user: String) async -> String? {
+        searching = true
+        defer { searching = false }
+        let result = await Task.detached { Result { try SearchedAccount.fetch(host: host, user: user) } }.value
+        switch result {
+        case let .success(found):
+            searched.removeAll { $0.id == found.id }
+            guard !found.keys.isEmpty else { return L("The account has no SSH signing keys.") }
+            searched.append(found)
+            return nil
+        case let .failure(error):
+            searched.removeAll { $0.id == Account(host: host, user: user).display.lowercased() }
+            if case GpgError.NotFound = error { return L("No such account was found.") }
+            return L("Could not fetch SSH signing keys: %@", describe(error))
+        }
+    }
+
+    /// 探したアカウントの鍵を、`email` の人の鍵として受け入れる（まとめて 1 回で署名する）。
+    func acceptSearched(_ id: String, keys: [FetchedKey], as email: String, checked: Checked, keyring: KeyringModel, notify: (Notice) -> Void) async {
+        guard let account = searched.first(where: { $0.id == id }) else { return }
+        let edits = account.edits(accepting: keys, as: email, checked: checked)
+        if await save(edits, keyring: keyring, title: L("Cannot accept the key"), notify: notify),
+            let index = searched.firstIndex(where: { $0.id == id }) {
+            let done = Set(keys.map(\.fingerprint))
+            searched[index].keys.removeAll { done.contains($0.fingerprint) }
+            if searched[index].keys.isEmpty { searched.remove(at: index) }
+        }
+    }
+
+    func discardSearched(_ id: String) {
+        searched.removeAll { $0.id == id }
     }
 
     func discardImports(from path: String) {
