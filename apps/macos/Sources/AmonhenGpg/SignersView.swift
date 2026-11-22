@@ -668,16 +668,17 @@ struct SearchedSshKeys: View {
                     Text(L("Other Address…")).tag("")
                 }
                 .fixedSize()
-                if chosen == "" {
-                    TextField(L("Email address"), text: $typed, prompt: Text("alice@example.com"))
-                        .textFieldStyle(.roundedBorder)
-                        .frame(maxWidth: 260)
-                }
                 Spacer()
                 Button(L("Accept All")) { accept(open, checked: .account) }
                     .disabled(open.isEmpty || !canAccept)
                     .help(L("Trust the keys as the account shows them."))
                 Button(L("Discard")) { model.discardSearched(account.id) }
+            }
+            if chosen == "" {
+                // メニューはいちばん長い候補の幅になるので、横に並べると欄かボタンがつぶれる。下の行に出す
+                TextField(L("Email address"), text: $typed, prompt: Text("alice@example.com"))
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: 360)
             }
             ForEach(account.keys, id: \.fingerprint) { key in
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
