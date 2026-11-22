@@ -4,7 +4,8 @@ import SwiftUI
 
 /// 画面の場所（docs/ui.md）。SSH の署名者（git の allowed signers）は docs/allowed-signers.md。
 enum Place: String, Hashable, CaseIterable {
-    case mine, others, staging, signers
+    // サイドバーの順。受け入れ前の鍵は、鍵の置き場所でなく通り道なので最後
+    case mine, others, signers, staging
 
     var title: String {
         switch self {

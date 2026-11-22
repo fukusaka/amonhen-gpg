@@ -10,8 +10,8 @@ Instead of managing keys as one flat list, manage mainly **the keys you can use 
 |---|---|---|
 | **My Keys** (main screen) | Keys you can use, keys you used to be able to use | Keep your own keys usable (expiry, backup, card, SSH) |
 | **Others' Keys** | Keys used as encryption recipients or to verify signatures | Keep the ones you need |
-| **Keys to Accept** | Keys fetched from a keyserver, WKD, GitHub or GitLab, keys received as files; SSH signing keys fetched for SSH Signers | Check the contents, then import into "Others' Keys" (or accept into SSH Signers) or discard |
 | **SSH Signers** | People whose SSH-signed git commits you verify, their accepted keys, and lists | Keep git's allowed signers files ([allowed-signers.md](allowed-signers.md)) |
+| **Keys to Accept** | Keys fetched from a keyserver, WKD, GitHub or GitLab, keys received as files; SSH signing keys fetched for SSH Signers | Check the contents, then import into "Others' Keys" (or accept into SSH Signers) or discard |
 
 If gpg is older than 2.4.6, a warning above every place says so and suggests updating GnuPG or choosing a newer gpg in Settings. The keys are still listed, but some actions (such as turning SSH on or off) may fail.
 

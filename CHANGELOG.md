@@ -6,6 +6,10 @@ notes.
 
 ## Unreleased
 
+### Changed
+
+- Keys to Accept is now last in the sidebar, after SSH Signers.
+
 ## [0.4.0] - 2026-11-22
 
 SSH signers for git. Keep the SSH keys others sign commits with as git's allowed signers: fetch them from a GitHub or
