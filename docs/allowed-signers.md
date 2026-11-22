@@ -113,6 +113,23 @@ An allowed signers file you already keep can be read in (Import Allowed Signers 
   account as well can be recorded as such (its source becomes the account; how it was checked stays "from a file"),
   and a key not on any of the person's accounts is shown as such, with Retire.
 
+## Searching an account in Keys to Accept
+
+Searching Keys to Accept for a GitHub or GitLab user fetches the account's SSH signing keys along with its OpenPGP
+keys. Neither service says whose email address goes with an SSH key, so the principal is chosen by you from guesses
+about the account, best first:
+
+- people already in SSH Signers with this account;
+- on GitHub, the email addresses of the account's GPG keys that GitHub verified as the owner's;
+- the email addresses in the UIDs of the OpenPGP keys the account publishes;
+- the email address on the public profile, if any;
+- the service's no-reply address for the account (`<id>+<user>@users.noreply.github.com`,
+  `<id>-<user>@users.noreply.gitlab.com`), which can always be made.
+
+Another address can be typed in. Accepting adds the person if needed, links the account to them, and accepts the keys
+with the account as their source, so Check for Changes follows the account from then on. git only shows the principal
+as the signer; it does not compare it with the commit's email address.
+
 ## Fetching
 
 The core runs `curl` to fetch over HTTPS (gpg cannot fetch SSH keys), so TLS stays outside the app as it does for gpg.
@@ -123,6 +140,10 @@ read.
 |---|---|---|
 | GitHub | `GET https://api.github.com/users/<user>/ssh_signing_keys?per_page=100` | All (signing keys only) |
 | GitLab | `GET https://gitlab.com/api/v4/users/<user>/keys` | `usage_type` is `signing` or `auth_and_signing` |
+
+Searching an account in Keys to Accept also reads its profile: on GitHub `GET /users/<user>` (`id`, `login`, `email`)
+and `GET /users/<user>/gpg_keys` (`emails` with `verified`); on GitLab `GET /users?username=<user>` (`id`,
+`username`, `public_email`).
 
 `https://github.com/<user>.keys` is not used: it lists authentication keys, which are not necessarily signing keys.
 GitHub allows 60 unauthenticated requests per hour, enough for checking a team by hand.

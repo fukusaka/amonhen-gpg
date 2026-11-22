@@ -11,13 +11,13 @@ use std::sync::Arc;
 
 use amonhen_gpg_core::status::Failure;
 use amonhen_gpg_core::{
-    Account, Availability, Capabilities, Card, Certification, Checked, CodeHost, Expiry,
-    FetchedKey, FileState, GenerateKey, ImportResult, ImportedFrom, ImportedKey, Key, KeyOrigin,
-    KeySource, KeyStatus, LoadedSigners, OwnerTrust, ParsedEntry, ParsedSigners, RecordSignature,
-    Revocation, RevocationCause, RevocationReason, Revocations, SecretState, SignatureCheck,
-    Signer, SignerChanges, SignerKey, SignerList, SignerRecord, SignersFile, SkipReason,
-    SkippedLine, SshControl, SshKey, SshSupport, Subkey, SubkeyRevocation, Tier, UserId,
-    UserIdRevocation, Validity, Version,
+    Account, AccountProfile, Availability, CandidateSource, Capabilities, Card, Certification,
+    Checked, CodeHost, Expiry, FetchedKey, FileState, GenerateKey, ImportResult, ImportedFrom,
+    ImportedKey, Key, KeyOrigin, KeySource, KeyStatus, LoadedSigners, OwnerTrust, ParsedEntry,
+    ParsedSigners, PrincipalCandidate, RecordSignature, Revocation, RevocationCause,
+    RevocationReason, Revocations, SecretState, SignatureCheck, Signer, SignerChanges, SignerKey,
+    SignerList, SignerRecord, SignersFile, SkipReason, SkippedLine, SshControl, SshKey, SshSupport,
+    Subkey, SubkeyRevocation, Tier, UserId, UserIdRevocation, Validity, Version,
 };
 
 uniffi::setup_scaffolding!();
@@ -293,6 +293,32 @@ pub fn signers_file(dir: PathBuf, list: String) -> PathBuf {
 #[uniffi::export]
 pub fn fetch_signing_keys(host: CodeHost, user: String) -> Result<Vec<FetchedKey>> {
     Ok(amonhen_gpg_core::fetch_signing_keys(host, &user)?)
+}
+
+#[uniffi::remote(Enum)]
+pub enum CandidateSource {
+    Verified,
+    UserId,
+    Profile,
+    NoReply,
+}
+
+#[uniffi::remote(Record)]
+pub struct PrincipalCandidate {
+    pub email: String,
+    pub source: CandidateSource,
+}
+
+#[uniffi::remote(Record)]
+pub struct AccountProfile {
+    pub user: String,
+    pub candidates: Vec<PrincipalCandidate>,
+}
+
+/// `host` の利用者のプロフィールと、SSH の鍵の主体の候補を取ってくる（curl。時間がかかる）。
+#[uniffi::export]
+pub fn fetch_account_profile(host: CodeHost, user: String) -> Result<AccountProfile> {
+    Ok(amonhen_gpg_core::fetch_account_profile(host, &user)?)
 }
 
 #[uniffi::export]

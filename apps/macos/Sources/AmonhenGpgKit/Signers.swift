@@ -168,3 +168,64 @@ extension SkipReason {
         }
     }
 }
+
+/// 受け入れ前の鍵で GitHub・GitLab のアカウントを探したとき、一緒に取ってきた SSH の署名用の鍵。サービスは鍵が誰の
+/// メールアドレスのものかを示さないので、主体は候補（`candidates`）から利用者が選ぶ。
+public struct SearchedAccount: Sendable, Identifiable {
+    /// 利用者の名前はサービスでの表記。
+    public let account: Account
+    public var keys: [FetchedKey]
+    public let candidates: [PrincipalCandidate]
+    /// 取ってきた時刻（RFC 3339）。受け入れた鍵の入手元に記録する。
+    public let fetched: String
+
+    public var id: String { account.display.lowercased() }
+
+    public init(account: Account, keys: [FetchedKey], candidates: [PrincipalCandidate], fetched: String) {
+        self.account = account
+        self.keys = keys
+        self.candidates = candidates
+        self.fetched = fetched
+    }
+
+    /// アカウントの SSH の署名用の鍵と、主体の候補を取ってくる（curl を待つので、裏のスレッドで呼ぶ）。
+    public static func fetch(host: CodeHost, user: String) throws -> SearchedAccount {
+        let profile = try fetchAccountProfile(host: host, user: user)
+        let keys = try fetchSigningKeys(host: host, user: profile.user)
+        return SearchedAccount(
+            account: Account(host: host, user: profile.user), keys: keys, candidates: profile.candidates, fetched: Signers.now())
+    }
+
+    /// 候補に、アカウントの GPG 鍵の UID のメールアドレス（`emails`）を足す。確かめられたものの次、プロフィールの前に
+    /// 置き、同じアドレス（大文字・小文字を区別しない）は先のものだけを残す。
+    public func candidates(addingUserIds emails: [String]) -> [PrincipalCandidate] {
+        let verified = candidates.filter { $0.source == .verified }
+        let rest = candidates.filter { $0.source != .verified }
+        var out: [PrincipalCandidate] = []
+        for candidate in verified + emails.map({ PrincipalCandidate(email: $0, source: .userId) }) + rest
+        where !out.contains(where: { $0.email.lowercased() == candidate.email.lowercased() }) {
+            out.append(candidate)
+        }
+        return out
+    }
+
+    /// 受け入れる操作。人がいなければ足し、アカウントを人に結び付け、鍵を受け入れる（入手元はこのアカウント）。
+    public func edits(accepting keys: [FetchedKey], as email: String, checked: Checked) -> [SignerEdit] {
+        let source = KeySource(host: account.host, user: account.user, fetched: fetched)
+        return [.addPerson(email: email, account: account)]
+            + keys.map { .acceptKey(email: email, key: $0.key, source: source, checked: checked) }
+    }
+}
+
+extension SignerRecord {
+    /// その鍵を受け入れている人（退役させていない鍵として）。
+    public func holder(of fingerprint: String) -> String? {
+        people.first { $0.keys.contains { $0.fingerprint == fingerprint && !$0.retired } }?.email
+    }
+
+    /// そのアカウントを結び付けている人。
+    public func people(with account: Account) -> [String] {
+        people.filter { $0.accounts.contains { $0.host == account.host && $0.user.lowercased() == account.user.lowercased() } }
+            .map(\.email)
+    }
+}

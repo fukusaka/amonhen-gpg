@@ -7,7 +7,7 @@ use serde::Deserialize;
 
 use crate::error::{Error, Result};
 use crate::process::command;
-use crate::signers::{SignerRecord, normalize_key, ssh_fingerprint};
+use crate::signers::{SignerRecord, check_email, normalize_key, ssh_fingerprint};
 use crate::staging::CodeHost;
 
 /// 取ってきた鍵。
@@ -41,15 +41,10 @@ impl CodeHost {
     /// 利用者の SSH の鍵の一覧を返す API の URL。`api` は API の場所（テストではローカルのサーバー）。
     fn signing_keys_url(self, api: Option<&str>, user: &str) -> Result<String> {
         let user = self.check_user(user)?;
+        let base = self.api(api);
         Ok(match self {
-            CodeHost::GitHub => format!(
-                "{}/users/{user}/ssh_signing_keys?per_page=100",
-                api.unwrap_or("https://api.github.com")
-            ),
-            CodeHost::GitLab => format!(
-                "{}/users/{user}/keys?per_page=100",
-                api.unwrap_or("https://gitlab.com/api/v4")
-            ),
+            CodeHost::GitHub => format!("{base}/users/{user}/ssh_signing_keys?per_page=100"),
+            CodeHost::GitLab => format!("{base}/users/{user}/keys?per_page=100"),
         })
     }
 }
@@ -75,25 +70,185 @@ pub fn fetch_signing_keys_from(api: &str, host: CodeHost, user: &str) -> Result<
 
 fn fetch(host: CodeHost, api: Option<&str>, user: &str) -> Result<Vec<FetchedKey>> {
     let url = host.signing_keys_url(api, user)?;
-    let (status, body) = curl(&url, api.is_some())?;
+    parse(host, &get(&url, api.is_some())?)
+}
+
+/// GET して本体を返す。404 は `Error::NotFound`、ほかの 200 でない応答は `Error::Tool`。
+fn get(url: &str, local: bool) -> Result<Vec<u8>> {
+    let (status, body) = curl(url, local)?;
     match status {
-        200 => {}
-        404 => return Err(Error::NotFound),
-        _ => {
-            return Err(Error::Tool {
-                program: "curl".into(),
-                code: None,
-                stderr: format!(
-                    "HTTP {status} from {url}: {}",
-                    String::from_utf8_lossy(&body)
-                        .chars()
-                        .take(300)
-                        .collect::<String>()
-                ),
-            });
-        }
+        200 => Ok(body),
+        404 => Err(Error::NotFound),
+        _ => Err(Error::Tool {
+            program: "curl".into(),
+            code: None,
+            stderr: format!(
+                "HTTP {status} from {url}: {}",
+                String::from_utf8_lossy(&body)
+                    .chars()
+                    .take(300)
+                    .collect::<String>()
+            ),
+        }),
     }
-    parse(host, &body)
+}
+
+fn json<'a, T: Deserialize<'a>>(body: &'a [u8]) -> Result<T> {
+    serde_json::from_slice(body).map_err(|e| Error::Parse {
+        line: e.line(),
+        message: e.to_string(),
+    })
+}
+
+/// 主体（allowed signers でその鍵の持ち主として書くメールアドレス）の候補の出どころ。GitHub・GitLab は、SSH の鍵が
+/// どのメールアドレスのものかを示さないので、どれも推定。上ほど確か。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CandidateSource {
+    /// アカウントに登録した GPG 鍵のメールアドレスのうち、サービスが持ち主のものと確かめたもの（GitHub）。
+    Verified,
+    /// アカウントが公開している GPG 鍵の UID のメールアドレス（FE が一時保管の鍵から足す）。
+    UserId,
+    /// プロフィールで公開しているメールアドレス。
+    Profile,
+    /// サービスがアカウントごとに割り当てる、届かないアドレス。いつでも作れる。
+    NoReply,
+}
+
+/// 主体の候補。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PrincipalCandidate {
+    pub email: String,
+    pub source: CandidateSource,
+}
+
+/// アカウントについて公開されていること。
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AccountProfile {
+    /// サービスでの表記（大文字・小文字は入力と違うことがある）。
+    pub user: String,
+    /// 主体の候補。確かなものから、同じアドレスは 1 度だけ。
+    pub candidates: Vec<PrincipalCandidate>,
+}
+
+impl CodeHost {
+    fn api(self, api: Option<&str>) -> &str {
+        api.unwrap_or(match self {
+            CodeHost::GitHub => "https://api.github.com",
+            CodeHost::GitLab => "https://gitlab.com/api/v4",
+        })
+    }
+}
+
+/// `host` の利用者 `user` のプロフィールと、主体の候補を取ってくる（GitHub は 2 回、GitLab は 1 回 GET する）。
+/// 利用者がいなければ `Error::NotFound`。
+pub fn fetch_account_profile(host: CodeHost, user: &str) -> Result<AccountProfile> {
+    fetch_profile(host, None, user)
+}
+
+/// テスト用。`api` に API の場所（`http://127.0.0.1:<port>` だけ）を指す。
+#[doc(hidden)]
+pub fn fetch_account_profile_from(api: &str, host: CodeHost, user: &str) -> Result<AccountProfile> {
+    if !api.starts_with("http://127.0.0.1:") {
+        return Err(Error::InvalidArgument {
+            name: "api",
+            message: "only a local test server".into(),
+        });
+    }
+    fetch_profile(host, Some(api), user)
+}
+
+fn fetch_profile(host: CodeHost, api: Option<&str>, user: &str) -> Result<AccountProfile> {
+    let user = host.check_user(user)?;
+    let local = api.is_some();
+    let base = host.api(api);
+    match host {
+        CodeHost::GitHub => {
+            let profile = get(&format!("{base}/users/{user}"), local)?;
+            let gpg_keys = get(&format!("{base}/users/{user}/gpg_keys?per_page=100"), local)?;
+            github_profile(&profile, &gpg_keys)
+        }
+        CodeHost::GitLab => gitlab_profile(&get(&format!("{base}/users?username={user}"), local)?),
+    }
+}
+
+#[derive(Deserialize)]
+struct GitHubUser {
+    login: String,
+    id: u64,
+    email: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct GitHubGpgKey {
+    #[serde(default)]
+    emails: Vec<GitHubGpgEmail>,
+}
+
+#[derive(Deserialize)]
+struct GitHubGpgEmail {
+    email: String,
+    #[serde(default)]
+    verified: bool,
+}
+
+#[derive(Deserialize)]
+struct GitLabUser {
+    id: u64,
+    username: String,
+    public_email: Option<String>,
+}
+
+fn github_profile(profile: &[u8], gpg_keys: &[u8]) -> Result<AccountProfile> {
+    let user: GitHubUser = json(profile)?;
+    let keys: Vec<GitHubGpgKey> = json(gpg_keys)?;
+    let mut found = Vec::new();
+    for e in keys.iter().flat_map(|k| &k.emails).filter(|e| e.verified) {
+        found.push((e.email.clone(), CandidateSource::Verified));
+    }
+    if let Some(email) = user.email {
+        found.push((email, CandidateSource::Profile));
+    }
+    found.push((
+        format!("{}+{}@users.noreply.github.com", user.id, user.login),
+        CandidateSource::NoReply,
+    ));
+    Ok(AccountProfile {
+        candidates: candidates(found),
+        user: user.login,
+    })
+}
+
+fn gitlab_profile(users: &[u8]) -> Result<AccountProfile> {
+    let users: Vec<GitLabUser> = json(users)?;
+    let user = users.into_iter().next().ok_or(Error::NotFound)?;
+    let mut found = Vec::new();
+    if let Some(email) = user.public_email {
+        found.push((email, CandidateSource::Profile));
+    }
+    found.push((
+        format!("{}-{}@users.noreply.gitlab.com", user.id, user.username),
+        CandidateSource::NoReply,
+    ));
+    Ok(AccountProfile {
+        candidates: candidates(found),
+        user: user.username,
+    })
+}
+
+/// 主体にできないもの（空・空白など）を除き、同じアドレス（大文字・小文字は区別しない）は先のものだけを残す。
+fn candidates(found: Vec<(String, CandidateSource)>) -> Vec<PrincipalCandidate> {
+    let mut out: Vec<PrincipalCandidate> = Vec::new();
+    for (email, source) in found {
+        let email = email.trim();
+        if check_email(email).is_err() || out.iter().any(|c| c.email.eq_ignore_ascii_case(email)) {
+            continue;
+        }
+        out.push(PrincipalCandidate {
+            email: email.to_owned(),
+            source,
+        });
+    }
+    out
 }
 
 /// 鍵の一覧の 1 つ。GitHub と GitLab で共通の欄だけ。
@@ -106,10 +261,7 @@ struct ApiKey {
 }
 
 fn parse(host: CodeHost, body: &[u8]) -> Result<Vec<FetchedKey>> {
-    let keys: Vec<ApiKey> = serde_json::from_slice(body).map_err(|e| Error::Parse {
-        line: e.line(),
-        message: e.to_string(),
-    })?;
+    let keys: Vec<ApiKey> = json(body)?;
     let mut out: Vec<FetchedKey> = Vec::new();
     for k in keys {
         let signing = match host {
@@ -278,5 +430,68 @@ mod tests {
         // 読めない鍵は飛ばす（ssh-keygen を呼ぶ前に）
         let body = br#"[{"key":"ssh-dss AAAAB3NzaC1kc3MAAACBAP","title":"old"},{"key":"junk"}]"#;
         assert_eq!(parse(CodeHost::GitHub, body).unwrap(), []);
+    }
+
+    fn emails(profile: &AccountProfile) -> Vec<(&str, CandidateSource)> {
+        profile
+            .candidates
+            .iter()
+            .map(|c| (c.email.as_str(), c.source))
+            .collect()
+    }
+
+    #[test]
+    fn github_candidates() {
+        let profile = br#"{"login":"Alice","id":42,"email":"alice@example.com"}"#;
+        let keys = br#"[
+            {"emails":[{"email":"alice@work.example","verified":true},{"email":"old@example.com","verified":false}]},
+            {"emails":[{"email":"ALICE@example.com","verified":true}]},
+            {"emails":[]}
+        ]"#;
+        let p = github_profile(profile, keys).unwrap();
+        assert_eq!(p.user, "Alice");
+        assert_eq!(
+            emails(&p),
+            [
+                ("alice@work.example", CandidateSource::Verified),
+                ("ALICE@example.com", CandidateSource::Verified),
+                (
+                    "42+Alice@users.noreply.github.com",
+                    CandidateSource::NoReply
+                ),
+            ]
+        );
+        // メールアドレスを公開せず GPG 鍵もなければ、noreply だけ
+        let p = github_profile(br#"{"login":"bob","id":7,"email":null}"#, b"[]").unwrap();
+        assert_eq!(
+            emails(&p),
+            [("7+bob@users.noreply.github.com", CandidateSource::NoReply)]
+        );
+        assert!(github_profile(b"{}", b"[]").is_err());
+    }
+
+    #[test]
+    fn gitlab_candidates() {
+        let p = gitlab_profile(
+            br#"[{"id":444,"username":"carol","public_email":"carol@example.com","name":"C"}]"#,
+        )
+        .unwrap();
+        assert_eq!(
+            emails(&p),
+            [
+                ("carol@example.com", CandidateSource::Profile),
+                (
+                    "444-carol@users.noreply.gitlab.com",
+                    CandidateSource::NoReply
+                ),
+            ]
+        );
+        // 公開していないメールアドレスは空で来る
+        let p = gitlab_profile(br#"[{"id":1,"username":"dan","public_email":""}]"#).unwrap();
+        assert_eq!(
+            emails(&p),
+            [("1-dan@users.noreply.gitlab.com", CandidateSource::NoReply)]
+        );
+        assert!(matches!(gitlab_profile(b"[]"), Err(Error::NotFound)));
     }
 }

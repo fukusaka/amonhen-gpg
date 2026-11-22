@@ -13,6 +13,8 @@ final class StagingModel {
     var failure: String?
     /// 操作の結果（取り込んだ、見つからなかった）。
     var message: String?
+    /// 結果に添える文（一緒に取ってきた SSH の鍵のこと）。
+    var note: String?
     /// 直前に探した（ファイルから入れた）とき、見つかった鍵。一覧は一時保管にある鍵すべてなので、今回の分に印を付ける。
     private(set) var lastFound: Set<String> = []
     /// 直前の操作が探す（ファイルから入れる）ものだったか。見つからなかったとき、一覧が前の鍵だと添えるため。
@@ -24,14 +26,21 @@ final class StagingModel {
     }
 
     func find(_ query: StagingQuery) async {
+        // GitHub・GitLab のアカウントは SSH の鍵だけのこともあるので、どの鍵の話かを言う
+        let nothing = if case .codeHost = query { L("This account publishes no OpenPGP key.") } else { L("No key was found.") }
         await run(search: true) { staging in
-            let result = try staging.find(query)
+            let result: ImportResult
+            do {
+                result = try staging.find(query)
+            } catch GpgError.NotFound {
+                return (nothing, [])
+            }
             let found = Set(result.keys.map(\.fingerprint))
             switch StagingOutcome(result) {
             case .found: return (nil, found)
             case .withoutUserIds:
                 return (L("The keyserver has this key, but without any name or email address, so it cannot be imported. keys.openpgp.org publishes them only after the owner confirms them by mail. Try searching by email address, or get the key from its owner."), found)
-            case .nothing: return (L("No key was found."), found)
+            case .nothing: return (nothing, found)
             }
         }
     }
@@ -94,6 +103,7 @@ final class StagingModel {
         searched = false
         failure = nil
         message = nil
+        note = nil
     }
 
     /// アプリの終わりに一時保管ごと捨てる。
@@ -119,6 +129,7 @@ final class StagingModel {
         working = true
         failure = nil
         message = nil
+        note = nil
         if search {
             searched = true
             lastFound = []
@@ -171,10 +182,10 @@ struct StagingView: View {
                         if let other = StagingQuery(text)?.kind, other != kind { kind = other }
                     }
                 Button(L("Find"), action: find)
-                    .disabled(StagingQuery(text, as: kind) == nil || model.working)
+                    .disabled(StagingQuery(text, as: kind) == nil || model.working || signers.searching)
                 Button(L("From File…"), action: openFiles)
                     .disabled(model.working)
-                if model.working {
+                if model.working || signers.searching {
                     ProgressView().controlSize(.small)
                 }
             }
@@ -182,10 +193,10 @@ struct StagingView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
             // fixedSize を付けると、この並べ方では窓全体が描かれなくなる（折り返しは幅いっぱいで足りる）
-            if model.failure != nil || model.message != nil {
-                ResultBox(text: model.failure ?? model.message ?? "", isFailure: model.failure != nil, note: leftoverNote)
+            if let text = model.failure ?? model.message ?? model.note {
+                ResultBox(text: text, isFailure: model.failure != nil, note: resultNote)
             }
-            if model.keys.isEmpty, signers.pending.isEmpty, signers.imports.isEmpty, signers.skipped.isEmpty {
+            if model.keys.isEmpty, signers.searched.isEmpty, signers.pending.isEmpty, signers.imports.isEmpty, signers.skipped.isEmpty {
                 // 上の欄と同じ VStack の中なので、広げないと左上に寄る
                 EmptyPlace(
                     L("Keys to Accept"), systemImage: "tray",
@@ -207,9 +218,15 @@ struct StagingView: View {
                             }
                             Divider()
                         }
+                        ForEach(signers.searched) { account in
+                            SearchedSshKeys(
+                                account: account, userIdEmails: userIdEmails(account.account), model: signers,
+                                keyring: model.main, notify: notify)
+                                .padding(.top, model.keys.isEmpty && account.id == signers.searched.first?.id ? 0 : 12)
+                        }
                         if !signers.pending.isEmpty {
                             PendingSshKeys(model: signers, keyring: model.main, notify: notify)
-                                .padding(.top, model.keys.isEmpty ? 0 : 12)
+                                .padding(.top, model.keys.isEmpty && signers.searched.isEmpty ? 0 : 12)
                         }
                         if !signers.imports.isEmpty || !signers.skipped.isEmpty {
                             PendingImportedKeys(model: signers, keyring: model.main, notify: notify)
@@ -223,6 +240,21 @@ struct StagingView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
+    /// 結果の枠の、本文の下に添える文。
+    private var resultNote: String? {
+        let lines = [model.failure ?? model.message == nil ? nil : model.note, leftoverNote].compactMap { $0 }
+        return lines.isEmpty ? nil : lines.joined(separator: "\n")
+    }
+
+    /// アカウントが公開している GPG 鍵（一時保管にある、そのアカウントから取った鍵）の UID のメールアドレス。
+    private func userIdEmails(_ account: Account) -> [String] {
+        // gpg が入手元として記録した URL（core の `CodeHost::key_url`）
+        let url = "https://\(account.display.lowercased()).gpg"
+        return model.keys.filter { $0.origin == .url && $0.originUrl?.lowercased() == url }
+            .flatMap { $0.userIds.filter { !$0.attribute && $0.validity != .revoked } }
+            .compactMap { UserIdParts($0.text).email }
+    }
+
     /// 探して何も入らなかったのに一覧に鍵があるとき、それが前の鍵だと添える。
     private var leftoverNote: String? {
         guard model.searched, model.lastFound.isEmpty, !model.keys.isEmpty else { return nil }
@@ -230,8 +262,17 @@ struct StagingView: View {
     }
 
     private func find() {
-        guard let query = StagingQuery(text, as: kind), !model.working else { return }
-        Task { await model.find(query) }
+        guard let query = StagingQuery(text, as: kind), !model.working, !signers.searching else { return }
+        Task {
+            // GitHub・GitLab のアカウントなら、SSH の署名用の鍵も一緒に取ってくる（主体は利用者が選ぶ）
+            guard case let .codeHost(host, user) = query else {
+                await model.find(query)
+                return
+            }
+            let ssh = Task { await signers.search(host, user) }
+            await model.find(query)
+            model.note = await ssh.value
+        }
     }
 
     private func openFiles() {

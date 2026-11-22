@@ -608,6 +608,138 @@ struct PendingImportedKeys: View {
     }
 }
 
+/// 受け入れ前の鍵の画面の、探したアカウントの SSH の署名用の鍵の段。サービスは鍵が誰のメールアドレスのものかを
+/// 示さないので、主体（git が署名した人として出すメールアドレス）を候補から選んでから受け入れる。
+struct SearchedSshKeys: View {
+    let account: SearchedAccount
+    /// アカウントが公開している GPG 鍵の UID のメールアドレス（候補に足す）。
+    var userIdEmails: [String] = []
+    let model: SignersModel
+    let keyring: KeyringModel
+    var notify: (Notice) -> Void = { _ in }
+    /// 選んだ候補。`nil` なら初めの候補、`""` なら手で入れたアドレス。
+    @State private var chosen: String?
+    @State private var typed = ""
+    /// 持ち主と照らし合わせてから受け入れる鍵。
+    @State private var comparing: FetchedKey?
+
+    /// 候補。すでにこのアカウントを結び付けている人を先に、次にサービスから推定したもの。
+    private var choices: [(email: String, word: String)] {
+        let linked = model.record.people(with: account.account)
+        let people = Set(model.record.people.map { $0.email.lowercased() })
+        var out = linked.map { (email: $0, word: L("In SSH Signers with this account")) }
+        for candidate in account.candidates(addingUserIds: userIdEmails)
+        where !out.contains(where: { $0.email.lowercased() == candidate.email.lowercased() }) {
+            let word = candidate.source.word(account.account.host)
+            out.append((email: candidate.email, word: people.contains(candidate.email.lowercased()) ? L("%@, in SSH Signers", word) : word))
+        }
+        return out
+    }
+
+    private var email: String {
+        switch chosen {
+        case "": typed.trimmingCharacters(in: .whitespaces)
+        case let email?: email
+        case nil: choices.first?.email ?? ""
+        }
+    }
+
+    private var canAccept: Bool {
+        !email.isEmpty && email.contains("@") && !model.saving && model.signer(in: keyring.keyring) != nil
+    }
+
+    var body: some View {
+        let open = account.keys.filter { model.record.holder(of: $0.fingerprint) == nil }
+        VStack(alignment: .leading, spacing: 10) {
+            Text(L("SSH signing keys on %@ (%ld)", account.account.display, account.keys.count)).font(.headline)
+            Text(L("The service does not say whose email address goes with these keys. Choose the address git shows as the signer; the choices are guesses from the account."))
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            if model.signer(in: keyring.keyring) == nil {
+                Text(L("You have no key of your own that can sign on this Mac."))
+                    .foregroundStyle(.orange)
+            }
+            HStack {
+                Picker(L("Signer"), selection: Binding(get: { chosen ?? choices.first?.email ?? "" }, set: { chosen = $0 })) {
+                    ForEach(choices, id: \.email) { choice in
+                        Text("\(choice.email) — \(choice.word)").tag(choice.email)
+                    }
+                    Divider()
+                    Text(L("Other Address…")).tag("")
+                }
+                .fixedSize()
+                if chosen == "" {
+                    TextField(L("Email address"), text: $typed, prompt: Text("alice@example.com"))
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: 260)
+                }
+                Spacer()
+                Button(L("Accept All")) { accept(open, checked: .account) }
+                    .disabled(open.isEmpty || !canAccept)
+                    .help(L("Trust the keys as the account shows them."))
+                Button(L("Discard")) { model.discardSearched(account.id) }
+            }
+            ForEach(account.keys, id: \.fingerprint) { key in
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Image(systemName: "key.badge.plus").foregroundStyle(.blue)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(key.fingerprint)
+                            .font(.caption.monospaced())
+                            .textSelection(.enabled)
+                        if let title = key.title {
+                            Text(title).font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    Spacer()
+                    if let holder = model.record.holder(of: key.fingerprint) {
+                        Text(L("Accepted for %@", holder)).font(.caption).foregroundStyle(.secondary)
+                    } else {
+                        Button(L("Accept")) { accept([key], checked: .account) }
+                            .controlSize(.small)
+                            .help(L("Trust the key as the account shows it."))
+                            .disabled(!canAccept)
+                        Button(L("Compare and Accept…")) { comparing = key }
+                            .controlSize(.small)
+                            .help(L("Compare the fingerprint with the owner first."))
+                            .disabled(!canAccept)
+                    }
+                }
+            }
+            Divider()
+        }
+        .sheet(item: Binding(get: { comparing.map(ComparedKey.init) }, set: { comparing = $0?.key })) { item in
+            CompareSshKeySheet(email: email, fingerprint: item.key.fingerprint) {
+                accept([item.key], checked: .fingerprint)
+            }
+        }
+    }
+
+    private func accept(_ keys: [FetchedKey], checked: Checked) {
+        let email = email
+        Task {
+            await model.acceptSearched(account.id, keys: keys, as: email, checked: checked, keyring: keyring, notify: notify)
+        }
+    }
+
+    private struct ComparedKey: Identifiable {
+        let key: FetchedKey
+        var id: String { key.fingerprint }
+    }
+}
+
+extension CandidateSource {
+    /// 候補の出どころ（選ぶときの手がかり）。
+    func word(_ host: CodeHost) -> String {
+        let service = host == .gitHub ? "GitHub" : "GitLab"
+        switch self {
+        case .verified: return L("Verified by %@", service)
+        case .userId: return L("In the account's OpenPGP key")
+        case .profile: return L("Public profile")
+        case .noReply: return L("%@ no-reply address", service)
+        }
+    }
+}
+
 /// 受け入れ前の鍵の画面の、SSH の署名用の鍵の段。取ってきた鍵を、人ごとに受け入れる。
 struct PendingSshKeys: View {
     let model: SignersModel

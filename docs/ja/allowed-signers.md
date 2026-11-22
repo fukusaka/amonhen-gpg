@@ -89,6 +89,18 @@ git -C <リポジトリ> config gpg.ssh.allowedSignersFile "$HOME/Library/Applic
 - `valid-after` と `valid-before` は持つ。`Z` のない時刻は、このコンピュータの時刻帯で読む。
 - 人に GitHub か GitLab のアカウントを付けると、「変化を確かめる」で取り込んだ鍵をアカウントと比べる。アカウントにもある鍵は、そう記録できる（入手元がそのアカウントになり、確かめ方は「ファイルから」のまま）。その人のどのアカウントにもない鍵は、そう出して「退役させる」を出す。
 
+## 受け入れ前の鍵でアカウントを探す
+
+受け入れ前の鍵で GitHub・GitLab の利用者を探すと、OpenPGP の鍵と一緒に、そのアカウントの SSH の署名用の鍵も取ってくる。どちらのサービスも、SSH の鍵が誰のメールアドレスのものかを示さないので、主体はアカウントから推し量った候補から利用者が選ぶ。確かなものから並べる。
+
+- このアカウントで、すでに SSH の署名者にいる人
+- GitHub では、アカウントの GPG 鍵のメールアドレスのうち、GitHub が持ち主のものと確かめたもの
+- アカウントが公開している OpenPGP の鍵の UID のメールアドレス
+- 公開プロフィールのメールアドレス（あれば）
+- サービスがアカウントに割り当てる noreply のアドレス（`<id>+<名前>@users.noreply.github.com`、`<id>-<名前>@users.noreply.gitlab.com`）。いつでも作れる
+
+ほかのアドレスを入れてもよい。受け入れると、人がいなければ足し、アカウントをその人に結び付け、アカウントを入手元として鍵を受け入れる。以後は「変化を確かめる」がそのアカウントを追う。git は主体を署名した人として出すだけで、コミットのメールアドレスとは突き合わせない。
+
 ## 取ってくる
 
 コアが `curl` を起動して HTTPS で取る（gpg は SSH の鍵を取れない）。gpg と同じく、TLS はアプリの外に置く。curl は macOS、たいていの Linux、Windows 10 以降に入っている。認証はせず、公開鍵だけを読む。
@@ -97,6 +109,8 @@ git -C <リポジトリ> config gpg.ssh.allowedSignersFile "$HOME/Library/Applic
 |---|---|---|
 | GitHub | `GET https://api.github.com/users/<名前>/ssh_signing_keys?per_page=100` | すべて（署名用の鍵だけが返る） |
 | GitLab | `GET https://gitlab.com/api/v4/users/<名前>/keys` | `usage_type` が `signing` か `auth_and_signing` |
+
+受け入れ前の鍵でアカウントを探すときは、プロフィールも読む。GitHub は `GET /users/<名前>`（`id`・`login`・`email`）と `GET /users/<名前>/gpg_keys`（`emails` と `verified`）、GitLab は `GET /users?username=<名前>`（`id`・`username`・`public_email`）。
 
 `https://github.com/<名前>.keys` は使わない。これはログイン用の鍵で、署名用とは限らない。GitHub は認証なしで 1 時間に 60 回まで要求でき、チームを手で確かめるには足りる。
 
