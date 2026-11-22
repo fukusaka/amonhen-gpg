@@ -562,3 +562,4 @@
 "Public profile" = "公開プロフィール";
 "%@ no-reply address" = "%@ の noreply のアドレス";
 "Trust the keys as the account shows them." = "アカウントが示すとおりに、鍵を信頼します。";
+"How Keys Flow" = "鍵の流れ";

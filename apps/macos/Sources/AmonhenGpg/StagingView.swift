@@ -209,12 +209,9 @@ struct StagingView: View {
             if let text = model.failure ?? model.message ?? model.note {
                 ResultBox(text: text, isFailure: model.failure != nil, note: resultNote)
             }
-            if model.keys.isEmpty, signers.searched.isEmpty, signers.pending.isEmpty, signers.imports.isEmpty, signers.skipped.isEmpty {
+            if isEmpty {
                 // 上の欄と同じ VStack の中なので、広げないと左上に寄る
-                EmptyPlace(
-                    L("Keys to Accept"), systemImage: "tray",
-                    message: L("Keys found on keyservers, through WKD or on GitHub and GitLab, and SSH signing keys fetched for SSH Signers, wait here until you accept them."),
-                    diagram: .keysToAccept)
+                EmptyPlace(L("Keys to Accept"), systemImage: "tray", message: Self.flowMessage, diagram: .keysToAccept)
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 12) {
@@ -251,6 +248,20 @@ struct StagingView: View {
         }
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .toolbar {
+            // 空のときは図が真ん中に出ているので、鍵があるときだけ
+            if !isEmpty {
+                FlowHelpButton(title: L("Keys to Accept"), message: Self.flowMessage, diagram: .keysToAccept)
+            }
+        }
+    }
+
+    private static var flowMessage: String {
+        L("Keys found on keyservers, through WKD or on GitHub and GitLab, and SSH signing keys fetched for SSH Signers, wait here until you accept them.")
+    }
+
+    private var isEmpty: Bool {
+        model.keys.isEmpty && signers.searched.isEmpty && signers.pending.isEmpty && signers.imports.isEmpty && signers.skipped.isEmpty
     }
 
     /// 頼まれたもの（取り直したときに引いたもの）を検索欄に移す。種類を先に決め、名前だけでも読めるようにする。
