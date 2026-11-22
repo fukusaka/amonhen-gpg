@@ -45,7 +45,13 @@ final class StagingModel {
     func refresh(_ key: Key) async {
         let fingerprint = key.fingerprint
         await run(search: true) { staging in
-            let found = Set(try staging.refresh(key).keys.map(\.fingerprint))
+            // 鍵サーバーにないときは誤りで返るので、見つからなかった結果として扱う
+            let found: Set<String>
+            do {
+                found = Set(try staging.refresh(key).keys.map(\.fingerprint))
+            } catch GpgError.NotFound {
+                found = []
+            }
             return (found.contains(fingerprint) ? nil : L("No copy of this key was found where it came from or on the keyserver."), found)
         }
     }
