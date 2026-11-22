@@ -6,6 +6,12 @@ notes.
 
 ## Unreleased
 
+## [0.4.1] - 2026-11-22
+
+Fetch SSH signing keys with an account and fetch others' keys again. Searching Keys to Accept for a GitHub or GitLab
+user also brings the account's SSH signing keys, with guesses for the email address git shows as the signer. Fetch
+Again gets a new expiry or a revocation for others' keys, and Keys to Accept lets you choose what to search by.
+
 ### Added
 
 - Searching Keys to Accept for a GitHub or GitLab user also fetches the account's SSH signing keys. Choose the email address git shows as the signer from guesses about the account (addresses GitHub verified, the addresses in its OpenPGP keys, the public profile, the no-reply address) or type another, then accept them into SSH Signers; the account is linked to the person for Check for Changes.
