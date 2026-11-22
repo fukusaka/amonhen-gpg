@@ -130,16 +130,28 @@ struct StagingView: View {
     let signers: SignersModel
     var notify: (Notice) -> Void = { _ in }
     @State private var text = ""
+    /// 探す種類（次に開いたときも同じ）。
+    @AppStorage("StagingSearchKind") private var kind = StagingQuery.Kind.email
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                TextField(L("Email address, fingerprint, or github:name"), text: $text, prompt: Text(L("Email address, fingerprint, or github:name")))
-                    .help(L("Search WKD and keys.openpgp.org by email address or fingerprint, or fetch the keys a GitHub or GitLab user publishes with github:name or gitlab:name."))
+                Picker(L("Search by"), selection: $kind) {
+                    ForEach(StagingQuery.Kind.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
+                .labelsHidden()
+                .fixedSize()
+                .help(L("Email addresses search WKD, then keys.openpgp.org. Fingerprints search keys.openpgp.org. GitHub and GitLab fetch the keys a user publishes."))
+                TextField(kind.prompt, text: $text, prompt: Text(kind.prompt))
+                    .help(L("Pasting an email address, a fingerprint, github:name, gitlab:name or a profile URL picks the kind for you."))
                     .textFieldStyle(.roundedBorder)
                     .onSubmit(find)
+                    .onChange(of: text) {
+                        // 貼ったものが別の種類として読めれば、種類を合わせる（名前だけは GitHub・GitLab で区別できない）
+                        if let other = StagingQuery(text)?.kind, other != kind { kind = other }
+                    }
                 Button(L("Find"), action: find)
-                    .disabled(StagingQuery(text) == nil || model.working)
+                    .disabled(StagingQuery(text, as: kind) == nil || model.working)
                 Button(L("From File…"), action: openFiles)
                     .disabled(model.working)
                 if model.working {
@@ -194,7 +206,7 @@ struct StagingView: View {
     }
 
     private func find() {
-        guard let query = StagingQuery(text), !model.working else { return }
+        guard let query = StagingQuery(text, as: kind), !model.working else { return }
         Task { await model.find(query) }
     }
 
@@ -291,5 +303,26 @@ struct ResultBox: View {
         }
         .padding(10)
         .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+extension StagingQuery.Kind {
+    var title: String {
+        switch self {
+        case .email: L("Email Address")
+        case .fingerprint: L("Fingerprint")
+        case .gitHub: "GitHub"
+        case .gitLab: "GitLab"
+        }
+    }
+
+    /// 検索欄の中の案内。
+    var prompt: String {
+        switch self {
+        case .email: L("alice@example.com")
+        case .fingerprint: L("Full fingerprint (40 or 64 hex digits)")
+        case .gitHub: L("GitHub user name")
+        case .gitLab: L("GitLab user name")
+        }
     }
 }

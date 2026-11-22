@@ -685,6 +685,26 @@ func passphrasesThroughPinentry() throws {
     #expect(StagingQuery("https://example.com/key.gpg") == nil)
 }
 
+@Test func readsStagingQueriesOfAKind() {
+    let fpr = "5DDA16B5FFEADD5E944BD9DFBB8F6AF01166B837"
+    #expect(StagingQuery("alice@example.com", as: .email) == .email("alice@example.com"))
+    #expect(StagingQuery(fpr, as: .fingerprint) == .fingerprint(fpr))
+    // GitHub・GitLab は名前だけでも、github:名前・URL でもよい
+    #expect(StagingQuery(" web-flow ", as: .gitHub) == .codeHost(.gitHub, "web-flow"))
+    #expect(StagingQuery("first.last", as: .gitLab) == .codeHost(.gitLab, "first.last"))
+    #expect(StagingQuery("https://github.com/web-flow", as: .gitHub) == .codeHost(.gitHub, "web-flow"))
+    // 選んだ種類と違うものは受け付けない
+    #expect(StagingQuery("alice@example.com", as: .gitHub) == nil)
+    #expect(StagingQuery("web-flow", as: .email) == nil)
+    #expect(StagingQuery(fpr, as: .email) == nil)
+    #expect(StagingQuery("gitlab:someone", as: .gitHub) == nil)
+    #expect(StagingQuery("a/b", as: .gitHub) == nil)
+    #expect(StagingQuery("", as: .gitLab) == nil)
+    // 種類（貼り付けたものに合わせて切り替えるのに使う）
+    #expect(StagingQuery("github:web-flow")?.kind == .gitHub)
+    #expect(StagingQuery(fpr)?.kind == .fingerprint)
+}
+
 @Test(.enabled(if: gpgAvailable()))
 func stagingKeepsKeysApartUntilImported() throws {
     let bob = try TemporaryKeyring()

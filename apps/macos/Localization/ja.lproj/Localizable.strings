@@ -199,9 +199,15 @@
 "%@ is now verified in your keyring." = "%@ を確認済みにしました。";
 
 /* 受け入れ前の鍵（コードでは staging） */
-"Email address, fingerprint, or github:name" = "メールアドレス・フィンガープリント・github:名前";
-"Search WKD and keys.openpgp.org by email address or fingerprint, or fetch the keys a GitHub or GitLab user publishes with github:name or gitlab:name." = "メールアドレスかフィンガープリントで WKD と keys.openpgp.org を探します。github:名前・gitlab:名前 で、GitHub・GitLab の利用者が公開している鍵を取ってきます。";
 "Find" = "探す";
+"Search by" = "探す種類";
+"Email Address" = "メールアドレス";
+"Email addresses search WKD, then keys.openpgp.org. Fingerprints search keys.openpgp.org. GitHub and GitLab fetch the keys a user publishes." = "メールアドレスは WKD を、なければ keys.openpgp.org を探します。フィンガープリントは keys.openpgp.org を探します。GitHub・GitLab は、利用者が公開している鍵を取ってきます。";
+"Pasting an email address, a fingerprint, github:name, gitlab:name or a profile URL picks the kind for you." = "メールアドレス・フィンガープリント・github:名前・gitlab:名前・プロフィールの URL を貼ると、種類も合わせます。";
+"alice@example.com" = "alice@example.com";
+"Full fingerprint (40 or 64 hex digits)" = "完全なフィンガープリント（16 進で 40 か 64 桁）";
+"GitHub user name" = "GitHub のユーザー名";
+"GitLab user name" = "GitLab のユーザー名";
 "From File…" = "ファイルから…";
 "Found keys stay here and are not in your keyring until you import them. Compare the fingerprint with its owner before importing. Keys left here are discarded when the app quits." = "見つけた鍵はここに置かれ、取り込むまで鍵束には入りません。取り込む前に、フィンガープリントを持ち主と照らし合わせてください。ここに残した鍵は、アプリを終了すると捨てます。";
 "No key was found." = "鍵は見つかりませんでした。";

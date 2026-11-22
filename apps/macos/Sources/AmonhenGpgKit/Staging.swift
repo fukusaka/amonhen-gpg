@@ -57,6 +57,39 @@ public enum StagingQuery: Equatable, Sendable {
     }
 }
 
+extension StagingQuery {
+    /// 探す種類（受け入れ前の鍵の検索欄の左で選ぶ）。
+    public enum Kind: String, CaseIterable, Sendable {
+        case email, fingerprint, gitHub, gitLab
+    }
+
+    public var kind: Kind {
+        switch self {
+        case .email: .email
+        case .fingerprint: .fingerprint
+        case .codeHost(.gitHub, _): .gitHub
+        case .codeHost(.gitLab, _): .gitLab
+        }
+    }
+
+    /// 選んだ種類として読む。GitHub・GitLab は名前だけでよい（`github:名前` やプロフィールの URL も読む）。
+    /// ほかの種類として読めるもの（GitHub を選んでいてメールアドレス）は受け付けない。
+    public init?(_ text: String, as kind: Kind) {
+        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let query: StagingQuery?
+        switch kind {
+        case .email, .fingerprint:
+            query = StagingQuery(text)
+        case .gitHub:
+            query = StagingQuery(text).flatMap { $0.kind == .gitHub ? $0 : nil } ?? StagingQuery("github:" + text)
+        case .gitLab:
+            query = StagingQuery(text).flatMap { $0.kind == .gitLab ? $0 : nil } ?? StagingQuery("gitlab:" + text)
+        }
+        guard let query, query.kind == kind else { return nil }
+        self = query
+    }
+}
+
 /// 一時保管の鍵束（docs/ui.md の「一時保管」）。鍵サーバーや WKD で取ってきた鍵をまずここに入れ、確かめてから
 /// 本来の鍵束に公開鍵だけを移す。中身はアプリの終わりに捨てる。
 public final class Staging: @unchecked Sendable {
