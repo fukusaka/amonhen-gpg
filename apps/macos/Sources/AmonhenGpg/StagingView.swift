@@ -50,9 +50,14 @@ final class StagingModel {
 
     func reveal() { revealed += 1 }
 
+    /// 検索欄に出すよう頼んだもの（取り直したときに引いたもの）。画面が欄に移したら消す。
+    var requested: StagingQuery?
+
     /// 鍵束にある鍵を入手元から取り直して、ここに置く（取り込むと、鍵束の鍵が更新される）。
     func refresh(_ key: Key) async {
         let fingerprint = key.fingerprint
+        // 何で引いたかが分かるよう、最初に引くもの（入手元のメールアドレス・アカウント、なければフィンガープリント）を欄に出す
+        requested = Staging.refreshQueries(for: key).first
         await run(search: true) { staging in
             // 鍵サーバーにないときは誤りで返るので、見つからなかった結果として扱う
             let found: Set<String>
@@ -195,6 +200,8 @@ struct StagingView: View {
                     ProgressView().controlSize(.small)
                 }
             }
+            .onAppear(perform: takeRequested)
+            .onChange(of: model.requested) { takeRequested() }
             Text(L("Found keys stay here and are not in your keyring until you import them. Compare the fingerprint with its owner before importing. Keys left here are discarded when the app quits."))
                 .font(.callout)
                 .foregroundStyle(.secondary)
@@ -244,6 +251,14 @@ struct StagingView: View {
         }
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    /// 頼まれたもの（取り直したときに引いたもの）を検索欄に移す。種類を先に決め、名前だけでも読めるようにする。
+    private func takeRequested() {
+        guard let query = model.requested else { return }
+        model.requested = nil
+        kind = query.kind
+        text = query.text
     }
 
     /// 結果の枠の、本文の下に添える文。

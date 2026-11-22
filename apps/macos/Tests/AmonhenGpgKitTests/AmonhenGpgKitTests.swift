@@ -703,6 +703,11 @@ func passphrasesThroughPinentry() throws {
     // 種類（貼り付けたものに合わせて切り替えるのに使う）
     #expect(StagingQuery("github:web-flow")?.kind == .gitHub)
     #expect(StagingQuery(fpr)?.kind == .fingerprint)
+    // 検索欄に入れる文字は、種類と合わせて読み戻せる（取り直したとき、引いたものを欄に出す）
+    for query: StagingQuery in [.email("alice@example.com"), .fingerprint(fpr), .codeHost(.gitHub, "web-flow"), .codeHost(.gitLab, "first.last")] {
+        #expect(StagingQuery(query.text, as: query.kind) == query)
+    }
+    #expect(StagingQuery.codeHost(.gitHub, "web-flow").text == "web-flow")
 }
 
 @Test func refreshesFromWhereTheKeyCameFrom() {
