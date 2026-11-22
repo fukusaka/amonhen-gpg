@@ -243,7 +243,7 @@ struct SshKeyRow: View {
                     .textSelection(.enabled)
             }
             Spacer()
-            Toggle(L("Use for SSH"), isOn: Binding(get: { sshKeyEnabled(key: key) }, set: actions.setEnabled))
+            Toggle(L("Use for SSH"), isOn: Binding(get: { sshKeyEnabled(key: key) }, set: { actions.setEnabled($0) }))
                 .toggleStyle(.switch)
                 .controlSize(.small)
                 .fixedSize()
