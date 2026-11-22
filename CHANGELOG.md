@@ -6,6 +6,11 @@ notes.
 
 ## Unreleased
 
+### Changed
+
+- Fetch Again fills the Keys to Accept search field with what it looked up first: the email address for a key from WKD, the account for a key from GitHub or GitLab, otherwise the fingerprint.
+- The diagram of where keys come from and where they go now also opens from a ? button in the toolbar of Keys to Accept and SSH Signers when they are not empty.
+
 ## [0.4.1] - 2026-11-22
 
 Fetch SSH signing keys with an account and fetch others' keys again. Searching Keys to Accept for a GitHub or GitLab

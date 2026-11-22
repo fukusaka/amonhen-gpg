@@ -50,9 +50,14 @@ final class StagingModel {
 
     func reveal() { revealed += 1 }
 
+    /// 検索欄に出すよう頼んだもの（取り直したときに引いたもの）。画面が欄に移したら消す。
+    var requested: StagingQuery?
+
     /// 鍵束にある鍵を入手元から取り直して、ここに置く（取り込むと、鍵束の鍵が更新される）。
     func refresh(_ key: Key) async {
         let fingerprint = key.fingerprint
+        // 何で引いたかが分かるよう、最初に引くもの（入手元のメールアドレス・アカウント、なければフィンガープリント）を欄に出す
+        requested = Staging.refreshQueries(for: key).first
         await run(search: true) { staging in
             // 鍵サーバーにないときは誤りで返るので、見つからなかった結果として扱う
             let found: Set<String>
@@ -195,6 +200,8 @@ struct StagingView: View {
                     ProgressView().controlSize(.small)
                 }
             }
+            .onAppear(perform: takeRequested)
+            .onChange(of: model.requested) { takeRequested() }
             Text(L("Found keys stay here and are not in your keyring until you import them. Compare the fingerprint with its owner before importing. Keys left here are discarded when the app quits."))
                 .font(.callout)
                 .foregroundStyle(.secondary)
@@ -202,12 +209,9 @@ struct StagingView: View {
             if let text = model.failure ?? model.message ?? model.note {
                 ResultBox(text: text, isFailure: model.failure != nil, note: resultNote)
             }
-            if model.keys.isEmpty, signers.searched.isEmpty, signers.pending.isEmpty, signers.imports.isEmpty, signers.skipped.isEmpty {
+            if isEmpty {
                 // 上の欄と同じ VStack の中なので、広げないと左上に寄る
-                EmptyPlace(
-                    L("Keys to Accept"), systemImage: "tray",
-                    message: L("Keys found on keyservers, through WKD or on GitHub and GitLab, and SSH signing keys fetched for SSH Signers, wait here until you accept them."),
-                    diagram: .keysToAccept)
+                EmptyPlace(L("Keys to Accept"), systemImage: "tray", message: Self.flowMessage, diagram: .keysToAccept)
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 12) {
@@ -244,6 +248,28 @@ struct StagingView: View {
         }
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .toolbar {
+            // 空のときは図が真ん中に出ているので、鍵があるときだけ
+            if !isEmpty {
+                FlowHelpButton(title: L("Keys to Accept"), message: Self.flowMessage, diagram: .keysToAccept)
+            }
+        }
+    }
+
+    private static var flowMessage: String {
+        L("Keys found on keyservers, through WKD or on GitHub and GitLab, and SSH signing keys fetched for SSH Signers, wait here until you accept them.")
+    }
+
+    private var isEmpty: Bool {
+        model.keys.isEmpty && signers.searched.isEmpty && signers.pending.isEmpty && signers.imports.isEmpty && signers.skipped.isEmpty
+    }
+
+    /// 頼まれたもの（取り直したときに引いたもの）を検索欄に移す。種類を先に決め、名前だけでも読めるようにする。
+    private func takeRequested() {
+        guard let query = model.requested else { return }
+        model.requested = nil
+        kind = query.kind
+        text = query.text
     }
 
     /// 結果の枠の、本文の下に添える文。

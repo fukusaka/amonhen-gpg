@@ -66,6 +66,10 @@ struct SignersView: View {
                 }
                 .help(L("Check for Changes"))
                 .disabled(model.record.people.isEmpty || !model.checking.isEmpty)
+                // 空のときは図が真ん中に出ているので、誰かいるときだけ
+                if !isEmpty {
+                    FlowHelpButton(title: L("SSH Signers"), message: Self.flowMessage, diagram: .sshSigners)
+                }
             }
             .sheet(isPresented: $addingPerson) {
                 AddSignerSheet(record: model.record) { email, account, lists in
@@ -136,6 +140,12 @@ struct SignersView: View {
             .task { await model.reload(keyring.gpg) }
     }
 
+    private static var flowMessage: String {
+        L("Add the people whose SSH-signed commits you want git to verify. Their signing keys are fetched from GitHub or GitLab, and you accept each one. Put people into lists, one file per team or repository.")
+    }
+
+    private var isEmpty: Bool { model.record.people.isEmpty && model.record.lists.isEmpty }
+
     @ViewBuilder private var content: some View {
         if let failure = model.failure {
             ContentUnavailableView(
@@ -144,12 +154,8 @@ struct SignersView: View {
             ContentUnavailableView(
                 L("No key of yours can sign"), systemImage: "signature",
                 description: Text(L("The record of signers is signed with a key of yours. Create or import a key that can sign on this Mac.")))
-        } else if model.record.people.isEmpty, model.record.lists.isEmpty {
-            EmptyPlace(
-                L("No signers yet"), systemImage: "signature",
-                message: L("Add the people whose SSH-signed commits you want git to verify. Their signing keys are fetched from GitHub or GitLab, and you accept each one. Put people into lists, one file per team or repository."),
-                diagram: .sshSigners
-            ) {
+        } else if isEmpty {
+            EmptyPlace(L("No signers yet"), systemImage: "signature", message: Self.flowMessage, diagram: .sshSigners) {
                 Button(L("New List…")) { addingList = true }
                 Button(L("Add Person…")) { addingPerson = true }
                 Button(L("Import Allowed Signers File…"), action: importFile)

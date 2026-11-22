@@ -161,3 +161,32 @@ struct EmptyPlace<Actions: View>: View {
         }
     }
 }
+
+/// 鍵の流れの図を出す「?」のボタン（ツールバー）。空の場所では図が真ん中に出るので、中身があるときに置く。
+struct FlowHelpButton: View {
+    let title: String
+    let message: String
+    let diagram: FlowDiagram
+    @State private var showing = false
+
+    var body: some View {
+        Button {
+            showing.toggle()
+        } label: {
+            Label(L("How Keys Flow"), systemImage: "questionmark.circle")
+        }
+        .help(L("How Keys Flow"))
+        .popover(isPresented: $showing, arrowEdge: .bottom) {
+            VStack(spacing: 14) {
+                Text(title).font(.headline)
+                Text(message)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 420)
+                    .fixedSize(horizontal: false, vertical: true)
+                diagram
+            }
+            .padding(20)
+        }
+    }
+}

@@ -72,6 +72,15 @@ extension StagingQuery {
         }
     }
 
+    /// 検索欄に入れる文字（`kind` と合わせて `init?(_:as:)` で読み戻せる）。GitHub・GitLab は名前だけ。
+    public var text: String {
+        switch self {
+        case let .email(email): email
+        case let .fingerprint(fingerprint): fingerprint
+        case let .codeHost(_, user): user
+        }
+    }
+
     /// 選んだ種類として読む。GitHub・GitLab は名前だけでよい（`github:名前` やプロフィールの URL も読む）。
     /// ほかの種類として読めるもの（GitHub を選んでいてメールアドレス）は受け付けない。
     public init?(_ text: String, as kind: Kind) {
