@@ -10,6 +10,7 @@ notes.
 
 - Keys to Accept is now last in the sidebar, after SSH Signers.
 - Keys to Accept has a pop-up menu to choose what to search by: email address, fingerprint, GitHub or GitLab. For GitHub and GitLab, the user name is enough. Pasting an email address, a fingerprint, `github:name` or a profile URL still works and picks the kind.
+- When empty, Keys to Accept and SSH Signers show a diagram of where keys come from and where they go. The empty Keys to Accept is centered instead of sitting at the top left.
 
 ## [0.4.0] - 2026-11-22
 

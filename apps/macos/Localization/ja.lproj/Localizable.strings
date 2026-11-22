@@ -520,3 +520,18 @@
 "a file" = "ファイル";
 "cert-authority lines are not handled." = "cert-authority の行は扱いません。";
 "valid-after or valid-before cannot be read." = "valid-after か valid-before が読めません。";
+
+/* 流れの図（空の画面） */
+"Keyservers and WKD" = "鍵サーバー・WKD";
+"GitHub and GitLab" = "GitHub・GitLab";
+"Files" = "ファイル";
+"Compare fingerprints" = "フィンガープリントを照らし合わせる";
+"Import GPG keys" = "GPG の鍵を取り込む";
+"Accept SSH keys" = "SSH の鍵を受け入れる";
+"Accounts" = "アカウント";
+"Allowed signers files" = "allowed signers のファイル";
+"Check and accept" = "確かめて受け入れる";
+"People and keys" = "人と鍵";
+"Signed with your key" = "自分の鍵で署名した記録";
+"Lists" = "一覧";
+"One file each" = "一覧ごとに 1 つのファイル";
