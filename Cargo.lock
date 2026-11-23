@@ -24,7 +24,7 @@ dependencies = [
 
 [[package]]
 name = "amonhen-gpg-core"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "aes-kw",
  "libc",
@@ -35,7 +35,7 @@ dependencies = [
 
 [[package]]
 name = "amonhen-gpg-ffi"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "amonhen-gpg-core",
  "uniffi",
