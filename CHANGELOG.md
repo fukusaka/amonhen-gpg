@@ -6,6 +6,11 @@ notes.
 
 ## Unreleased
 
+## [0.4.2] - 2026-11-23
+
+Small fixes to Keys to Accept and SSH Signers. Fetch Again fills the search field with what it looked up, and the
+diagram of how keys flow also opens from a ? button when the place is not empty.
+
 ### Changed
 
 - Fetch Again fills the Keys to Accept search field with what it looked up first: the email address for a key from WKD, the account for a key from GitHub or GitLab, otherwise the fingerprint.
