@@ -23,6 +23,9 @@ struct FlowDiagram: View {
         }
     }
 
+    /// 広い箱と添え書きでの図（収まるかによらない）。幅を測るのに使う。
+    var full: some View { diagram(width: 116, notes: true) }
+
     private func diagram(width: CGFloat, notes: Bool) -> some View {
         HStack(alignment: .center, spacing: 8) {
             ForEach(Array(columns.enumerated()), id: \.offset) { index, steps in
@@ -163,20 +166,26 @@ struct EmptyPlace<Actions: View>: View {
 }
 
 /// 鍵の流れの図を出す「?」のボタン（ツールバー）。空の場所では図が真ん中に出るので、中身があるときに置く。
+/// ボタンは窓の右端にあり、ポップオーバーはボタンを中心に開いて窓の外へはみ出すので、シートで出す。
 struct FlowHelpButton: View {
     let title: String
     let message: String
     let diagram: FlowDiagram
     @State private var showing = false
+    /// 開いたときの窓の幅。シートを窓より広くしない（図は狭ければ細い箱にする）。
+    @State private var windowWidth: CGFloat = 720
+    /// 広い図の幅。シートは中身の幅を決めずに測るので、幅を与えないと図が細い箱になる。
+    @State private var fullWidth: CGFloat = 0
 
     var body: some View {
         Button {
-            showing.toggle()
+            windowWidth = NSApp.keyWindow?.frame.width ?? 720
+            showing = true
         } label: {
             Label(L("How Keys Flow"), systemImage: "questionmark.circle")
         }
         .help(L("How Keys Flow"))
-        .popover(isPresented: $showing, arrowEdge: .bottom) {
+        .sheet(isPresented: $showing) {
             VStack(spacing: 14) {
                 Text(title).font(.headline)
                 Text(message)
@@ -185,8 +194,19 @@ struct FlowHelpButton: View {
                     .frame(maxWidth: 420)
                     .fixedSize(horizontal: false, vertical: true)
                 diagram
+                    .frame(width: fullWidth > 0 ? min(fullWidth, max(windowWidth - 80, 300)) : nil)
+                    .background {
+                        diagram.full.hidden()
+                            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { fullWidth = $0 }
+                    }
+                HStack {
+                    Spacer()
+                    Button(L("Close")) { showing = false }
+                        .keyboardShortcut(.defaultAction)
+                }
             }
             .padding(20)
+            .onExitCommand { showing = false }
         }
     }
 }

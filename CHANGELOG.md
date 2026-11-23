@@ -6,6 +6,10 @@ notes.
 
 ## Unreleased
 
+### Fixed
+
+- The diagram from the ? button in SSH Signers no longer reaches past the window's right edge: it now opens in a sheet over the window, with smaller boxes when the window is narrow.
+
 ## [0.4.2] - 2026-11-23
 
 Small fixes to Keys to Accept and SSH Signers. Fetch Again fills the search field with what it looked up, and the
