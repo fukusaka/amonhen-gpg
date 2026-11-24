@@ -36,7 +36,8 @@ struct KeyDetailView: View {
                         .help(L("Fetch this key again from where it came from, or from the keyserver, to get a new expiry or a revocation. It waits in Keys to Accept until you update it."))
                 }
                 if let certify, key.canCertify {
-                    Button(L("Mark as Verified…")) { certify(key) }
+                    Button(model.keyring.signers.isEmpty ? L("Sign Key… (needs your primary key)") : L("Sign Key…")) { certify(key) }
+                        .disabled(model.keyring.signers.isEmpty)
                 }
             }
             FingerprintView(fingerprint: key.fingerprint)
@@ -359,9 +360,11 @@ func validityWord(_ validity: Validity) -> String {
     switch validity {
     case .revoked: L("Revoked")
     case .expired: L("Expired")
-    case .full, .ultimate: L("Verified")
-    case .marginal: L("Partly verified")
-    default: L("Not verified")
+    case .ultimate: L("Ultimate")
+    case .full: L("Full")
+    case .marginal: L("Marginal")
+    case .never: L("Not valid")
+    default: L("Unknown")
     }
 }
 
@@ -377,6 +380,8 @@ struct FingerprintView: View {
             .lineSpacing(4)
             // 高さを詰められても（ポップオーバー）2 行のまま
             .lineLimit(2, reservesSpace: true)
+            // シートの中身が増えても高さを詰めない（詰めると 1 行目の途中で切れる）
+            .fixedSize(horizontal: false, vertical: true)
             .textSelection(.enabled)
             .padding(10)
             .frame(maxWidth: .infinity)
@@ -496,7 +501,7 @@ struct KeyWindow: View {
             .sheet(item: Binding(get: { certifying.map(IdentifiedKey.init) }, set: { certifying = $0?.key })) { item in
                 CertifySheet(model: model, key: item.key) {
                     let name = item.key.primaryUserId?.text ?? item.key.fingerprint
-                    notice = Notice(title: L("Marked as verified"), message: L("%@ is now verified in your keyring.", name))
+                    notice = Notice(title: L("Signed"), message: L("%@ is signed and is now valid in your keyring.", name))
                 }
             }
             .alert(item: $notice) { notice in

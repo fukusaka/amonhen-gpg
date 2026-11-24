@@ -163,12 +163,20 @@
 /* 他者の鍵 */
 "No keys from others" = "他者の鍵はありません";
 "Import keys of people you exchange encrypted or signed messages with." = "暗号化や署名でやり取りする相手の鍵を取り込んでください。";
-"Verified" = "確認済み";
-"Partly verified" = "一部確認済み";
-"Not verified" = "未確認";
-"Verify…" = "確認…";
-"Mark as Verified…" = "確認済みにする…";
-"Mark as Verified" = "確認済みにする";
+"Sign Key" = "鍵に署名する";
+"Sign Key…" = "鍵に署名…";
+"Sign Key… (needs your primary key)" = "鍵に署名…（主鍵の秘密鍵が要ります）";
+"Web of Trust: signing this key with your own key makes it valid in your keyring." = "信頼の輪（Web of Trust）: 自分の鍵でこの鍵に署名すると、自分の鍵束の中でこの鍵が有効になります。";
+"The signature stays in your keyring (a local signature) and is not published." = "署名は自分の鍵束に残すだけで（ローカル署名）、公開されません。";
+"Signed" = "署名しました";
+"%@ is signed and is now valid in your keyring." = "%@ に署名し、鍵束の中で有効になりました。";
+"Ultimate" = "究極";
+"Full" = "完全";
+"Marginal" = "部分的";
+"Not valid" = "無効";
+"Fully Valid" = "完全に有効";
+"Not Fully Valid" = "完全には有効でない";
+"How far you rely on this person to check other keys before signing them. A key becomes valid when it is signed by one valid key whose owner you trust fully, or by three you trust marginally." = "この人が、ほかの鍵をどれだけ確かめてから署名すると見なすか。有効な鍵のうち、完全に信頼する人の 1 つ、またはある程度信頼する人の 3 つの署名があれば、その鍵は有効になります。";
 "Ask the owner to read out their fingerprint by another channel, in person or on the phone, and compare it with this one, group by group." = "持ち主に、会って、または電話など別の手段でフィンガープリントを読み上げてもらい、下のものと 4 桁ずつ照らし合わせてください。";
 "The fingerprint matches the one the owner gave me" = "持ち主から聞いたフィンガープリントと一致した";
 "Names and addresses you checked" = "確かめた名前とメールアドレス";
@@ -176,8 +184,6 @@
 "Sign with" = "署名に使う鍵";
 "Let others see it (publish the signature with the key)" = "ほかの人にも示す（署名を鍵と一緒に公開する）";
 "The signature goes wherever this key is sent, including keyservers, and shows that you know the owner." = "署名はこの鍵が送られる先（鍵サーバーを含む）に一緒に載り、あなたが持ち主を知っていることが分かります。";
-"The key is verified only in your keyring. Nothing is published." = "確認済みになるのは自分の鍵束の中だけで、何も公開されません。";
-"Marked as verified" = "確認済みにしました";
 "Details…" = "詳細…";
 "Keys" = "鍵";
 "Key" = "鍵";
@@ -196,7 +202,6 @@
 "Delete" = "削除";
 "You will no longer be able to encrypt to it or verify its signatures. Your verification of it is deleted too. You can import it again later." = "この鍵への暗号化と、この鍵の署名の検証ができなくなります。確認済みにした記録も消えます。あとで取り込み直せます。";
 "Cannot delete %@" = "%@ を削除できません";
-"%@ is now verified in your keyring." = "%@ を確認済みにしました。";
 
 /* 受け入れ前の鍵（コードでは staging） */
 "Find" = "探す";
@@ -279,7 +284,6 @@
 "Name, email or fingerprint" = "名前、メールアドレス、フィンガープリント";
 "No Matching Keys" = "合う鍵がありません";
 "No key has a name, email address or fingerprint matching “%@”." = "名前・メールアドレス・フィンガープリントが「%@」に合う鍵はありません。";
-"Verification" = "確認";
 "Key ID" = "鍵 ID";
 "Algorithm" = "方式";
 "Show" = "表示";
@@ -401,7 +405,6 @@
 "Marginally" = "ある程度";
 "Fully" = "完全に";
 "Ultimately (your key)" = "絶対的（自分の鍵）";
-"How far you rely on this person to check other keys before signing them. A key counts as verified when it is signed by one verified key whose owner you trust fully, or by three you trust marginally." = "この人が、ほかの鍵をどれだけ確かめてから署名すると見なすか。確認済みの鍵のうち、完全に信頼する人の 1 つ、またはある程度信頼する人の 3 つの署名があれば、その鍵を確認済みとします。";
 "Cannot change the owner trust" = "所有者信頼を変えられません";
 "OK" = "OK";
 "Verified by" = "確認の根拠";

@@ -8,8 +8,10 @@ public struct KeyTableRow: Identifiable, Hashable, Sendable {
     public let email: String
     /// 主な UID のほかの、名前のある UID（失効したものも含む）。
     public let otherUserIds: [UserId]
-    /// 確認の状態の並び（確認済み・一部確認・未確認・期限切れ・失効の順に小さい）。並べ替えに使う。
+    /// 有効性の並び（完全・部分的・不明・期限切れ・失効の順に小さい）。並べ替えに使う。
     public let verificationOrder: Int
+    /// 所有者信頼の並び（完全・部分的・信頼しない・未設定の順に小さい）。並べ替えに使う。
+    public let ownerTrustOrder: Int
     /// 鍵 ID（フィンガープリントの末尾 16 桁）。
     public let keyId: String
     /// 作成日（UNIX 時刻、秒。なければ 0）。
@@ -32,6 +34,13 @@ public struct KeyTableRow: Identifiable, Hashable, Sendable {
         email = parts?.email ?? ""
         otherUserIds = key.namedUserIds.filter { $0 != primary }
         verificationOrder = Self.order(key.validity)
+        ownerTrustOrder = switch key.ownerTrustSetting {
+        case .ultimate: 0
+        case .full: 1
+        case .marginal: 2
+        case .never: 3
+        case .unknown: 4
+        }
         keyId = String(key.fingerprint.suffix(16))
         created = key.created ?? 0
         expires = key.expires ?? UInt64.max
@@ -49,12 +58,12 @@ public struct KeyTableRow: Identifiable, Hashable, Sendable {
     }
 }
 
-/// 他者の鍵の表を、確認の状態で絞り込む。
+/// 他者の鍵の表を、有効性で絞り込む。
 public enum KeyFilter: String, CaseIterable, Sendable {
     case all
-    /// 確認済み（完全に確かめた鍵）。
+    /// 完全に有効（自分の鍵か、信頼する人の署名で有効になった鍵）。
     case verified
-    /// まだ確認していない鍵。一部だけ確認した鍵も、まだ確認できるのでここに入れる。
+    /// まだ完全には有効でない鍵。部分的に有効な鍵も、まだ署名で有効にできるのでここに入れる。
     case unverified
     /// 期限切れ・失効・無効の、もう使えない鍵。
     case inactive

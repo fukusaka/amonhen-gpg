@@ -173,6 +173,13 @@ private func sampleKey(_ fingerprint: String, subkey: String, userIds: [String],
     // 期限のない鍵は最後
     #expect(rows.sorted { $0.expires < $1.expires }.first?.name == "Carol")
     #expect(rows.sorted { $0.created < $1.created }.map(\.name) == ["Dave", "Carol", "Bob Builder"])
+    // 所有者信頼は完全・ある程度・信頼しない・決めていないの順
+    var erin = sampleKey("7777777777777777777777777777777777777777", subkey: "8888888888888888888888888888888888888888", userIds: ["Erin <erin@example.org>"])
+    erin.ownerTrust = .full
+    var frank = sampleKey("9999999999999999999999999999999999999999", subkey: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", userIds: ["Frank <frank@example.org>"])
+    frank.ownerTrust = .marginal
+    let trusted = [bob, erin, frank].map(KeyTableRow.init).sorted { $0.ownerTrustOrder < $1.ownerTrustOrder }
+    #expect(trusted.map(\.name) == ["Erin", "Frank", "Bob Builder"])
 }
 
 @Test func filtersKeysByVerification() {

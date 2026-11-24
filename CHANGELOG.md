@@ -6,6 +6,11 @@ notes.
 
 ## Unreleased
 
+### Changed
+
+- Others' Keys shows owner trust in its own column, and validity in gpg's terms (Full, Marginal, Unknown, Not valid) instead of verified and not verified.
+- "Verify…" is now "Sign Key…", which says that it signs the key with your own key (Web of Trust). The button in each row of Others' Keys is gone; Sign Key… is in the row menu and the key window, and says so and is disabled when your primary key's secret is not on this Mac.
+
 ## [0.4.4] - 2026-11-24
 
 SSH Signers works with a key whose primary key's secret is kept elsewhere: the record of signers is signed with
