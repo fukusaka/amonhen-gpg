@@ -6,6 +6,12 @@ notes.
 
 ## Unreleased
 
+## [0.4.3] - 2026-11-24
+
+Choose the keyserver and how names are looked up in Settings. If searching Keys to Accept by fingerprint fails
+with "Invalid argument", for example with a VPN, choose macOS for name lookup. The help diagram in SSH Signers now
+stays inside the window.
+
 ### Added
 
 - Settings chooses the keyserver (keys.openpgp.org, keyserver.ubuntu.com or another URL), used to search Keys to Accept by fingerprint and to send your public keys, and how Keys to Accept looks up names: GnuPG's built-in lookup (the default) or macOS. Choose macOS when searching by fingerprint or Fetch Again fails with "keyserver receive failed: Invalid argument", for example with a VPN or per-domain DNS.
