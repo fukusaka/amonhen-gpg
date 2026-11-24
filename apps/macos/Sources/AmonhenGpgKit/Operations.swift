@@ -56,7 +56,7 @@ extension OwnKey {
     private func fileName(_ kind: String, extension ext: String = "asc") -> String {
         let name = key.primaryUserId.map { UserIdParts($0.text).name } ?? "key"
         let safe = name.map { "/:\\".contains($0) ? "-" : $0 }
-        return "\(String(safe)) \(key.fingerprint.suffix(16)) \(kind).\(ext)"
+        return "\(String(safe)) \(key.keyId) \(kind).\(ext)"
     }
 }
 

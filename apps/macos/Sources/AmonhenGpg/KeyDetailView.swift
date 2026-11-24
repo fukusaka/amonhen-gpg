@@ -1,4 +1,5 @@
 import AmonhenGpgKit
+import AppKit
 import SwiftUI
 
 /// 鍵の詳細。鍵ごとの窓（`KeyWindow`）の中身。上にフィンガープリントを出し、その下をタブに分ける。
@@ -85,7 +86,7 @@ struct KeyDetailView: View {
     private var overview: some View {
         let own = model.keyring.own(key.fingerprint)
         return Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 8) {
-            fact(L("Key ID"), Text(Fingerprint.grouped(String(key.fingerprint.suffix(16)))).monospaced().textSelection(.enabled))
+            fact(L("Key ID"), KeyIdText(keyId: key.keyId, fingerprint: key.fingerprint))
             fact(L("Validity"), Text(validityWord(key.validity)))
             // 他者の鍵だけ（自分の鍵は絶対的）
             if own == nil {
@@ -190,12 +191,12 @@ struct KeyDetailView: View {
 
     private var keys: some View {
         VStack(alignment: .leading, spacing: 16) {
-            keyBlock(L("Primary key"), fingerprint: key.fingerprint, keygrip: key.keygrip, secret: key.secret,
+            keyBlock(L("Primary key"), fingerprint: key.fingerprint, keyId: key.keyId, keygrip: key.keygrip, secret: key.secret,
                      algorithm: algorithmName(algorithm: key.algorithm, length: key.length, curve: key.curve),
                      capabilities: key.capabilities, created: key.created, expires: key.expires, validity: key.validity)
             ForEach(key.subkeys, id: \.fingerprint) { sub in
                 Divider()
-                keyBlock(L("Subkey"), fingerprint: sub.fingerprint, keygrip: sub.keygrip, secret: sub.secret,
+                keyBlock(L("Subkey"), fingerprint: sub.fingerprint, keyId: sub.keyId, keygrip: sub.keygrip, secret: sub.secret,
                          algorithm: algorithmName(algorithm: sub.algorithm, length: sub.length, curve: sub.curve),
                          capabilities: sub.capabilities, created: sub.created, expires: sub.expires, validity: sub.validity)
             }
@@ -203,7 +204,7 @@ struct KeyDetailView: View {
     }
 
     private func keyBlock(
-        _ kind: String, fingerprint: String, keygrip: String?, secret: SecretState, algorithm: String,
+        _ kind: String, fingerprint: String, keyId: String, keygrip: String?, secret: SecretState, algorithm: String,
         capabilities: Capabilities, created: UInt64?, expires: UInt64?, validity: Validity
     ) -> some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -219,6 +220,7 @@ struct KeyDetailView: View {
                 if secret != .none {
                     fact(L("Secret key"), Text(secretWord(secret)))
                 }
+                fact(L("Key ID"), KeyIdText(keyId: keyId, fingerprint: fingerprint))
                 fact(L("Fingerprint"), Text(Fingerprint.grouped(fingerprint)).monospaced().textSelection(.enabled))
                 if capabilities.authenticate, let ssh = model.keyring.sshFingerprint(keygrip: keygrip) {
                     fact(L("SSH"), Text(ssh).monospaced().textSelection(.enabled))
@@ -365,6 +367,76 @@ func validityWord(_ validity: Validity) -> String {
     case .marginal: L("Marginal")
     case .never: L("Not valid")
     default: L("Unknown")
+    }
+}
+
+/// 鍵 ID（gpg の長い形）と、すべての形式を出すボタン。
+struct KeyIdText: View {
+    let keyId: String
+    let fingerprint: String
+    @State private var showing = false
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(keyId).monospaced().textSelection(.enabled)
+            Button {
+                showing.toggle()
+            } label: {
+                Image(systemName: "ellipsis.circle")
+            }
+            .buttonStyle(.borderless)
+            .help(L("All Forms"))
+            .popover(isPresented: $showing, arrowEdge: .bottom) {
+                KeyIdForms(keyId: keyId, fingerprint: fingerprint)
+            }
+        }
+    }
+}
+
+/// 鍵 ID とフィンガープリントを、gpg の書き方ごとに並べる。値を押すとコピーする。鍵 ID は `--keyid-format` の
+/// long・0xlong・short・0xshort、フィンガープリントは `--fingerprint` の区切りと、区切らない形。
+struct KeyIdForms: View {
+    let keyId: String
+    let fingerprint: String
+    @State private var copied: String?
+
+    private var forms: [(label: String, value: String)] {
+        let short = String(keyId.suffix(8))
+        return [
+            (L("Key ID (long)"), keyId),
+            (L("Key ID (0xlong)"), "0x" + keyId),
+            (L("Key ID (short)"), short),
+            (L("Key ID (0xshort)"), "0x" + short),
+            (L("Fingerprint"), Fingerprint.grouped(fingerprint)),
+            (L("Fingerprint (no spaces)"), fingerprint),
+        ]
+    }
+
+    var body: some View {
+        Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
+            ForEach(forms, id: \.label) { form in
+                GridRow {
+                    Text(form.label).foregroundStyle(.secondary)
+                    // 値を押すとコピーする（ボタンを並べず、値そのものを押させる）
+                    Button {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(form.value, forType: .string)
+                        copied = form.label
+                    } label: {
+                        Text(form.value).monospaced()
+                    }
+                    .buttonStyle(.plain)
+                    .help(L("Click to copy"))
+                    // 出ていないときも場所を取っておく（出たときにポップアップの幅が変わらないように）
+                    Text(L("Copied"))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .opacity(copied == form.label ? 1 : 0)
+                }
+            }
+        }
+        .padding(16)
+        .fixedSize()
     }
 }
 

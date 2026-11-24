@@ -8,12 +8,17 @@ notes.
 
 ### Added
 
+- The key window shows the key ID in gpg's long form, without spaces. The button next to it lists every form (long, 0xlong, short, 0xshort, and the fingerprint with and without spaces); clicking one copies it. The Keys tab shows the key ID of each subkey too.
 - Withdraw Your Signatures… in the row menu of Others' Keys removes the signatures you made on a key: local ones are deleted, published ones are revoked (send the key again to tell others).
 
 ### Changed
 
 - Others' Keys shows owner trust in its own column, and validity in gpg's terms (Full, Marginal, Unknown, Not valid) instead of verified and not verified.
 - "Verify…" is now "Sign Key…", which says that it signs the key with your own key (Web of Trust). The button in each row of Others' Keys is gone; Sign Key… is in the row menu and the key window, and says so and is disabled when your primary key's secret is not on this Mac.
+
+### Fixed
+
+- The key ID of a v5 key (such as gpg's post-quantum keys) was taken from the wrong end of the fingerprint. The table, the key window and the names of exported files now use the key ID gpg gives.
 
 ## [0.4.4] - 2026-11-24
 

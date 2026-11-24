@@ -285,6 +285,13 @@
 "Export SSH Public Key…" = "SSH の公開鍵を書き出す…";
 "Export SSH Public Key" = "SSH の公開鍵を書き出す";
 "Copied" = "コピーしました";
+"All Forms" = "すべての形式";
+"Click to copy" = "押すとコピー";
+"Key ID (long)" = "鍵 ID（長い形）";
+"Key ID (0xlong)" = "鍵 ID（0x 付きの長い形）";
+"Key ID (short)" = "鍵 ID（短い形）";
+"Key ID (0xshort)" = "鍵 ID（0x 付きの短い形）";
+"Fingerprint (no spaces)" = "フィンガープリント（区切りなし）";
 "Copied the SSH public key. Paste it as one line into ~/.ssh/authorized_keys on the server." = "SSH の公開鍵をコピーしました。サーバーの ~/.ssh/authorized_keys に 1 行で貼ってください。";
 "Cannot copy the SSH public key" = "SSH の公開鍵をコピーできません";
 "Saved the SSH public key to %@." = "SSH の公開鍵を %@ に保存しました。";
