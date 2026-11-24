@@ -26,11 +26,21 @@ enum Place: String, Hashable, CaseIterable {
     }
 }
 
+/// サイドバーで選べるもの。場所と、SSH の署名者の一覧（その子として並べる）。
+enum SidebarItem: Hashable {
+    case place(Place)
+    case signerList(String)
+}
+
 struct ContentView: View {
     let model: KeyringModel
     let staging: StagingModel
     let signers: SignersModel
     @State var place: Place = .mine
+    /// SSH の署名者で選んでいる一覧の ID（nil なら、すべての人）。
+    @State private var signerList: String?
+    /// サイドバーで SSH の署名者の一覧を開いておくか。
+    @State private var signerListsExpanded = true
     /// 一覧の検索の語（自分の鍵と他者の鍵。一時保管には鍵サーバーを探す欄が別にあるので使わない）。
     @State var query = ""
     /// 他者の鍵を、確認の状態で絞り込む（次に開いたときも同じ）。
@@ -65,9 +75,27 @@ struct ContentView: View {
 
     private var main: some View {
         NavigationSplitView {
-            List(Place.allCases, id: \.self, selection: $place) { place in
-                Label(place.title, systemImage: place.symbol)
-                    .badge(count(place))
+            List(selection: sidebarSelection) {
+                ForEach(Place.allCases, id: \.self) { place in
+                    // SSH の署名者の一覧は、その子として並べる（メールのメールボックスやミュージックのプレイリストと同じ）
+                    if place == .signers, !signers.record.lists.isEmpty {
+                        DisclosureGroup(isExpanded: $signerListsExpanded) {
+                            ForEach(signers.record.lists, id: \.id) { list in
+                                Label(list.name, systemImage: "list.bullet")
+                                    .badge(list.members.count)
+                                    .tag(SidebarItem.signerList(list.id))
+                            }
+                        } label: {
+                            Label(place.title, systemImage: place.symbol)
+                                .badge(count(place))
+                                .tag(SidebarItem.place(place))
+                        }
+                    } else {
+                        Label(place.title, systemImage: place.symbol)
+                            .badge(count(place))
+                            .tag(SidebarItem.place(place))
+                    }
+                }
             }
             .navigationSplitViewColumnWidth(min: 160, ideal: 180)
         } detail: {
@@ -100,7 +128,10 @@ struct ContentView: View {
                             })
                             .searchable(text: $query, placement: .toolbar, prompt: L("Name, email or fingerprint"))
                     case .staging: StagingView(model: staging, signers: signers, notify: { notice = $0 })
-                    case .signers: SignersView(model: signers, keyring: model, notify: { notice = $0 }, showKeysToAccept: { place = .staging })
+                    case .signers:
+                        SignersView(
+                            model: signers, keyring: model, listID: currentSignerList?.id, notify: { notice = $0 },
+                            showKeysToAccept: { place = .staging })
                     }
                 }
             }
@@ -109,7 +140,7 @@ struct ContentView: View {
                     OutdatedGpgBanner(version: version)
                 }
             }
-            .navigationTitle(place.title)
+            .navigationTitle(currentSignerList?.name ?? place.title)
             // 鍵の窓で取り直したとき
             .onChange(of: staging.revealed) { place = .staging }
             .toolbar {
@@ -259,6 +290,29 @@ struct ContentView: View {
     }
 
     /// 鍵のファイルを選ばせ、取り込む。秘密鍵を含むときはパスフレーズを gpg が聞く。
+    /// 選んでいる SSH の署名者の一覧（消えていれば nil、すべての人を出す）。
+    private var currentSignerList: SignerList? {
+        guard place == .signers, let signerList else { return nil }
+        return signers.record.lists.first { $0.id == signerList }
+    }
+
+    private var sidebarSelection: Binding<SidebarItem?> {
+        Binding(
+            get: { currentSignerList.map { .signerList($0.id) } ?? .place(place) },
+            set: { item in
+                switch item {
+                case let .place(chosen)?:
+                    place = chosen
+                    signerList = nil
+                case let .signerList(id)?:
+                    place = .signers
+                    signerList = id
+                case nil:
+                    break
+                }
+            })
+    }
+
     /// サイドバーに出す鍵の数（一時保管は出さない）。
     private func count(_ place: Place) -> Int {
         switch place {

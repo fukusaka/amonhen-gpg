@@ -8,7 +8,7 @@ notes.
 
 ### Changed
 
-- The tabs at the top of SSH Signers are now All and the name of each list, instead of People and Lists. Each shows the people in it with their SSH keys; a list also shows its file, Set Up git… and Remove List…, and a person's menu has Remove from This List.
+- SSH Signers no longer splits people and lists with a switch at the top. The lists sit under SSH Signers in the sidebar: SSH Signers shows everyone, and a list shows its file, Set Up git… and Remove List…, then the people in it with their SSH keys. A person's menu has Remove from This List while a list is chosen.
 
 ## [0.5.0] - 2026-11-25
 

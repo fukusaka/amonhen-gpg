@@ -499,7 +499,7 @@
 "For all your repositories" = "すべてのリポジトリで";
 "For one repository (run it inside the repository)" = "1 つのリポジトリで（そのリポジトリの中で実行）";
 "Remove from This List" = "この一覧から外す";
-"List" = "一覧";
+"Allowed signers file" = "allowed signers のファイル";
 "User name" = "ユーザー名";
 "Work" = "仕事";
 "Write the Files Again" = "ファイルを書き直す";

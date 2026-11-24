@@ -7,6 +7,8 @@ import SwiftUI
 struct SignersView: View {
     let model: SignersModel
     let keyring: KeyringModel
+    /// サイドバーで選んだ一覧の ID（nil なら、すべての人）。
+    var listID: String?
     var notify: (Notice) -> Void = { _ in }
     /// 受け入れ前の鍵の画面を開く（取ってきた鍵はそこで受け入れる）。
     var showKeysToAccept: () -> Void = {}
@@ -21,8 +23,6 @@ struct SignersView: View {
     @State private var removingList: SignerList?
 
     private var signers: [OwnKey] { keyring.keyring.dataSigners }
-    /// 上のタブで選んでいる一覧の ID（空なら「すべて」）。次に開いたときも同じにする。
-    @AppStorage("SignersList") private var chosenList = ""
 
     /// 記録に署名する鍵。選んだ鍵がなければ、署名できる最初の自分の鍵。
     private var signer: OwnKey? {
@@ -167,42 +167,26 @@ struct SignersView: View {
         }
     }
 
-    /// 上のタブで「すべて」か一覧を選び、その人と SSH の鍵を並べる。一覧を選ぶと、上にその一覧のファイルと
-    /// 「git に設定…」を出す。
+    /// すべての人か、サイドバーで選んだ一覧の人を、SSH の鍵と並べる。一覧なら、上にそのファイルと「git に設定…」を出す。
     private var list: some View {
         let record = model.record
-        // 選んでいた一覧が消えていれば「すべて」
-        let current = record.lists.first { $0.id == chosenList }
-        return VStack(spacing: 0) {
-            if !record.lists.isEmpty {
-                Picker(L("List"), selection: Binding(get: { current?.id ?? "" }, set: { chosenList = $0 })) {
-                    Text(L("All")).tag("")
-                    ForEach(record.lists, id: \.id) { list in
-                        Text(list.name).tag(list.id)
+        let current = record.lists.first { $0.id == listID }
+        return List {
+            statusSection
+            if let current {
+                Section {
+                    SignerListFile(path: signersFile(dir: model.dir.path, list: current.id), state: fileState(current))
+                } header: {
+                    HStack {
+                        Text(L("Allowed signers file"))
+                        Spacer()
+                        Button(L("Remove List…")) { removingList = current }
+                            .buttonStyle(.borderless)
+                            .font(.caption)
                     }
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .fixedSize()
-                .padding(.vertical, 8)
             }
-            List {
-                statusSection
-                if let current {
-                    Section {
-                        SignerListFile(path: signersFile(dir: model.dir.path, list: current.id), state: fileState(current))
-                    } header: {
-                        HStack {
-                            Text(current.name)
-                            Spacer()
-                            Button(L("Remove List…")) { removingList = current }
-                                .buttonStyle(.borderless)
-                                .font(.caption)
-                        }
-                    }
-                }
-                peopleSection(in: current)
-            }
+            peopleSection(in: current)
         }
     }
 
