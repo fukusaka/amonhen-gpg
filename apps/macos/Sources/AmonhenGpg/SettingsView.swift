@@ -2,7 +2,8 @@ import AmonhenGpgKit
 import AppKit
 import SwiftUI
 
-/// 設定（⌘,）。使う gpg を選ぶ。選ばなければ自動で探す（`GpgProgram.locate`）。
+/// 設定（⌘,）。使う gpg を選ぶ。選ばなければ自動で探す（`GpgProgram.locate`）。鍵サーバーと、受け入れ前の鍵が
+/// 名前を引く仕組みも選ぶ。
 struct SettingsView: View {
     let model: KeyringModel
     let staging: StagingModel
@@ -11,6 +12,12 @@ struct SettingsView: View {
     @State private var chosen = GpgProgram.chosen()
     @State private var working = false
     @State private var failure: String?
+    @State private var keyserver = Keyserver.current
+    /// 「その他」で打っている URL。
+    @State private var typed = Keyserver.candidates.contains(Keyserver.current) ? "" : Keyserver.current
+    @State private var other = !Keyserver.candidates.contains(Keyserver.current)
+    @State private var resolver = NameResolver.current
+    @State private var keyserverFailure: String?
 
     var body: some View {
         Form {
@@ -56,10 +63,103 @@ struct SettingsView: View {
                         .foregroundStyle(.red)
                 }
             }
+            keyserverSection
         }
         .formStyle(.grouped)
         .frame(width: 540)
         .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private static let otherTag = ""
+
+    @ViewBuilder private var keyserverSection: some View {
+        Section(L("Keyserver")) {
+            if Keyserver.fixed != nil {
+                LabeledContent(L("Keyserver")) {
+                    Text(Keyserver.current)
+                        .font(.body.monospaced())
+                        .textSelection(.enabled)
+                }
+                Text(L("Set by the --keyserver launch option."))
+                    .foregroundStyle(.secondary)
+            } else {
+                Picker(L("Keyserver"), selection: Binding(
+                    get: { other ? Self.otherTag : keyserver },
+                    set: { tag in
+                        if tag == Self.otherTag {
+                            other = true
+                        } else {
+                            other = false
+                            typed = ""
+                            setKeyserver(tag)
+                        }
+                    }
+                )) {
+                    ForEach(Keyserver.candidates, id: \.self) { Text(Keyserver.name($0)).tag($0) }
+                    Divider()
+                    Text(L("Other…")).tag(Self.otherTag)
+                }
+                if other {
+                    // 欄は行の幅いっぱいにする（ラベル付きだと右に寄って狭くなり、長い URL が見えない）
+                    HStack {
+                        TextField(L("URL"), text: $typed, prompt: Text("hkps://keys.example.org"))
+                            .labelsHidden()
+                            .textFieldStyle(.roundedBorder)
+                            .onSubmit(useTyped)
+                        Button(L("Use This URL"), action: useTyped)
+                            .disabled(typed.trimmingCharacters(in: .whitespaces).isEmpty || typed == keyserver)
+                    }
+                }
+                Text(L("Used to search Keys to Accept and to send your keys."))
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            Picker(L("Name lookup"), selection: Binding(
+                get: { resolver },
+                set: { value in
+                    keyserverFailure = nil
+                    resolver = value
+                    NameResolver.current = value
+                    applyToStaging()
+                }
+            )) {
+                Text(L("GnuPG (built in)")).tag(NameResolver.gnupg)
+                Text(L("macOS")).tag(NameResolver.system)
+            }
+            Text(L("If searching fails, for example with a VPN, choose macOS."))
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            if let keyserverFailure {
+                Label(keyserverFailure, systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.red)
+            }
+        }
+    }
+
+    /// 打った URL を使う。使えない URL なら知らせて、今の鍵サーバーのまま。
+    private func useTyped() {
+        let url = typed.trimmingCharacters(in: .whitespaces)
+        guard isKeyserverUrl(url: url) else {
+            keyserverFailure = L("Not a keyserver URL: %@. Start it with hkps://, hkp://, https:// or ldaps://.", url)
+            return
+        }
+        typed = url
+        setKeyserver(url)
+    }
+
+    private func setKeyserver(_ url: String) {
+        keyserverFailure = nil
+        keyserver = url
+        Keyserver.choose(url)
+        applyToStaging()
+    }
+
+    private func applyToStaging() {
+        Task {
+            if let error = await staging.applySettings() {
+                keyserverFailure = error
+            }
+        }
     }
 
     /// 実行ファイルを選ぶ。/opt などの隠れた場所も見せ、symlink は解かずに残す（Homebrew で更新しても同じ場所）。

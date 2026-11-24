@@ -707,6 +707,12 @@ pub fn minimum_gpg_version() -> Version {
     Version::MINIMUM
 }
 
+/// 鍵サーバーの URL として使えるか。
+#[uniffi::export]
+pub fn is_keyserver_url(url: String) -> bool {
+    amonhen_gpg_core::is_keyserver_url(&url)
+}
+
 /// このアプリが使える gpg の版か。
 #[uniffi::export]
 pub fn gpg_version_supported(version: Version) -> bool {
@@ -827,6 +833,16 @@ impl Gpg {
 
     pub fn discard_staging(&self) -> Result<()> {
         Ok(self.inner.clone().discard_staging()?)
+    }
+
+    pub fn configure_staging_dirmngr(
+        &self,
+        keyserver: String,
+        system_resolver: bool,
+    ) -> Result<()> {
+        Ok(self
+            .inner
+            .configure_staging_dirmngr(&keyserver, system_resolver)?)
     }
 
     pub fn copy_public_keys_to(
