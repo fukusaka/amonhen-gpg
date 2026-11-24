@@ -12,7 +12,7 @@ public struct KeyTableRow: Identifiable, Hashable, Sendable {
     public let verificationOrder: Int
     /// 所有者信頼の並び（完全・部分的・信頼しない・未設定の順に小さい）。並べ替えに使う。
     public let ownerTrustOrder: Int
-    /// 鍵 ID（フィンガープリントの末尾 16 桁）。
+    /// 鍵 ID（16 桁）。
     public let keyId: String
     /// 作成日（UNIX 時刻、秒。なければ 0）。
     public let created: UInt64
@@ -41,7 +41,8 @@ public struct KeyTableRow: Identifiable, Hashable, Sendable {
         case .never: 3
         case .unknown: 4
         }
-        keyId = String(key.fingerprint.suffix(16))
+        // gpg が返す鍵 ID（v4 はフィンガープリントの右端、v6 は左端の 16 桁なので、ここでは切り出さない）
+        keyId = key.keyId
         created = key.created ?? 0
         expires = key.expires ?? UInt64.max
         algorithm = algorithmName(algorithm: key.algorithm, length: key.length, curve: key.curve)
