@@ -8,6 +8,7 @@ notes.
 
 ### Added
 
+- The key window shows the key ID in gpg's long form, without spaces. The button next to it lists every form (long, 0xlong, short, 0xshort, and the fingerprint with and without spaces); clicking one copies it. The Keys tab shows the key ID of each subkey too.
 - Withdraw Your Signatures… in the row menu of Others' Keys removes the signatures you made on a key: local ones are deleted, published ones are revoked (send the key again to tell others).
 
 ### Changed
