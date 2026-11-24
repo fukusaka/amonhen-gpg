@@ -6,6 +6,12 @@ notes.
 
 ## Unreleased
 
+## [0.5.0] - 2026-11-25
+
+The Web of Trust in Others' Keys is easier to read and to undo. Owner trust has its own column, validity uses
+gpg's terms, Verify is now Sign Key, and you can withdraw your signatures on a key. The key window lists every form
+of a key ID, and SSH Signers shows people and lists apart and explains how to set up git.
+
 ### Added
 
 - The key window shows the key ID in gpg's long form, without spaces. The button next to it lists every form (long, 0xlong, short, 0xshort, and the fingerprint with and without spaces); clicking one copies it. The Keys tab shows the key ID of each subkey too.
