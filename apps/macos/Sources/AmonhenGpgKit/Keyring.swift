@@ -54,6 +54,18 @@ public struct Keyring: Sendable {
         history.sort { ($0.key.created ?? 0) > ($1.key.created ?? 0) }
     }
 
+    /// データに署名できる自分の鍵（SSH の署名者の記録に署名する）。使える段にあり、署名の用途の鍵（主鍵か
+    /// サブ鍵）の秘密鍵がこの PC かカードにあるもの。主鍵の秘密鍵を別の場所にしまい、署名用のサブ鍵だけを置いて
+    /// いても使える（証明の `signers` とは違う）。
+    public var dataSigners: [OwnKey] {
+        usable.filter {
+            switch $0.status.sign {
+            case .thisDevice, .card: true
+            case .elsewhere, .none: false
+            }
+        }
+    }
+
     /// 他者の鍵に署名する（確認済みにする）のに使える自分の鍵。使える段にあり、証明の秘密鍵がこの PC かカードにあるもの。
     public var signers: [OwnKey] {
         usable.filter {

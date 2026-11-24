@@ -6,6 +6,10 @@ notes.
 
 ## Unreleased
 
+### Fixed
+
+- SSH Signers works with a key whose primary key's secret is kept elsewhere and only a signing subkey is on this Mac: the record of signers is signed with that subkey. Before, SSH Signers said no key of yours could sign, and accepting SSH keys from Keys to Accept failed without a message; it now says so when no key can sign.
+
 ## [0.4.3] - 2026-11-24
 
 Choose the keyserver and how names are looked up in Settings. If searching Keys to Accept by fingerprint fails
