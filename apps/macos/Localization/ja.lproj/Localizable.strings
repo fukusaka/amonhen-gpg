@@ -466,8 +466,6 @@
 "Compare the fingerprint" = "フィンガープリントを照らし合わせる";
 "Compare the fingerprint with the owner first." = "先に持ち主とフィンガープリントを照らし合わせます。";
 "Compared with the owner" = "持ち主と照らし合わせた";
-"Copy Command for All Repositories" = "すべてのリポジトリ用のコマンドをコピー";
-"Copy Command for One Repository" = "1 つのリポジトリ用のコマンドをコピー";
 "Email address" = "メールアドレス";
 "In no list, so git does not see these keys." = "どの一覧にも入っていないので、git はこの鍵を見ません。";
 "It Matches" = "一致する";
@@ -497,11 +495,16 @@
 "The record of signers is signed with a key of yours. Create or import a key that can sign on this Mac." = "署名者の記録には自分の鍵で署名します。この Mac で署名できる鍵を作るか、取り込んでください。";
 "Their keys are removed from every list. git stops verifying their commits, including old ones. To keep old commits verified, retire their keys instead." = "その人の鍵はどの一覧からも除かれ、git はその人のコミットを、過去のものも含めて検証しなくなります。過去のコミットを検証できたままにするには、代わりに鍵を退役させてください。";
 "Trust the key as the account shows it." = "アカウントにあるとおりの鍵として信じます。";
-"Use with git" = "git で使う";
+"Set Up git…" = "git に設定…";
+"Verify SSH signatures with this list" = "この一覧で SSH 署名を検証する";
+"git checks SSH-signed commits against the file that gpg.ssh.allowedSignersFile points at. The app does not change git's settings: run one of these in Terminal. Click a command to copy it." = "git は、gpg.ssh.allowedSignersFile が指すファイルで、SSH で署名したコミットを検証します。アプリは git の設定を変えないので、どちらかをターミナルで実行してください。コマンドを押すとコピーします。";
+"For all your repositories" = "すべてのリポジトリで";
+"For one repository (run it inside the repository)" = "1 つのリポジトリで（そのリポジトリの中で実行）";
+"Lists" = "一覧";
+"No lists yet. Create one with New List…." = "一覧はまだありません。「新しい一覧…」で作ってください。";
 "User name" = "ユーザー名";
 "Work" = "仕事";
 "Write the Files Again" = "ファイルを書き直す";
-"git reads this file when gpg.ssh.allowedSignersFile points at it. The app does not change git's settings; run the command yourself (for one repository, run it inside that repository)." = "gpg.ssh.allowedSignersFile がこのファイルを指すと、git はこれを読みます。アプリは git の設定を変えないので、コマンドはご自分で実行してください（1 つのリポジトリなら、そのリポジトリの中で）。";
 "%ld new keys wait in Keys to Accept." = "受け入れ前の鍵に、新しい鍵が %ld 個あります。";
 "Fetched for SSH Signers. They are in no allowed signers file until you accept them." = "SSH の署名者のために取ってきた鍵です。受け入れるまで、どの allowed signers のファイルにも入りません。";
 "SSH signing keys to accept (%ld)" = "受け入れ前の SSH の署名用の鍵（%ld）";
@@ -563,7 +566,6 @@
 "Check and accept" = "確かめて受け入れる";
 "People and keys" = "人と鍵";
 "Signed with your key" = "自分の鍵で署名した記録";
-"Lists" = "一覧";
 "One file each" = "一覧ごとに 1 つのファイル";
 
 /* 他者の鍵を取り直す */
