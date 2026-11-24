@@ -13,6 +13,7 @@ notes.
 
 ### Changed
 
+- SSH Signers shows people or lists, chosen with a switch at the top, instead of both one under the other. "Use with git" is now "Set Up git…", a sheet that explains gpg.ssh.allowedSignersFile and shows the git config commands; clicking one copies it.
 - Others' Keys shows owner trust in its own column, and validity in gpg's terms (Full, Marginal, Unknown, Not valid) instead of verified and not verified.
 - "Verify…" is now "Sign Key…", which says that it signs the key with your own key (Web of Trust). The button in each row of Others' Keys is gone; Sign Key… is in the row menu and the key window, and says so and is disabled when your primary key's secret is not on this Mac.
 

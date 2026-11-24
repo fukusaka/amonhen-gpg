@@ -21,6 +21,8 @@ struct SignersView: View {
     @State private var removingList: SignerList?
 
     private var signers: [OwnKey] { keyring.keyring.dataSigners }
+    /// 人と一覧のどちらを出すか。次に開いたときも同じにする。
+    @AppStorage("SignersTab") private var tab = SignersTab.people
 
     /// 記録に署名する鍵。選んだ鍵がなければ、署名できる最初の自分の鍵。
     private var signer: OwnKey? {
@@ -165,67 +167,93 @@ struct SignersView: View {
         }
     }
 
+    /// 人と一覧を、上の切り替えで分けて出す（縦に並べると、どちらも長くなって見分けにくい）。
     private var list: some View {
-        let record = model.record
-        return List {
-            statusSection
-            ForEach(record.lists, id: \.id) { list in
-                Section {
-                    SignerListFile(path: signersFile(dir: model.dir.path, list: list.id), state: fileState(list))
-                    if list.members.isEmpty {
-                        Text(L("No one in this list yet. Add people from their menu."))
-                            .foregroundStyle(.secondary)
-                    }
-                    // 人の段と同じ ID（メールアドレス）だと、List が行を取り違えるので、一覧の ID を前に付ける
-                    ForEach(list.members.map { (id: "\(list.id)/\($0)", email: $0) }, id: \.id) { member in
-                        let email = member.email
-                        HStack {
-                            Text(email)
-                            Spacer()
-                            Button(L("Remove from List")) {
-                                Task { await save([.removeMember(list: list.id, email: email)], title: L("Cannot change the list")) }
-                            }
-                            .controlSize(.small)
-                        }
-                    }
-                } header: {
-                    HStack {
-                        Text(list.name)
-                        Spacer()
-                        Button(L("Remove List…")) { removingList = list }
-                            .buttonStyle(.borderless)
-                            .font(.caption)
-                    }
+        VStack(spacing: 0) {
+            Picker(L("Show"), selection: $tab) {
+                Text(L("People")).tag(SignersTab.people)
+                Text(L("Lists")).tag(SignersTab.lists)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
+            .padding(.vertical, 8)
+            List {
+                statusSection
+                switch tab {
+                case .people: peopleSection
+                case .lists: listSections
                 }
             }
-            Section(L("People")) {
-                if record.people.isEmpty {
-                    Text(L("No one yet. Add people with Add Person…."))
+        }
+    }
+
+    @ViewBuilder private var listSections: some View {
+        let record = model.record
+        if record.lists.isEmpty {
+            Text(L("No lists yet. Create one with New List…."))
+                .foregroundStyle(.secondary)
+        }
+        ForEach(record.lists, id: \.id) { list in
+            Section {
+                SignerListFile(path: signersFile(dir: model.dir.path, list: list.id), state: fileState(list))
+                if list.members.isEmpty {
+                    Text(L("No one in this list yet. Add people from their menu."))
                         .foregroundStyle(.secondary)
                 }
-                ForEach(record.people.map { (id: "person/\($0.email)", person: $0) }, id: \.id) { item in
-                    let person = item.person
-                    SignerRow(
-                        person: person, record: record, changes: model.changes[person.email],
-                        checking: model.checking.contains(person.email),
-                        actions: SignerRowActions(
-                            showKeysToAccept: showKeysToAccept,
-                            retire: { retiring = KeyRef(email: person.email, fingerprint: $0) },
-                            removeKey: { removingKey = KeyRef(email: person.email, fingerprint: $0) },
-                            recordAlso: { fingerprint, source in
-                                guard let key = person.keys.first(where: { $0.fingerprint == fingerprint }) else { return }
-                                Task {
-                                    await save(
-                                        [.acceptKey(email: person.email, key: key.key, source: source, checked: .account)],
-                                        title: L("Cannot change the key"))
-                                }
-                            },
-                            check: { Task { await model.check(person) } },
-                            addTo: { list in
-                                Task { await save([.addMember(list: list, email: person.email)], title: L("Cannot change the list")) }
-                            },
-                            remove: { removingPerson = person }))
+                // 人の段と同じ ID（メールアドレス）だと、List が行を取り違えるので、一覧の ID を前に付ける
+                ForEach(list.members.map { (id: "\(list.id)/\($0)", email: $0) }, id: \.id) { member in
+                    let email = member.email
+                    HStack {
+                        Text(email)
+                        Spacer()
+                        Button(L("Remove from List")) {
+                            Task { await save([.removeMember(list: list.id, email: email)], title: L("Cannot change the list")) }
+                        }
+                        .controlSize(.small)
+                    }
                 }
+            } header: {
+                HStack {
+                    Text(list.name)
+                    Spacer()
+                    Button(L("Remove List…")) { removingList = list }
+                        .buttonStyle(.borderless)
+                        .font(.caption)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private var peopleSection: some View {
+        let record = model.record
+        Section {
+            if record.people.isEmpty {
+                Text(L("No one yet. Add people with Add Person…."))
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(record.people.map { (id: "person/\($0.email)", person: $0) }, id: \.id) { item in
+                let person = item.person
+                SignerRow(
+                    person: person, record: record, changes: model.changes[person.email],
+                    checking: model.checking.contains(person.email),
+                    actions: SignerRowActions(
+                        showKeysToAccept: showKeysToAccept,
+                        retire: { retiring = KeyRef(email: person.email, fingerprint: $0) },
+                        removeKey: { removingKey = KeyRef(email: person.email, fingerprint: $0) },
+                        recordAlso: { fingerprint, source in
+                            guard let key = person.keys.first(where: { $0.fingerprint == fingerprint }) else { return }
+                            Task {
+                                await save(
+                                    [.acceptKey(email: person.email, key: key.key, source: source, checked: .account)],
+                                    title: L("Cannot change the key"))
+                            }
+                        },
+                        check: { Task { await model.check(person) } },
+                        addTo: { list in
+                            Task { await save([.addMember(list: list, email: person.email)], title: L("Cannot change the list")) }
+                        },
+                        remove: { removingPerson = person }))
             }
         }
     }
@@ -299,6 +327,7 @@ struct SignersView: View {
 private struct SignerListFile: View {
     let path: String
     let state: FileState?
+    @State private var showing = false
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
@@ -311,24 +340,72 @@ private struct SignerListFile: View {
                 .lineLimit(1)
                 .truncationMode(.middle)
             Spacer()
-            Menu(L("Use with git")) {
-                Button(L("Copy Command for All Repositories")) { copy(Signers.globalCommand(path: path)) }
-                Button(L("Copy Command for One Repository")) { copy(Signers.repositoryCommand(path: path)) }
-                Divider()
+            // ボタンは行の右端にあり、ポップオーバーだと窓の外へはみ出すので、シートで出す
+            Button(L("Set Up git…")) { showing = true }
+                .controlSize(.small)
+                .sheet(isPresented: $showing) {
+                    GitSetup(path: path, exists: state != nil && state != .missing) { showing = false }
+                }
+        }
+    }
+}
+
+/// git にこの一覧のファイルで SSH 署名を検証させる手順。アプリは git の設定を変えないので、コマンドを見せて、押すとコピーする。
+private struct GitSetup: View {
+    let path: String
+    let exists: Bool
+    var close: () -> Void = {}
+    @State private var copied: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(L("Verify SSH signatures with this list")).font(.title3.bold())
+            Text(L("git checks SSH-signed commits against the file that gpg.ssh.allowedSignersFile points at. The app does not change git's settings: run one of these in Terminal. Click a command to copy it."))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            command(L("For all your repositories"), Signers.globalCommand(path: path))
+            command(L("For one repository (run it inside the repository)"), Signers.repositoryCommand(path: path))
+            HStack {
                 Button(L("Show in Finder")) {
                     NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
                 }
-                .disabled(state == nil || state == .missing)
+                .disabled(!exists)
+                Spacer()
+                Button(L("Close"), action: close)
+                    .keyboardShortcut(.defaultAction)
             }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .help(L("git reads this file when gpg.ssh.allowedSignersFile points at it. The app does not change git's settings; run the command yourself (for one repository, run it inside that repository)."))
         }
+        .padding(20)
+        .frame(width: 560)
+        .onExitCommand(perform: close)
     }
 
-    private func copy(_ text: String) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
+    private func command(_ title: String, _ text: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(title).font(.callout)
+                Spacer()
+                Text(L("Copied"))
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .opacity(copied == title ? 1 : 0)
+            }
+            Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(text, forType: .string)
+                copied = title
+            } label: {
+                Text(text)
+                    .font(.callout.monospaced())
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(8)
+                    .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+            }
+            .buttonStyle(.plain)
+            .help(L("Click to copy"))
+        }
     }
 }
 
@@ -918,4 +995,10 @@ private struct NewSignerListSheet: View {
         .padding(20)
         .frame(width: 400)
     }
+}
+
+/// SSH の署名者の画面の切り替え。
+enum SignersTab: String {
+    case people
+    case lists
 }
