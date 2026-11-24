@@ -499,6 +499,15 @@
 "For all your repositories" = "すべてのリポジトリで";
 "For one repository (run it inside the repository)" = "1 つのリポジトリで（そのリポジトリの中で実行）";
 "Remove from This List" = "この一覧から外す";
+"Account" = "アカウント";
+"Lists" = "一覧";
+"Status" = "状態";
+"None" = "なし";
+"New keys: %ld" = "新しい鍵 %ld";
+"Keys gone" = "消えた鍵";
+"Cannot fetch" = "取れない";
+"Not in a list" = "一覧なし";
+"Choose a person to see their SSH keys." = "人を選ぶと、その人の SSH の鍵が出ます。";
 "Allowed signers file" = "allowed signers のファイル";
 "User name" = "ユーザー名";
 "Work" = "仕事";
