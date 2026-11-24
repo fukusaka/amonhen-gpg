@@ -32,7 +32,8 @@ The file is plain text that anyone with access to your home folder can change, a
   keys go to Keys to Accept; keys no longer on the account are proposed for retirement with `valid-before` set to that day,
   so commits signed before stay verified. Nothing is accepted or retired without you.
 - **Keep a signed record.** The record of who each key belongs to and how it was checked is signed with your own GPG
-  key. The allowed signers file is written from the record.
+  key; a signing subkey on this Mac is enough, even when the primary key's secret is kept elsewhere. The allowed
+  signers file is written from the record.
 - **Notice changes made behind its back.** When the app opens the record, it verifies the signature and compares the
   allowed signers file with what the record says. A mismatch is shown, not silently repaired.
 

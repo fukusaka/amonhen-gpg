@@ -123,6 +123,21 @@ private func sampleKey(_ fingerprint: String, subkey: String, userIds: [String],
     #expect(!bob.matches("632D F0CF 0000 0000"))
 }
 
+@Test func signsTheRecordWithASigningSubkey() throws {
+    // 主鍵の秘密鍵は別の場所（スタブ）、署名用のサブ鍵の秘密鍵だけがこの Mac にある自分の鍵
+    var key = sampleKey("1111111111111111111111111111111111111111", subkey: "2222222222222222222222222222222222222222", userIds: ["Alice <alice@example.org>"])
+    key.validity = .ultimate
+    key.ownerTrust = .ultimate
+    key.capabilities = Capabilities(certify: true, sign: false, encrypt: false, authenticate: false)
+    key.secret = .stub
+    key.subkeys[0].capabilities = Capabilities(certify: false, sign: true, encrypt: false, authenticate: false)
+    key.subkeys[0].secret = .available
+    let ring = Keyring(keys: [key], sshKeys: [], now: 1_000)
+    // 記録には署名できるが、他者の鍵への署名（証明）はできない
+    #expect(ring.dataSigners.map(\.key.fingerprint) == [key.fingerprint])
+    #expect(ring.signers.isEmpty)
+}
+
 @Test func filtersTheKeyring() {
     var ring = Keyring()
     ring.others = [

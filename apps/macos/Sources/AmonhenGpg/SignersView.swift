@@ -20,7 +20,7 @@ struct SignersView: View {
     @State private var removingKey: KeyRef?
     @State private var removingList: SignerList?
 
-    private var signers: [OwnKey] { keyring.keyring.signers }
+    private var signers: [OwnKey] { keyring.keyring.dataSigners }
 
     /// 記録に署名する鍵。選んだ鍵がなければ、署名できる最初の自分の鍵。
     private var signer: OwnKey? {

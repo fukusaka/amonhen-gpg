@@ -33,18 +33,22 @@ final class SignersModel {
         }
     }
 
-    /// 選んだ記録に署名する鍵（`SignersView` の「署名に使う鍵」）。なければ署名できる最初の自分の鍵。
+    /// 選んだ記録に署名する鍵（`SignersView` の「署名に使う鍵」）。なければ署名できる最初の自分の鍵（署名用の
+    /// サブ鍵だけがこの Mac にある鍵も含む）。
     static let signerDefaultsKey = "SignersSigner"
 
     func signer(in keyring: Keyring) -> OwnKey? {
         let chosen = UserDefaults.standard.string(forKey: Self.signerDefaultsKey)
-        return keyring.signers.first { $0.key.fingerprint == chosen } ?? keyring.signers.first
+        return keyring.dataSigners.first { $0.key.fingerprint == chosen } ?? keyring.dataSigners.first
     }
 
     /// 記録を変えて保存する。取り消しは知らせない。保存できたら true。
     @discardableResult
     func save(_ edits: [SignerEdit], keyring: KeyringModel, title: String, notify: (Notice) -> Void) async -> Bool {
-        guard let signer = signer(in: keyring.keyring) else { return false }
+        guard let signer = signer(in: keyring.keyring) else {
+            notify(Notice(title: title, message: L("The record of signers is signed with a key of yours. Create or import a key that can sign on this Mac.")))
+            return false
+        }
         switch await apply(edits, gpg: keyring.gpg, signer: signer.key.fingerprint) {
         case .success:
             return true
