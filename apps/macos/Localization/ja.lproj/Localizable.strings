@@ -164,6 +164,17 @@
 "No keys from others" = "他者の鍵はありません";
 "Import keys of people you exchange encrypted or signed messages with." = "暗号化や署名でやり取りする相手の鍵を取り込んでください。";
 "Sign Key" = "鍵に署名する";
+"Withdraw Your Signatures…" = "自分の署名を取り消す…";
+"Withdraw Your Signatures" = "自分の署名を取り消す";
+"Withdraw" = "取り消す";
+"You have not signed this key." = "この鍵には署名していません。";
+"Local signatures: %@. They are deleted; they were never published." = "ローカル署名: %@ 件。公開していないので、消します。";
+"Published signatures: %@. They are revoked. Others learn about it only when you send this key again, for example to a keyserver." = "公開した署名: %@ 件。失効させます。ほかの人が知るのは、この鍵を鍵サーバーなどに送り直したときです。";
+"Revoking needs your primary key's secret, which is not on this Mac." = "失効させるには主鍵の秘密鍵が要りますが、この Mac にはありません。";
+"Unless others' signatures make it valid, the key is no longer valid in your keyring." = "ほかの人の署名で有効になっていない限り、この鍵は鍵束の中で有効でなくなります。";
+"Signatures withdrawn" = "署名を取り消しました";
+"Your signatures on %@ are withdrawn." = "%@ への自分の署名を取り消しました。";
+"Your signatures on %@ are withdrawn. Send the key again to tell others about the revoked ones." = "%@ への自分の署名を取り消しました。失効させた署名をほかの人に知らせるには、この鍵を送り直してください。";
 "Sign Key…" = "鍵に署名…";
 "Sign Key… (needs your primary key)" = "鍵に署名…（主鍵の秘密鍵が要ります）";
 "Web of Trust: signing this key with your own key makes it valid in your keyring." = "信頼の輪（Web of Trust）: 自分の鍵でこの鍵に署名すると、自分の鍵束の中でこの鍵が有効になります。";

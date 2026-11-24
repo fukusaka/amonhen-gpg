@@ -753,6 +753,20 @@ fn sign_others_key() {
     assert!(exportable("Bob <bob@example.com>"));
     assert!(!exportable("Bob Work <bob@work.example>"));
 
+    // 自分の署名を取り消す: ローカル署名は消え、書き出す署名は失効する。どちらの UID も確認済みでなくなる
+    // 取り消しは署名より新しくなければ効かない（同じ秒だと署名が勝つ）
+    std::thread::sleep(std::time::Duration::from_millis(1100));
+    let withdrawn = gpg.withdraw_certifications(&bob, &me).unwrap();
+    assert_eq!((withdrawn.deleted, withdrawn.revoked), (1, 1));
+    assert_ne!(uid("Bob <bob@example.com>"), Validity::Full);
+    assert_ne!(uid("Bob Work <bob@work.example>"), Validity::Full);
+    let certs = gpg.certifications(&bob).unwrap();
+    assert_eq!(certs.len(), 1);
+    assert!(certs[0].exportable && certs[0].revoked);
+    // 取り消すものがなければ何もしない
+    let none = gpg.withdraw_certifications(&bob, &me).unwrap();
+    assert_eq!((none.deleted, none.revoked), (0, 0));
+
     assert!(
         gpg.sign_key(&bob, &["Nobody <x@example.com>"], None, false)
             .is_err()

@@ -18,6 +18,7 @@ use amonhen_gpg_core::{
     RevocationReason, Revocations, SecretState, SignatureCheck, Signer, SignerChanges, SignerKey,
     SignerList, SignerRecord, SignersFile, SkipReason, SkippedLine, SshControl, SshKey, SshSupport,
     Subkey, SubkeyRevocation, Tier, UserId, UserIdRevocation, Validity, Version,
+    WithdrawnCertifications,
 };
 
 uniffi::setup_scaffolding!();
@@ -415,6 +416,12 @@ pub struct Certification {
     pub exportable: bool,
     pub check: SignatureCheck,
     pub revoked: bool,
+}
+
+#[uniffi::remote(Record)]
+pub struct WithdrawnCertifications {
+    pub deleted: u32,
+    pub revoked: u32,
 }
 
 #[uniffi::remote(Enum)]
@@ -965,6 +972,14 @@ impl Gpg {
 
     pub fn certifications(&self, fingerprint: String) -> Result<Vec<Certification>> {
         Ok(self.inner.certifications(&fingerprint)?)
+    }
+
+    pub fn withdraw_certifications(
+        &self,
+        fingerprint: String,
+        signer: String,
+    ) -> Result<WithdrawnCertifications> {
+        Ok(self.inner.withdraw_certifications(&fingerprint, &signer)?)
     }
 
     pub fn revocations(&self, fingerprint: String) -> Result<Revocations> {

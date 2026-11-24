@@ -845,6 +845,8 @@ struct OthersView: View {
     /// 入手元から取り直して、受け入れ前の鍵に置く。
     var refresh: (Key) -> Void = { _ in }
     @State private var certifying: Key?
+    /// 自分の署名を取り消そうとしている鍵。
+    @State private var withdrawing: Key?
     @Environment(\.openWindow) private var openWindow
     @State private var deleting: Key?
     /// 自分の鍵にしようとしている鍵（確かめるアラート）。
@@ -862,6 +864,11 @@ struct OthersView: View {
                 CertifySheet(model: model, key: item.key) {
                     let name = item.key.primaryUserId?.text ?? item.key.fingerprint
                     notify(Notice(title: L("Signed"), message: L("%@ is signed and is now valid in your keyring.", name)))
+                }
+            }
+            .sheet(item: Binding(get: { withdrawing.map(IdentifiedKey.init) }, set: { withdrawing = $0?.key })) { item in
+                WithdrawSignaturesSheet(model: model, key: item.key) { message in
+                    notify(Notice(title: L("Signatures withdrawn"), message: message))
                 }
             }
             .alert(
@@ -1012,6 +1019,10 @@ struct OthersView: View {
         // 証明には主鍵の秘密鍵が要る（サブ鍵ではできない）。この Mac になければ理由を添えて押せなくする
         Button(model.keyring.signers.isEmpty ? L("Sign Key… (needs your primary key)") : L("Sign Key…")) { certifying = key }
             .disabled(!key.canCertify || model.keyring.signers.isEmpty)
+        // 自分の署名があるのは有効な鍵だけ（ないときはシートがそう言う）
+        if key.validity == .full || key.validity == .marginal {
+            Button(L("Withdraw Your Signatures…")) { withdrawing = key }
+        }
         Button(L("Fetch Again")) { refresh(key) }
             .help(L("Fetch this key again from where it came from, or from the keyserver, to get a new expiry or a revocation. It waits in Keys to Accept until you update it."))
         Button(L("Mark as My Key…")) { claiming = key }

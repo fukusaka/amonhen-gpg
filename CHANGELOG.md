@@ -6,6 +6,10 @@ notes.
 
 ## Unreleased
 
+### Added
+
+- Withdraw Your Signatures… in the row menu of Others' Keys removes the signatures you made on a key: local ones are deleted, published ones are revoked (send the key again to tell others).
+
 ### Changed
 
 - Others' Keys shows owner trust in its own column, and validity in gpg's terms (Full, Marginal, Unknown, Not valid) instead of verified and not verified.

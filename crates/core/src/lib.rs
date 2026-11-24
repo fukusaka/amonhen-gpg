@@ -24,7 +24,7 @@ mod staging;
 pub mod status;
 
 pub use card::Card;
-pub use certify::{Certification, SignatureCheck, parse_certifications};
+pub use certify::{Certification, SignatureCheck, WithdrawnCertifications, parse_certifications};
 pub use edit::{OwnerTrust, RevocationReason};
 pub use error::{Error, Result};
 pub use gpg::{Gpg, Version};
