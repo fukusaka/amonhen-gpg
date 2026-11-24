@@ -42,5 +42,5 @@ func ownerTrustWord(_ trust: OwnerTrust) -> String {
 
 /// 所有者信頼が何に効くか（gpg の既定: 完全に信頼する人なら 1 人、ある程度なら 3 人の署名で、その鍵が確認済みになる）。
 func ownerTrustNote() -> String {
-    L("How far you rely on this person to check other keys before signing them. A key counts as verified when it is signed by one verified key whose owner you trust fully, or by three you trust marginally.")
+    L("How far you rely on this person to check other keys before signing them. A key becomes valid when it is signed by one valid key whose owner you trust fully, or by three you trust marginally.")
 }

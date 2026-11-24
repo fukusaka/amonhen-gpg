@@ -1,8 +1,8 @@
 import AmonhenGpgKit
 import SwiftUI
 
-/// 他者の鍵を確認済みにする（自分の鍵で UID に署名する）。先にフィンガープリントを持ち主と照らし合わせてもらう。
-/// 既定は書き出さない署名（自分の鍵束の中で確認済みにするだけで、鍵サーバーには載らない）。
+/// 他者の鍵に署名する（自分の鍵で UID を証明する。信頼の輪）。先にフィンガープリントを持ち主と照らし合わせてもらう。
+/// 既定は書き出さない署名（ローカル署名。自分の鍵束の中で有効にするだけで、鍵サーバーには載らない）。
 struct CertifySheet: View {
     let model: KeyringModel
     let key: Key
@@ -27,7 +27,10 @@ struct CertifySheet: View {
     var body: some View {
         let signers = model.keyring.signers
         VStack(alignment: .leading, spacing: 16) {
-            Text(L("Mark as Verified")).font(.title2.bold())
+            Text(L("Sign Key")).font(.title2.bold())
+            Text(L("Web of Trust: signing this key with your own key makes it valid in your keyring."))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             Text(L("Ask the owner to read out their fingerprint by another channel, in person or on the phone, and compare it with this one, group by group."))
             FingerprintView(fingerprint: key.fingerprint)
             Toggle(L("The fingerprint matches the one the owner gave me"), isOn: $compared)
@@ -52,7 +55,7 @@ struct CertifySheet: View {
             Toggle(L("Let others see it (publish the signature with the key)"), isOn: $exportable)
             Text(exportable
                 ? L("The signature goes wherever this key is sent, including keyservers, and shows that you know the owner.")
-                : L("The key is verified only in your keyring. Nothing is published."))
+                : L("The signature stays in your keyring (a local signature) and is not published."))
                 .font(.callout)
                 .foregroundStyle(.secondary)
             if let failure {
@@ -67,7 +70,7 @@ struct CertifySheet: View {
                 Spacer()
                 Button(L("Cancel"), role: .cancel) { dismiss() }
                     .keyboardShortcut(.cancelAction)
-                Button(L("Mark as Verified")) { certify() }
+                Button(L("Sign")) { certify() }
                     .keyboardShortcut(.defaultAction)
                     .disabled(!compared || selected.isEmpty || signer == nil)
             }
