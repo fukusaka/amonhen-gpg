@@ -382,6 +382,29 @@ fn staging_keeps_fetched_keys_apart() {
     // 作り直しても同じ一時保管を開く
     assert_eq!(main.staging(&dir).unwrap().list_keys().unwrap().len(), 1);
 
+    // dirmngr の設定は一時保管にだけ書く。名前の引き方は選んだときだけ OS の仕組みにする
+    staging
+        .configure_staging_dirmngr("hkps://keys.openpgp.org", false)
+        .unwrap();
+    let conf = || std::fs::read_to_string(dir.join("dirmngr.conf")).unwrap();
+    assert_eq!(conf(), "keyserver hkps://keys.openpgp.org\n");
+    staging
+        .configure_staging_dirmngr("hkps://keyserver.ubuntu.com", true)
+        .unwrap();
+    assert_eq!(
+        conf(),
+        "keyserver hkps://keyserver.ubuntu.com\nstandard-resolver\n"
+    );
+    assert!(matches!(
+        staging.configure_staging_dirmngr("hkps://a\nstandard-resolver", false),
+        Err(Error::InvalidArgument { .. })
+    ));
+    assert!(matches!(
+        main.configure_staging_dirmngr("hkps://keys.openpgp.org", true),
+        Err(Error::InvalidArgument { .. })
+    ));
+    assert!(!home.path().join("dirmngr.conf").exists());
+
     let r = staging.copy_public_keys_to(&main, &[&fpr]).unwrap();
     assert_eq!(r.imported, 1);
     let keys = main.list_keys().unwrap();

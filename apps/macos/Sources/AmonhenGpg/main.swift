@@ -54,7 +54,7 @@ if Bundle.main.bundleIdentifier == nil {
     ProcessInfo.processInfo.processName = "Amonhen GPG"
 }
 if let keyserver = options.keyserver {
-    Keyserver.current = keyserver
+    Keyserver.fixed = keyserver
 }
 // Finder から開くと PATH に Homebrew がないので、gpg の場所を探して渡す（見つからなければ gpg のまま。読めずに知らせる）
 // 設定で選んだ gpg があればそれを使う（起動の引数 --gpg が先）

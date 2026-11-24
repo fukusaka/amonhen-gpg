@@ -145,18 +145,28 @@ public final class Staging: @unchecked Sendable {
         return discarded
     }
 
-    /// 一時保管の鍵束。初めて使うときに作り、鍵サーバーを決めておく（新しい鍵束の dirmngr には設定がない）。
+    /// 一時保管の鍵束。初めて使うときに作り、dirmngr の設定（鍵サーバーと名前の引き方）を書いておく（新しい鍵束の
+    /// dirmngr には設定がない）。
     private func staging() throws -> Gpg {
         lock.lock()
         defer { lock.unlock() }
         if let gpg { return gpg }
         let made = try main.staging(dir: dir.path)
-        let conf = dir.appendingPathComponent("dirmngr.conf")
-        if !FileManager.default.fileExists(atPath: conf.path) {
-            try "keyserver \(Keyserver.current)\n".write(to: conf, atomically: true, encoding: .utf8)
-        }
+        try Self.configure(made)
         gpg = made
         return made
+    }
+
+    private static func configure(_ gpg: Gpg) throws {
+        try gpg.configureStagingDirmngr(keyserver: Keyserver.current, systemResolver: NameResolver.current == .system)
+    }
+
+    /// 設定（鍵サーバー・名前の引き方）を変えたとき、作ってある一時保管の dirmngr に書き直す（中の鍵はそのまま）。
+    public func applySettings() throws {
+        lock.lock()
+        let gpg = gpg
+        lock.unlock()
+        if let gpg { try Self.configure(gpg) }
     }
 
     /// 探して一時保管に入れる。

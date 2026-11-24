@@ -51,4 +51,4 @@ pub use signers_import::{
 };
 pub use ssh::{SshControl, SshKey, SshSupport};
 pub use ssh_backup::SSH_RESTORE_MINIMUM;
-pub use staging::CodeHost;
+pub use staging::{CodeHost, is_keyserver_url};

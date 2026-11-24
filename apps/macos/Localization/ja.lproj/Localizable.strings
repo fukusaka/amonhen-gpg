@@ -350,6 +350,15 @@
 "Find Automatically" = "自動で探す";
 "Found automatically: the first gpg in PATH, /opt/homebrew/bin, /usr/local/bin or /usr/local/MacGPG2/bin." = "自動で探したもの: PATH・/opt/homebrew/bin・/usr/local/bin・/usr/local/MacGPG2/bin の順で最初の gpg。";
 "Chosen in Settings." = "設定で選んだもの。";
+"Other…" = "その他…";
+"Use This URL" = "この URL を使う";
+"Set by the --keyserver launch option." = "起動の引数 --keyserver で決まっています。";
+"Name lookup" = "名前解決";
+"Used to search Keys to Accept and to send your keys." = "受け入れ前の鍵を探すときと、鍵を送るときに使います。";
+"If searching fails, for example with a VPN, choose macOS." = "VPN などで探せないときは macOS を選んでください。";
+"GnuPG (built in)" = "GnuPG 内蔵";
+"macOS" = "macOS";
+"Not a keyserver URL: %@. Start it with hkps://, hkp://, https:// or ldaps://." = "鍵サーバーの URL ではありません: %@。hkps://・hkp://・https://・ldaps:// で始めてください。";
 "Choose the gpg program." = "gpg のプログラムを選んでください。";
 "Cannot use %@: %@" = "%1$@ は使えません: %2$@";
 

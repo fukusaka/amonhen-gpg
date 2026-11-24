@@ -128,15 +128,63 @@ extension Gpg {
     }
 }
 
-/// 公開鍵を送る鍵サーバー。送り先を確かめさせるので、gpg の既定に任せずに決めて渡す。
+/// 鍵を探して送る鍵サーバー。送り先を確かめさせるので、gpg の既定に任せずに決めて渡す。設定で選べる。
 public enum Keyserver {
     public static let `default` = "hkps://keys.openpgp.org"
-    /// 送る・探す鍵サーバー。起動の引数で変えられる（試験用の鍵サーバーに向ける）。起動のときに一度だけ決める。
-    nonisolated(unsafe) public static var current = `default`
+    /// 設定のメニューに出す候補。
+    public static let candidates = ["hkps://keys.openpgp.org", "hkps://keyserver.ubuntu.com"]
+    static let defaultsKey = "Keyserver"
+    /// 起動の引数 `--keyserver` で決めたもの（試験用の鍵サーバーに向ける）。あれば設定より先。
+    nonisolated(unsafe) public static var fixed: String?
+
+    /// 探す・送る鍵サーバー。起動の引数、設定で選んだもの、既定の順。
+    public static var current: String { fixed ?? chosen() ?? `default` }
+
+    /// 設定で選んだもの（使えない URL は無視する）。
+    public static func chosen(in defaults: UserDefaults = .standard) -> String? {
+        defaults.string(forKey: defaultsKey).flatMap { isKeyserverUrl(url: $0) ? $0 : nil }
+    }
+
+    /// 選んだものを覚える。nil なら既定に戻す。
+    public static func choose(_ url: String?, in defaults: UserDefaults = .standard) {
+        if let url, url != `default` {
+            defaults.set(url, forKey: defaultsKey)
+        } else {
+            defaults.removeObject(forKey: defaultsKey)
+        }
+    }
 
     /// 画面に出す名前（`keys.openpgp.org`）。
     public static func name(_ url: String) -> String {
         URL(string: url)?.host ?? url
+    }
+}
+
+/// 受け入れ前の鍵（一時保管）の dirmngr が名前を引く仕組み。設定で選べる。
+public enum NameResolver: String, CaseIterable, Sendable {
+    /// dirmngr の既定（GnuPG に入っている libdns。/etc/resolv.conf だけを読む）。
+    case gnupg
+    /// OS の仕組み（`standard-resolver`）。VPN やドメインごとの DNS の環境でも引ける。
+    case system
+
+    static let defaultsKey = "NameResolver"
+
+    public static var current: NameResolver {
+        get { stored() }
+        set { store(newValue) }
+    }
+
+    /// 設定で選んだもの。なければ GnuPG の既定。
+    public static func stored(in defaults: UserDefaults = .standard) -> NameResolver {
+        defaults.string(forKey: defaultsKey).flatMap(NameResolver.init(rawValue:)) ?? .gnupg
+    }
+
+    public static func store(_ value: NameResolver, in defaults: UserDefaults = .standard) {
+        if value == .gnupg {
+            defaults.removeObject(forKey: defaultsKey)
+        } else {
+            defaults.set(value.rawValue, forKey: defaultsKey)
+        }
     }
 }
 

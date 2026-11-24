@@ -331,6 +331,26 @@ func revokesOwnKey() throws {
     #expect(Keyserver.name(Keyserver.default) == "keys.openpgp.org")
 }
 
+@Test func choosesKeyserverAndNameResolver() throws {
+    // ほかのテストと同時に動くので、アプリの設定ではなく使い捨ての設定で
+    let name = "amonhen-test-\(UUID().uuidString)"
+    let defaults = try #require(UserDefaults(suiteName: name))
+    defer { defaults.removePersistentDomain(forName: name) }
+    #expect(Keyserver.chosen(in: defaults) == nil)
+    #expect(NameResolver.stored(in: defaults) == .gnupg)
+    Keyserver.choose("hkps://keyserver.ubuntu.com", in: defaults)
+    #expect(Keyserver.chosen(in: defaults) == "hkps://keyserver.ubuntu.com")
+    // 既定を選べば覚えない
+    Keyserver.choose(Keyserver.default, in: defaults)
+    #expect(defaults.string(forKey: "Keyserver") == nil)
+    // 使えない URL は覚えていても使わない
+    defaults.set("keys.example.org", forKey: "Keyserver")
+    #expect(Keyserver.chosen(in: defaults) == nil)
+    #expect(!isKeyserverUrl(url: "hkps://a\nstandard-resolver"))
+    NameResolver.store(.system, in: defaults)
+    #expect(NameResolver.stored(in: defaults) == .system)
+}
+
 @Test(.enabled(if: gpgAvailable()))
 func editsUserIds() throws {
     let home = try TemporaryKeyring()

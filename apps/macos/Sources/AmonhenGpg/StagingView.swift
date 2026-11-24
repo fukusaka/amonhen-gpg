@@ -104,6 +104,14 @@ final class StagingModel {
         }
     }
 
+    /// 鍵サーバー・名前の引き方を替えた（設定）。作ってある一時保管の dirmngr に書き直す。書けなければ返す。
+    func applySettings() async -> String? {
+        let staging = staging
+        let result = await Task.detached { Result { try staging.applySettings() } }.value
+        if case let .failure(error) = result { return describe(error) }
+        return nil
+    }
+
     /// 別の gpg に替える（設定）。一時保管の鍵束は前の gpg で作ったので捨て、空の一時保管から始める。
     func use(_ gpg: Gpg) {
         let old = staging

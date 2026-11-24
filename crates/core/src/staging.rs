@@ -40,6 +40,39 @@ impl Gpg {
     /// 一時保管の鍵束を捨てる（gpg-agent・dirmngr を止めてからディレクトリごと消す）。一時保管の印がない
     /// ディレクトリ（利用者の鍵束など）や、`--homedir` を決めていない gpg では何もせずにエラーにする。
     pub fn discard_staging(self) -> Result<()> {
+        let dir = self.staging_dir()?;
+        // 止まらなくても消すことはできる（Windows では使用中のファイルが残ることがあるので、消す側の失敗で分かる）
+        let _ = command(self.gpgconf_program())
+            .arg("--homedir")
+            .arg(&dir)
+            .args(["--kill", "all"])
+            .status();
+        std::fs::remove_dir_all(&dir).map_err(|e| io_error(&dir, e))
+    }
+
+    /// 一時保管の dirmngr の設定（`dirmngr.conf`）を書く。`keyserver` は探す鍵サーバー、`system_resolver` なら名前を
+    /// OS の仕組みで引く（`standard-resolver`）。dirmngr の既定（libdns）は /etc/resolv.conf だけを読むので、VPN や
+    /// ドメインごとの DNS の環境では引けないことがある。dirmngr が動いていれば読み直させる。一時保管の印がない
+    /// ディレクトリ（利用者の鍵束など）には書かない。
+    pub fn configure_staging_dirmngr(&self, keyserver: &str, system_resolver: bool) -> Result<()> {
+        let dir = self.staging_dir()?;
+        let mut conf = format!("keyserver {}\n", check_keyserver(keyserver)?);
+        if system_resolver {
+            conf.push_str("standard-resolver\n");
+        }
+        let path = dir.join("dirmngr.conf");
+        std::fs::write(&path, conf).map_err(|e| io_error(&path, e))?;
+        // 動いていなければ何もしない（次に gpg が起動するときに読む）
+        let _ = command(self.gpgconf_program())
+            .arg("--homedir")
+            .arg(&dir)
+            .args(["--reload", "dirmngr"])
+            .output();
+        Ok(())
+    }
+
+    /// 一時保管の鍵束のディレクトリ。一時保管の印がなければエラー。
+    fn staging_dir(&self) -> Result<PathBuf> {
         let Some(dir) = self.homedir.clone() else {
             return Err(Error::InvalidArgument {
                 name: "homedir",
@@ -52,13 +85,7 @@ impl Gpg {
                 message: format!("{} is not a staging keyring", dir.display()),
             });
         }
-        // 止まらなくても消すことはできる（Windows では使用中のファイルが残ることがあるので、消す側の失敗で分かる）
-        let _ = command(self.gpgconf_program())
-            .arg("--homedir")
-            .arg(&dir)
-            .args(["--kill", "all"])
-            .status();
-        std::fs::remove_dir_all(&dir).map_err(|e| io_error(&dir, e))
+        Ok(dir)
     }
 
     /// 鍵の公開鍵を、ほかの鍵束（一時保管から本来の鍵束へ）に移す。秘密鍵は移さない。書き出して取り込み直すと
@@ -251,6 +278,11 @@ fn io_error(path: &Path, source: std::io::Error) -> Error {
         path: path.to_owned(),
         source,
     }
+}
+
+/// 鍵サーバーの URL として使えるか（hkps・hkp・https・http・ldaps・ldap で、空白や制御文字を含まない）。
+pub fn is_keyserver_url(server: &str) -> bool {
+    check_keyserver(server).is_ok()
 }
 
 fn check_keyserver(server: &str) -> Result<&str> {
