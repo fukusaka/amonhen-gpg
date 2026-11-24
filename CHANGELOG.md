@@ -6,6 +6,10 @@ notes.
 
 ## Unreleased
 
+### Changed
+
+- The tabs at the top of SSH Signers are now All and the name of each list, instead of People and Lists. Each shows the people in it with their SSH keys; a list also shows its file, Set Up git… and Remove List…, and a person's menu has Remove from This List.
+
 ## [0.5.0] - 2026-11-25
 
 The Web of Trust in Others' Keys is easier to read and to undo. Owner trust has its own column, validity uses

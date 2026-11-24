@@ -21,8 +21,8 @@ struct SignersView: View {
     @State private var removingList: SignerList?
 
     private var signers: [OwnKey] { keyring.keyring.dataSigners }
-    /// 人と一覧のどちらを出すか。次に開いたときも同じにする。
-    @AppStorage("SignersTab") private var tab = SignersTab.people
+    /// 上のタブで選んでいる一覧の ID（空なら「すべて」）。次に開いたときも同じにする。
+    @AppStorage("SignersList") private var chosenList = ""
 
     /// 記録に署名する鍵。選んだ鍵がなければ、署名できる最初の自分の鍵。
     private var signer: OwnKey? {
@@ -167,72 +167,55 @@ struct SignersView: View {
         }
     }
 
-    /// 人と一覧を、上の切り替えで分けて出す（縦に並べると、どちらも長くなって見分けにくい）。
+    /// 上のタブで「すべて」か一覧を選び、その人と SSH の鍵を並べる。一覧を選ぶと、上にその一覧のファイルと
+    /// 「git に設定…」を出す。
     private var list: some View {
-        VStack(spacing: 0) {
-            Picker(L("Show"), selection: $tab) {
-                Text(L("People")).tag(SignersTab.people)
-                Text(L("Lists")).tag(SignersTab.lists)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .fixedSize()
-            .padding(.vertical, 8)
-            List {
-                statusSection
-                switch tab {
-                case .people: peopleSection
-                case .lists: listSections
-                }
-            }
-        }
-    }
-
-    @ViewBuilder private var listSections: some View {
         let record = model.record
-        if record.lists.isEmpty {
-            Text(L("No lists yet. Create one with New List…."))
-                .foregroundStyle(.secondary)
-        }
-        ForEach(record.lists, id: \.id) { list in
-            Section {
-                SignerListFile(path: signersFile(dir: model.dir.path, list: list.id), state: fileState(list))
-                if list.members.isEmpty {
-                    Text(L("No one in this list yet. Add people from their menu."))
-                        .foregroundStyle(.secondary)
-                }
-                // 人の段と同じ ID（メールアドレス）だと、List が行を取り違えるので、一覧の ID を前に付ける
-                ForEach(list.members.map { (id: "\(list.id)/\($0)", email: $0) }, id: \.id) { member in
-                    let email = member.email
-                    HStack {
-                        Text(email)
-                        Spacer()
-                        Button(L("Remove from List")) {
-                            Task { await save([.removeMember(list: list.id, email: email)], title: L("Cannot change the list")) }
-                        }
-                        .controlSize(.small)
+        // 選んでいた一覧が消えていれば「すべて」
+        let current = record.lists.first { $0.id == chosenList }
+        return VStack(spacing: 0) {
+            if !record.lists.isEmpty {
+                Picker(L("List"), selection: Binding(get: { current?.id ?? "" }, set: { chosenList = $0 })) {
+                    Text(L("All")).tag("")
+                    ForEach(record.lists, id: \.id) { list in
+                        Text(list.name).tag(list.id)
                     }
                 }
-            } header: {
-                HStack {
-                    Text(list.name)
-                    Spacer()
-                    Button(L("Remove List…")) { removingList = list }
-                        .buttonStyle(.borderless)
-                        .font(.caption)
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+                .padding(.vertical, 8)
+            }
+            List {
+                statusSection
+                if let current {
+                    Section {
+                        SignerListFile(path: signersFile(dir: model.dir.path, list: current.id), state: fileState(current))
+                    } header: {
+                        HStack {
+                            Text(current.name)
+                            Spacer()
+                            Button(L("Remove List…")) { removingList = current }
+                                .buttonStyle(.borderless)
+                                .font(.caption)
+                        }
+                    }
                 }
+                peopleSection(in: current)
             }
         }
     }
 
-    @ViewBuilder private var peopleSection: some View {
+    /// 人と SSH の鍵。`list` があれば、その一覧に入っている人だけ。
+    @ViewBuilder private func peopleSection(in list: SignerList?) -> some View {
         let record = model.record
+        let people = list.map { list in record.people.filter { list.members.contains($0.email) } } ?? record.people
         Section {
-            if record.people.isEmpty {
-                Text(L("No one yet. Add people with Add Person…."))
+            if people.isEmpty {
+                Text(list == nil ? L("No one yet. Add people with Add Person….") : L("No one in this list yet. Add people from their menu."))
                     .foregroundStyle(.secondary)
             }
-            ForEach(record.people.map { (id: "person/\($0.email)", person: $0) }, id: \.id) { item in
+            ForEach(people.map { (id: "person/\($0.email)", person: $0) }, id: \.id) { item in
                 let person = item.person
                 SignerRow(
                     person: person, record: record, changes: model.changes[person.email],
@@ -252,6 +235,11 @@ struct SignersView: View {
                         check: { Task { await model.check(person) } },
                         addTo: { list in
                             Task { await save([.addMember(list: list, email: person.email)], title: L("Cannot change the list")) }
+                        },
+                        removeFromList: list.map { list in
+                            {
+                                Task { await save([.removeMember(list: list.id, email: person.email)], title: L("Cannot change the list")) }
+                            }
                         },
                         remove: { removingPerson = person }))
             }
@@ -417,6 +405,8 @@ struct SignerRowActions {
     var recordAlso: (String, KeySource) -> Void = { _, _ in }
     var check: () -> Void = {}
     var addTo: (String) -> Void = { _ in }
+    /// 選んでいる一覧から外す（一覧を選んでいるときだけ）。
+    var removeFromList: (() -> Void)?
     var remove: () -> Void = {}
 }
 
@@ -452,6 +442,9 @@ private struct SignerRow: View {
                                 Button(list.name) { actions.addTo(list.id) }
                             }
                         }
+                    }
+                    if let removeFromList = actions.removeFromList {
+                        Button(L("Remove from This List"), action: removeFromList)
                     }
                     Divider()
                     Button(L("Remove Person…"), role: .destructive, action: actions.remove)
@@ -997,8 +990,3 @@ private struct NewSignerListSheet: View {
     }
 }
 
-/// SSH の署名者の画面の切り替え。
-enum SignersTab: String {
-    case people
-    case lists
-}

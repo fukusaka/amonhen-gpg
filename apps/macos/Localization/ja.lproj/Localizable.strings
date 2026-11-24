@@ -480,11 +480,9 @@
 "No one in this list yet. Add people from their menu." = "まだ誰も入っていません。人のメニューから入れてください。";
 "No signers yet" = "署名者はまだいません";
 "One allowed signers file per list, such as one per team or repository: %@" = "一覧ごとに allowed signers のファイルを 1 つ書きます（チームやリポジトリごとなど）: %@";
-"People" = "人";
 "Remove %@?" = "%@ を除きますか？";
 "Remove List…" = "一覧を除く…";
 "Remove Person…" = "人を除く…";
-"Remove from List" = "一覧から外す";
 "Remove the list %@?" = "一覧 %@ を除きますか？";
 "Retire" = "退役させる";
 "Retired %@" = "%@ に退役";
@@ -500,8 +498,8 @@
 "git checks SSH-signed commits against the file that gpg.ssh.allowedSignersFile points at. The app does not change git's settings: run one of these in Terminal. Click a command to copy it." = "git は、gpg.ssh.allowedSignersFile が指すファイルで、SSH で署名したコミットを検証します。アプリは git の設定を変えないので、どちらかをターミナルで実行してください。コマンドを押すとコピーします。";
 "For all your repositories" = "すべてのリポジトリで";
 "For one repository (run it inside the repository)" = "1 つのリポジトリで（そのリポジトリの中で実行）";
-"Lists" = "一覧";
-"No lists yet. Create one with New List…." = "一覧はまだありません。「新しい一覧…」で作ってください。";
+"Remove from This List" = "この一覧から外す";
+"List" = "一覧";
 "User name" = "ユーザー名";
 "Work" = "仕事";
 "Write the Files Again" = "ファイルを書き直す";
