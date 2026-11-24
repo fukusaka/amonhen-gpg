@@ -6,6 +6,11 @@ notes.
 
 ## Unreleased
 
+## [0.4.4] - 2026-11-24
+
+SSH Signers works with a key whose primary key's secret is kept elsewhere: the record of signers is signed with
+the signing subkey on this Mac.
+
 ### Fixed
 
 - SSH Signers works with a key whose primary key's secret is kept elsewhere and only a signing subkey is on this Mac: the record of signers is signed with that subkey. Before, SSH Signers said no key of yours could sign, and accepting SSH keys from Keys to Accept failed without a message; it now says so when no key can sign.
