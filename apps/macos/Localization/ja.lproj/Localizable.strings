@@ -461,7 +461,6 @@
 "Cannot retire the key" = "鍵を退役させられません";
 "Cannot write the files" = "ファイルを書けません";
 "Check for Changes" = "変化を確かめる";
-"Commits signed before now stay verified; later ones are not." = "今より前に署名したコミットは検証できたままで、後のものは検証しません。";
 "Compare and Accept…" = "照らし合わせて受け入れる…";
 "Compare the fingerprint" = "フィンガープリントを照らし合わせる";
 "Compare the fingerprint with the owner first." = "先に持ち主とフィンガープリントを照らし合わせます。";
@@ -470,11 +469,9 @@
 "In no list, so git does not see these keys." = "どの一覧にも入っていないので、git はこの鍵を見ません。";
 "It Matches" = "一致する";
 "Its file %@ is deleted. git settings that point at it stop verifying signatures. The people stay." = "ファイル %@ を消します。このファイルを指す git の設定では、署名を検証できなくなります。人は残ります。";
-"Lists: %@" = "一覧: %@";
 "New List" = "新しい一覧";
 "New List…" = "新しい一覧…";
 "New on %@" = "%@ に新しくある";
-"No changes on the accounts." = "アカウントに変化はありません。";
 "No key of yours can sign" = "署名できる自分の鍵がありません";
 "No longer on the account" = "アカウントにもうない";
 "No one in this list yet. Add people from their menu." = "まだ誰も入っていません。人のメニューから入れてください。";
@@ -499,6 +496,10 @@
 "For all your repositories" = "すべてのリポジトリで";
 "For one repository (run it inside the repository)" = "1 つのリポジトリで（そのリポジトリの中で実行）";
 "Remove from This List" = "この一覧から外す";
+"Email / Key" = "メール / 鍵";
+"Checked" = "確かめ方";
+"File %@" = "ファイル %@";
+"Show Keys to Accept" = "受け入れ前の鍵を見る";
 "Account" = "アカウント";
 "Lists" = "一覧";
 "Status" = "状態";
@@ -507,12 +508,9 @@
 "Keys gone" = "消えた鍵";
 "Cannot fetch" = "取れない";
 "Not in a list" = "一覧なし";
-"Choose a person to see their SSH keys." = "人を選ぶと、その人の SSH の鍵が出ます。";
-"Allowed signers file" = "allowed signers のファイル";
 "User name" = "ユーザー名";
 "Work" = "仕事";
 "Write the Files Again" = "ファイルを書き直す";
-"%ld new keys wait in Keys to Accept." = "受け入れ前の鍵に、新しい鍵が %ld 個あります。";
 "Fetched for SSH Signers. They are in no allowed signers file until you accept them." = "SSH の署名者のために取ってきた鍵です。受け入れるまで、どの allowed signers のファイルにも入りません。";
 "SSH signing keys to accept (%ld)" = "受け入れ前の SSH の署名用の鍵（%ld）";
 "Retire Key…" = "鍵を退役させる…";
@@ -541,7 +539,6 @@
 "From an allowed signers file you chose. Accepting records them as imported from that file; the file is not changed." = "選んだ allowed signers のファイルから読んだ鍵です。受け入れると、そのファイルから取り込んだと記録します。ファイルは変えません。";
 "Import Allowed Signers File" = "allowed signers のファイルを取り込む";
 "Import Allowed Signers File…" = "allowed signers のファイルを取り込む…";
-"Imported from %@" = "%@ から取り込んだ";
 "Its namespaces do not include git." = "namespaces に git がありません。";
 "Keys from %@ (%ld)" = "%@ の鍵（%ld）";
 "Line %ld" = "%ld 行目";
@@ -556,7 +553,6 @@
 "The line cannot be read." = "行が読めません。";
 "The principal is a pattern, not one person." = "principal がパターンで、1 人に決まりません。";
 "The principal is not an email address." = "principal がメールアドレスではありません。";
-"The same key is on %@. Record it, so later checks compare the key with that account." = "同じ鍵が %@ にもあります。記録すると、次からはその鍵をそのアカウントと比べます。";
 "Valid from %@" = "%@ から有効";
 "a file" = "ファイル";
 "cert-authority lines are not handled." = "cert-authority の行は扱いません。";

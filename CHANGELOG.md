@@ -8,7 +8,7 @@ notes.
 
 ### Changed
 
-- SSH Signers no longer splits people and lists with a switch at the top. The lists sit under SSH Signers in the sidebar: SSH Signers shows everyone, and a list shows its file, Set Up git… and Remove List… above the people. People are a table with their account, lists, number of keys and a short status; the chosen person's keys and actions are in an inspector on the right.
+- SSH Signers no longer splits people and lists with a switch at the top. The lists sit under SSH Signers in the sidebar: SSH Signers shows everyone, and a list shows its file, Set Up git… and Remove List… above the people. People are an outline table with their account, lists and a short status; opening a person shows their keys, and the actions are in each row's context menu.
 
 ### Fixed
 
