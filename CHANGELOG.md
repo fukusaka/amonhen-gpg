@@ -6,6 +6,11 @@ notes.
 
 ## Unreleased
 
+## [0.5.1] - 2026-11-25
+
+SSH Signers lists its lists in the sidebar, under SSH Signers, and shows people in a table: open a person to see
+their keys, and use a row's menu for its actions.
+
 ### Changed
 
 - SSH Signers no longer splits people and lists with a switch at the top. The lists sit under SSH Signers in the sidebar: SSH Signers shows everyone, and a list shows its file, Set Up git… and Remove List… above the people. People are an outline table with their account, lists and a short status; opening a person shows their keys, and the actions are in each row's context menu.
