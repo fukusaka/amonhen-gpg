@@ -14,8 +14,8 @@ struct SignersView: View {
     var showKeysToAccept: () -> Void = {}
     /// 記録に署名する自分の鍵（次に開いたときも同じ）。
     @AppStorage(SignersModel.signerDefaultsKey) private var signerFingerprint = ""
-    /// 表で選んでいる人（メールアドレス）。その人の鍵と操作をインスペクタに出す。
-    @State private var selectedPerson: String?
+    /// 表で選んでいる行（人か鍵）。
+    @State private var selectedRow: String?
     @State private var addingPerson = false
     @State private var addingList = false
     @State private var removingPerson: Signer?
@@ -193,59 +193,176 @@ struct SignersView: View {
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                Table(people.map(PersonRow.init), selection: $selectedPerson) {
-                    TableColumn(L("Email")) { row in Text(row.person.email) }
-                        .width(min: 160, ideal: 220)
+                // 人の行を開くと、その下に鍵の行が並ぶ（ほかの場所と同じく、操作は右クリックのメニュー）
+                Table(of: SignerTableRow.self, selection: $selectedRow) {
+                    TableColumn(L("Email / Key")) { row in cell(row, current, record) { firstCell(row) } }
+                        .width(min: 200, ideal: 300)
                     TableColumn(L("Account")) { row in
-                        Text(row.person.accounts.map(\.display).joined(separator: ", ")).foregroundStyle(.secondary)
+                        cell(row, current, record) { Text(accountText(row)).foregroundStyle(.secondary) }
                     }
-                    .width(min: 100, ideal: 160)
+                    .width(min: 100, ideal: 150)
                     TableColumn(L("Lists")) { row in
-                        let lists = record.lists(of: row.person.email)
-                        Text(lists.isEmpty ? L("None") : lists.map(\.name).joined(separator: ", "))
-                            .foregroundStyle(lists.isEmpty ? .orange : .secondary)
-                    }
-                    .width(min: 70, ideal: 120)
-                    TableColumn(L("Keys")) { row in
-                        Text("\(row.person.keys.filter { !$0.retired }.count)").monospacedDigit()
-                    }
-                    .width(min: 30, ideal: 40, max: 60)
-                    TableColumn(L("Status")) { row in status(of: row.person, lists: record.lists(of: row.person.email)) }
-                        .width(min: 90, ideal: 140)
-                }
-                .contextMenu(forSelectionType: String.self) { emails in
-                    if let person = people.first(where: { emails.contains($0.email) }) {
-                        Button(L("Check for Changes")) { Task { await model.check(person) } }
-                            .disabled(person.accounts.isEmpty || model.checking.contains(person.email))
-                        if let current {
-                            Button(L("Remove from This List")) {
-                                Task { await save([.removeMember(list: current.id, email: person.email)], title: L("Cannot change the list")) }
+                        cell(row, current, record) {
+                            if case let .person(person) = row.kind {
+                                let lists = record.lists(of: person.email)
+                                Text(lists.isEmpty ? L("None") : lists.map(\.name).joined(separator: ", "))
+                                    .foregroundStyle(lists.isEmpty ? .orange : .secondary)
                             }
                         }
-                        Divider()
-                        Button(L("Remove Person…"), role: .destructive) { removingPerson = person }
+                    }
+                    .width(min: 70, ideal: 110)
+                    TableColumn(L("Checked")) { row in
+                        cell(row, current, record) {
+                            if case let .key(_, key) = row.kind {
+                                Text(checkedText(key)).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .width(min: 90, ideal: 150)
+                    TableColumn(L("Status")) { row in cell(row, current, record) { statusCell(row, record: record) } }
+                        .width(min: 90, ideal: 150)
+                } rows: {
+                    ForEach(people, id: \.email) { person in
+                        DisclosureTableRow(SignerTableRow(kind: .person(person))) {
+                            ForEach(person.keys, id: \.fingerprint) { key in
+                                TableRow(SignerTableRow(kind: .key(person, key)))
+                            }
+                        }
+                    }
+                }
+                // 鍵の行は表のメニューで受ける（行のどこでも出る）。人の行には出ないので、欄の中身に付ける（cell）
+                .contextMenu(forSelectionType: String.self) { ids in
+                    if let id = ids.first, let row = keyRow(id, in: people) {
+                        menu(for: row, list: current, record: record)
                     }
                 }
             }
         }
-        .inspector(isPresented: .constant(true)) {
-            Group {
-                if let person = people.first(where: { $0.email == selectedPerson }) {
-                    ScrollView {
-                        SignerRow(
-                            person: person, record: record, changes: model.changes[person.email],
-                            checking: model.checking.contains(person.email), actions: actions(for: person, in: current))
-                            .padding(16)
+    }
+
+    /// 人の行の右クリックのメニューを、欄の中身に付ける。表のメニュー（contextMenu(forSelectionType:) や行ごとの
+    /// contextMenu）は、開け閉めできる人の行では出ないので、欄の中身に付けて欄いっぱいで受ける。
+    private func cell(
+        _ row: SignerTableRow, _ list: SignerList?, _ record: SignerRecord, @ViewBuilder _ content: () -> some View
+    ) -> some View {
+        content()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .contextMenu {
+                if case .person = row.kind { menu(for: row, list: list, record: record) }
+            }
+    }
+
+    private func keyRow(_ id: String, in people: [Signer]) -> SignerTableRow? {
+        for person in people {
+            for key in person.keys where SignerTableRow(kind: .key(person, key)).id == id {
+                return SignerTableRow(kind: .key(person, key))
+            }
+        }
+        return nil
+    }
+
+    @ViewBuilder private func firstCell(_ row: SignerTableRow) -> some View {
+        switch row.kind {
+        case let .person(person):
+            Text(person.email)
+        case let .key(_, key):
+            Label {
+                Text(key.fingerprint).font(.callout.monospaced())
+            } icon: {
+                Image(systemName: key.retired ? "key.slash" : "key")
+            }
+            .foregroundStyle(key.retired ? .secondary : .primary)
+        }
+    }
+
+    private func accountText(_ row: SignerTableRow) -> String {
+        switch row.kind {
+        case let .person(person): person.accounts.map(\.display).joined(separator: ", ")
+        case let .key(_, key): key.source.map { Account(host: $0.host, user: $0.user).display } ?? ""
+        }
+    }
+
+    private func checkedText(_ key: SignerKey) -> String {
+        switch key.checked {
+        case .fingerprint: L("Compared with the owner")
+        case .account: L("As taken from the account")
+        // 表の欄に収まるよう、ファイルは名前と行だけ
+        case .file: L("File %@", key.imported.map { "\(($0.path as NSString).lastPathComponent):\($0.line)" } ?? "")
+        }
+    }
+
+    /// 「状態」の欄。気にすることだけを短く出す（なにもなければ空）。
+    @ViewBuilder private func statusCell(_ row: SignerTableRow, record: SignerRecord) -> some View {
+        switch row.kind {
+        case let .person(person):
+            let changes = model.changes[person.email]
+            if model.checking.contains(person.email) {
+                ProgressView().controlSize(.small)
+            } else if let new = changes?.new, !new.isEmpty {
+                Text(L("New keys: %ld", new.count)).foregroundStyle(.blue)
+            } else if let changes, !changes.gone.isEmpty || !changes.absent.isEmpty {
+                Text(L("Keys gone")).foregroundStyle(.orange)
+            } else if let changes, !changes.failures.isEmpty {
+                Text(L("Cannot fetch")).foregroundStyle(.orange)
+                    .help(changes.failures.map { L("Cannot fetch from %@: %@", $0.account.display, describe($0.error)) }.joined(separator: "\n"))
+            } else if record.lists(of: person.email).isEmpty {
+                Text(L("Not in a list")).foregroundStyle(.orange)
+                    .help(L("In no list, so git does not see these keys."))
+            }
+        case let .key(person, key):
+            let changes = model.changes[person.email]
+            if let before = key.validBefore {
+                Text(L("Retired %@", Signers.date(before).map { $0.formatted(date: .abbreviated, time: .omitted) } ?? before))
+                    .foregroundStyle(.secondary)
+            } else if changes?.gone.contains(key.fingerprint) == true || changes?.absent.contains(key.fingerprint) == true {
+                Text(key.source == nil ? L("Not on the account") : L("No longer on the account")).foregroundStyle(.orange)
+            } else if let also = changes?.also[key.fingerprint] {
+                Text(L("Also on %@", Account(host: also.host, user: also.user).display)).foregroundStyle(.blue)
+            }
+        }
+    }
+
+    /// 行の右クリックのメニュー。人なら人の操作、鍵なら鍵の操作。
+    @ViewBuilder private func menu(for row: SignerTableRow, list: SignerList?, record: SignerRecord) -> some View {
+        switch row.kind {
+        case let .person(person):
+            Button(L("Check for Changes")) { Task { await model.check(person) } }
+                .disabled(person.accounts.isEmpty || model.checking.contains(person.email))
+            if let new = model.changes[person.email]?.new, !new.isEmpty {
+                Button(L("Show Keys to Accept"), action: showKeysToAccept)
+            }
+            let addable = record.lists.filter { !$0.members.contains(person.email) }
+            if !addable.isEmpty {
+                Menu(L("Add to List")) {
+                    ForEach(addable, id: \.id) { target in
+                        Button(target.name) {
+                            Task { await save([.addMember(list: target.id, email: person.email)], title: L("Cannot change the list")) }
+                        }
                     }
-                } else {
-                    Text(L("Choose a person to see their SSH keys."))
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
-            .inspectorColumnWidth(min: 260, ideal: 340, max: 520)
+            if let list {
+                Button(L("Remove from This List")) {
+                    Task { await save([.removeMember(list: list.id, email: person.email)], title: L("Cannot change the list")) }
+                }
+            }
+            Divider()
+            Button(L("Remove Person…"), role: .destructive) { removingPerson = person }
+        case let .key(person, key):
+            if let also = model.changes[person.email]?.also[key.fingerprint] {
+                Button(L("Record as Also on the Account")) {
+                    Task {
+                        await save(
+                            [.acceptKey(email: person.email, key: key.key, source: also, checked: .account)],
+                            title: L("Cannot change the key"))
+                    }
+                }
+            }
+            Button(L("Retire Key…")) { retiring = KeyRef(email: person.email, fingerprint: key.fingerprint) }
+                .disabled(key.retired)
+            Divider()
+            Button(L("Remove Key…"), role: .destructive) { removingKey = KeyRef(email: person.email, fingerprint: key.fingerprint) }
         }
     }
 
@@ -271,31 +388,6 @@ struct SignersView: View {
         } else if lists.isEmpty {
             Text(L("Not in a list")).foregroundStyle(.orange)
         }
-    }
-
-    private func actions(for person: Signer, in list: SignerList?) -> SignerRowActions {
-        SignerRowActions(
-            showKeysToAccept: showKeysToAccept,
-            retire: { retiring = KeyRef(email: person.email, fingerprint: $0) },
-            removeKey: { removingKey = KeyRef(email: person.email, fingerprint: $0) },
-            recordAlso: { fingerprint, source in
-                guard let key = person.keys.first(where: { $0.fingerprint == fingerprint }) else { return }
-                Task {
-                    await save(
-                        [.acceptKey(email: person.email, key: key.key, source: source, checked: .account)],
-                        title: L("Cannot change the key"))
-                }
-            },
-            check: { Task { await model.check(person) } },
-            addTo: { list in
-                Task { await save([.addMember(list: list, email: person.email)], title: L("Cannot change the list")) }
-            },
-            removeFromList: list.map { list in
-                {
-                    Task { await save([.removeMember(list: list.id, email: person.email)], title: L("Cannot change the list")) }
-                }
-            },
-            remove: { removingPerson = person })
     }
 
     /// 記録の署名と、ファイルが記録と合っているか。
@@ -346,9 +438,12 @@ struct SignersView: View {
             switch await model.readFile(url) {
             case let .success(count):
                 let skipped = model.skipped.filter { $0.path == url.path }.count
-                notify(Notice(
-                    title: L("Read %@", url.lastPathComponent),
-                    message: L("%ld keys wait in Keys to Accept. %ld lines could not be imported; Keys to Accept shows why.", count, skipped)))
+                // 取り込めなかった行がなければ、そのことは言わない
+                var message = L("Keys waiting in Keys to Accept: %ld.", count)
+                if skipped > 0 {
+                    message += " " + L("Lines that could not be imported: %ld. Keys to Accept shows why.", skipped)
+                }
+                notify(Notice(title: L("Read %@", url.lastPathComponent), message: message))
                 if count > 0 || skipped > 0 { showKeysToAccept() }
             case let .failure(error):
                 notify(Notice(title: L("Cannot read the file"), message: describe(error)))
@@ -449,177 +544,21 @@ private struct GitSetup: View {
     }
 }
 
-struct SignerRowActions {
-    var showKeysToAccept: () -> Void = {}
-    var retire: (String) -> Void = { _ in }
-    var removeKey: (String) -> Void = { _ in }
-    /// ファイルなどから受け入れた鍵が、アカウントにもあったと記録する。
-    var recordAlso: (String, KeySource) -> Void = { _, _ in }
-    var check: () -> Void = {}
-    var addTo: (String) -> Void = { _ in }
-    /// 選んでいる一覧から外す（一覧を選んでいるときだけ）。
-    var removeFromList: (() -> Void)?
-    var remove: () -> Void = {}
-}
-
-/// 1 人。アカウント、入っている一覧、受け入れた鍵、取り直して分かった変化。
-private struct SignerRow: View {
-    let person: Signer
-    let record: SignerRecord
-    let changes: PersonChanges?
-    let checking: Bool
-    let actions: SignerRowActions
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(person.email).font(.headline)
-                Text(person.accounts.map(\.display).joined(separator: ", "))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                if checking {
-                    ProgressView().controlSize(.small)
-                }
-                Menu {
-                    Button(L("Check for Changes"), action: actions.check)
-                        .disabled(person.accounts.isEmpty || checking)
-                    let addable = record.lists.filter { !$0.members.contains(person.email) }
-                    if addable.isEmpty {
-                        // 中が空のメニューは押せるように見えるので、押せない項目にする
-                        Button(L("Add to List")) {}.disabled(true)
-                    } else {
-                        Menu(L("Add to List")) {
-                            ForEach(addable, id: \.id) { list in
-                                Button(list.name) { actions.addTo(list.id) }
-                            }
-                        }
-                    }
-                    if let removeFromList = actions.removeFromList {
-                        Button(L("Remove from This List"), action: removeFromList)
-                    }
-                    Divider()
-                    Button(L("Remove Person…"), role: .destructive, action: actions.remove)
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .fixedSize()
-            }
-            let lists = record.lists(of: person.email)
-            Text(lists.isEmpty ? L("In no list, so git does not see these keys.") : L("Lists: %@", lists.map(\.name).joined(separator: ", ")))
-                .font(.caption)
-                .foregroundStyle(lists.isEmpty ? .orange : .secondary)
-            ForEach(person.keys, id: \.fingerprint) { key in
-                AcceptedKeyRow(
-                    key: key,
-                    gone: changes?.gone.contains(key.fingerprint) == true || changes?.absent.contains(key.fingerprint) == true,
-                    also: changes?.also[key.fingerprint],
-                    retire: { actions.retire(key.fingerprint) }, remove: { actions.removeKey(key.fingerprint) },
-                    recordAlso: { actions.recordAlso(key.fingerprint, $0) })
-            }
-            if let new = changes?.new, !new.isEmpty {
-                HStack {
-                    Label(L("%ld new keys wait in Keys to Accept.", new.count), systemImage: "tray.and.arrow.down")
-                        .font(.caption)
-                        .foregroundStyle(.blue)
-                    Button(L("Show"), action: actions.showKeysToAccept)
-                        .controlSize(.small)
-                }
-            }
-            ForEach(Array((changes?.failures ?? []).enumerated()), id: \.offset) { _, failure in
-                Label(L("Cannot fetch from %@: %@", failure.account.display, describe(failure.error)), systemImage: "exclamationmark.triangle")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-            }
-            if let changes, changes.isEmpty {
-                Text(L("No changes on the accounts."))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(.vertical, 4)
-    }
-}
-
-/// 受け入れた鍵。
-private struct AcceptedKeyRow: View {
-    let key: SignerKey
-    /// アカウントから消えた鍵。
-    let gone: Bool
-    /// アカウントにもあった（ファイルなどから受け入れた鍵）。
-    let also: KeySource?
-    let retire: () -> Void
-    let remove: () -> Void
-    let recordAlso: (KeySource) -> Void
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Image(systemName: key.retired ? "key.slash" : "key")
-                .foregroundStyle(key.retired ? .secondary : .primary)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(key.fingerprint)
-                    .font(.caption.monospaced())
-                    .textSelection(.enabled)
-                Text(detail)
-                    .font(.caption)
-                    .foregroundStyle(gone ? .orange : .secondary)
-            }
-            Spacer()
-            if let also {
-                Button(L("Record as Also on the Account")) { recordAlso(also) }
-                    .controlSize(.small)
-                    .help(L("The same key is on %@. Record it, so later checks compare the key with that account.", Account(host: also.host, user: also.user).display))
-            }
-            if gone, !key.retired {
-                Button(L("Retire"), action: retire)
-                    .controlSize(.small)
-                    .help(L("Commits signed before now stay verified; later ones are not."))
-            }
-            Menu {
-                Button(L("Retire Key…"), action: retire)
-                    .disabled(key.retired)
-                Divider()
-                Button(L("Remove Key…"), role: .destructive, action: remove)
-            } label: {
-                Image(systemName: "ellipsis.circle")
-            }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .fixedSize()
-        }
+/// 表の行。人の行と、その下に並ぶ鍵の行。
+private struct SignerTableRow: Identifiable {
+    enum Kind {
+        case person(Signer)
+        case key(Signer, SignerKey)
     }
 
-    private var detail: String {
-        var parts: [String]
-        switch key.checked {
-        case .fingerprint: parts = [L("Compared with the owner")]
-        case .account: parts = [L("As taken from the account")]
-        case .file: parts = [L("Imported from %@", key.imported.map { "\(($0.path as NSString).lastPathComponent):\($0.line)" } ?? L("a file"))]
-        }
-        if let source = key.source {
-            parts.append(Account(host: source.host, user: source.user).display)
-        }
-        if let after = key.validAfter {
-            parts.append(L("Valid from %@", Signers.date(after).map { $0.formatted(date: .abbreviated, time: .shortened) } ?? after))
-        }
-        if let also {
-            parts.append(L("Also on %@", Account(host: also.host, user: also.user).display))
-        }
-        if let before = key.validBefore {
-            parts.append(L("Retired %@", Signers.date(before).map { $0.formatted(date: .abbreviated, time: .shortened) } ?? before))
-        } else if gone {
-            parts.append(key.source == nil ? L("Not on the account") : L("No longer on the account"))
-        }
-        return parts.joined(separator: " · ")
-    }
-}
+    let kind: Kind
 
-/// 表の行（人をメールアドレスで指す）。
-private struct PersonRow: Identifiable {
-    let person: Signer
-    var id: String { person.email }
+    var id: String {
+        switch kind {
+        case let .person(person): "person/\(person.email)"
+        case let .key(person, key): "key/\(person.email)/\(key.fingerprint)"
+        }
+    }
 }
 
 /// 人の鍵を指す（確かめの画面に渡す）。
