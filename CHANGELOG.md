@@ -6,6 +6,10 @@ notes.
 
 ## Unreleased
 
+### Changed
+
+- SSH Signers no longer splits people and lists with a switch at the top. The lists sit under SSH Signers in the sidebar: SSH Signers shows everyone, and a list shows its file, Set Up git… and Remove List… above the people. People are a table with their account, lists, number of keys and a short status; the chosen person's keys and actions are in an inspector on the right.
+
 ## [0.5.0] - 2026-11-25
 
 The Web of Trust in Others' Keys is easier to read and to undo. Owner trust has its own column, validity uses
