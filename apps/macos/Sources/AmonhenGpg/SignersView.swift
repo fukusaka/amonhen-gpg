@@ -346,9 +346,12 @@ struct SignersView: View {
             switch await model.readFile(url) {
             case let .success(count):
                 let skipped = model.skipped.filter { $0.path == url.path }.count
-                notify(Notice(
-                    title: L("Read %@", url.lastPathComponent),
-                    message: L("%ld keys wait in Keys to Accept. %ld lines could not be imported; Keys to Accept shows why.", count, skipped)))
+                // 取り込めなかった行がなければ、そのことは言わない
+                var message = L("Keys waiting in Keys to Accept: %ld.", count)
+                if skipped > 0 {
+                    message += " " + L("Lines that could not be imported: %ld. Keys to Accept shows why.", skipped)
+                }
+                notify(Notice(title: L("Read %@", url.lastPathComponent), message: message))
                 if count > 0 || skipped > 0 { showKeysToAccept() }
             case let .failure(error):
                 notify(Notice(title: L("Cannot read the file"), message: describe(error)))

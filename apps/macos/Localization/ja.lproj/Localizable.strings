@@ -531,7 +531,8 @@
 "No one yet. Add people with Add Person…." = "まだ誰もいません。「人を足す…」で足してください。";
 
 /* 既存の allowed signers のファイルを取り込む */
-"%ld keys wait in Keys to Accept. %ld lines could not be imported; Keys to Accept shows why." = "%ld 個の鍵を受け入れ前の鍵に置きました。取り込めなかった行が %ld 行あります。理由は受け入れ前の鍵に出ています。";
+"Keys waiting in Keys to Accept: %ld." = "%ld 個の鍵を受け入れ前の鍵に置きました。";
+"Lines that could not be imported: %ld. Keys to Accept shows why." = "取り込めなかった行が %ld 行あります。理由は受け入れ前の鍵に出ています。";
 "Accept All" = "すべて受け入れる";
 "Also on %@" = "%@ にもある";
 "Cannot change the key" = "鍵を変えられません";
