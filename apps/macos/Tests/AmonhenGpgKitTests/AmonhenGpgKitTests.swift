@@ -844,6 +844,41 @@ func certifiesOthersKeys() throws {
     #expect(Keyring(keys: try other.gpg.listKeys(), sshKeys: [], now: now).signers.isEmpty)
 }
 
+/// 主鍵のない鍵束では、ローカル署名用の鍵を作るよう勧め、作ればそれで署名でき、バックアップや失効証明書は促さない。
+@Test(.enabled(if: gpgAvailable()))
+func localCertifierOnAMacWithoutThePrimaryKey() throws {
+    let home = try TemporaryKeyring()
+    let me = try home.gpg.generateKey(
+        request: GenerateKey(userId: "Alice <alice@example.com>", algorithm: nil, capabilities: nil, expires: .never))
+    let away = try TemporaryKeyring()
+    _ = try away.gpg.import(data: try home.gpg.exportPublicKeys(fingerprints: [me], armor: true))
+    try away.gpg.setOwnerTrust(fingerprint: me, trust: .ultimate)
+    let now = UInt64(Date().timeIntervalSince1970)
+    var ring = Keyring(keys: try away.gpg.listKeys(), sshKeys: [], now: now)
+    #expect(ring.signers.isEmpty)
+    #expect(ring.canCreateLocalCertifier)
+
+    let userId = OwnKey.localCertifierUserId(macName: "Studio <x@y>")
+    #expect(userId == "Local certifications (Studio xy)")
+    let fingerprint = try away.gpg.createLocalCertifier(userId: userId)
+    ring = Keyring(keys: try away.gpg.listKeys(), sshKeys: [], now: now)
+    let own = try #require(ring.own(fingerprint))
+    #expect(own.isLocalCertifier)
+    #expect(own.status.tier == .usable)
+    #expect(ring.signers.map(\.key.fingerprint) == [fingerprint])
+    #expect(!ring.canCreateLocalCertifier)
+    #expect(!own.needsBackup)
+    #expect(!own.needsRevocationCertificate)
+    #expect(ring.dataSigners.isEmpty)
+    #expect(try #require(ring.own(me)).isLocalCertifier == false)
+
+    // 主鍵のある鍵束では、ローカル署名用の鍵を後ろに置く
+    _ = try home.gpg.createLocalCertifier(userId: OwnKey.localCertifierUserId(macName: ""))
+    ring = Keyring(keys: try home.gpg.listKeys(), sshKeys: [], now: now)
+    #expect(ring.signers.map(\.key.fingerprint).first == me)
+    #expect(ring.signers.count == 2)
+}
+
 @Test func namesAlgorithms() {
     #expect(algorithmName(algorithm: 22, length: 255, curve: "ed25519") == "ed25519")
     #expect(algorithmName(algorithm: 1, length: 4096, curve: nil) == "RSA 4096")

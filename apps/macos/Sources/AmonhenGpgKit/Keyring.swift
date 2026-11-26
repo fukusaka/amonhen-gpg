@@ -67,13 +67,25 @@ public struct Keyring: Sendable {
     }
 
     /// 他者の鍵に署名する（確認済みにする）のに使える自分の鍵。使える段にあり、証明の秘密鍵がこの PC かカードにあるもの。
+    /// ローカル署名用の鍵は後ろに置く（主鍵があれば、そちらで署名するのがふつう）。
     public var signers: [OwnKey] {
-        usable.filter {
+        let all = usable.filter {
             switch $0.status.certify {
             case .thisDevice, .card: true
             case .elsewhere, .none: false
             }
         }
+        return all.filter { !$0.isLocalCertifier } + all.filter(\.isLocalCertifier)
+    }
+
+    /// ローカル署名用の鍵を作るよう勧めるか。他者の鍵に署名できる鍵がこの Mac になく、主鍵がほかにある自分の鍵があること。
+    public var canCreateLocalCertifier: Bool {
+        signers.isEmpty && !(usable + notOnThisDevice).isEmpty
+    }
+
+    /// 他者の鍵に署名する道がない（署名できる鍵も、ローカル署名用の鍵を勧める自分の鍵もない）。
+    public var cannotCertify: Bool {
+        signers.isEmpty && !canCreateLocalCertifier
     }
 
     /// 自分の鍵をフィンガープリントで探す（どの段にあっても）。

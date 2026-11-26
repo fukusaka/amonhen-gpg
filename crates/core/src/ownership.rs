@@ -66,6 +66,22 @@ impl Key {
             || self.subkeys.iter().any(|s| s.secret != SecretState::None)
     }
 
+    /// ローカル署名用の鍵か（主鍵のない Mac で、他者の鍵をその Mac の中だけで有効にするために作る鍵）。
+    /// 名前ではなく形で見分ける: 主鍵が証明だけの鍵で、サブ鍵がなく、どの UID にもメールアドレスがない。
+    /// ふつうの鍵はデータの署名か暗号化の鍵を持ち、人に渡すのでメールアドレスを付ける。
+    pub fn is_local_certifier(&self) -> bool {
+        let caps = self.capabilities;
+        caps.certify
+            && !caps.sign
+            && !caps.encrypt
+            && !caps.authenticate
+            && self.subkeys.is_empty()
+            && self
+                .user_ids
+                .iter()
+                .all(|u| u.attribute || !u.text.contains('@'))
+    }
+
     /// 主画面での段と、用途ごとにどこで使えるか。`now` は UNIX 時刻（秒）。
     pub fn status(&self, now: u64) -> KeyStatus {
         let primary_alive = alive(self.validity, self.expires, now);
@@ -115,6 +131,8 @@ impl Key {
         } else if [&status.sign, &status.decrypt, &status.authenticate]
             .iter()
             .any(|a| a.is_usable())
+            // ローカル署名用の鍵は、証明にしか使わない
+            || (self.is_local_certifier() && status.certify.is_usable())
         {
             Tier::Usable
         } else {
@@ -251,6 +269,37 @@ mod tests {
         let mut k = key(Validity::Ultimate, SecretState::Available, vec![]);
         k.validity = Validity::Revoked;
         assert_eq!(k.status(NOW).tier, Tier::History);
+    }
+
+    #[test]
+    fn local_certifier_is_usable_for_certifying() {
+        let mut k = key(Validity::Ultimate, SecretState::Available, vec![]);
+        k.capabilities = caps("c");
+        k.user_ids = vec![crate::model::UserId {
+            text: "Local certifications (Studio)".into(),
+            validity: Validity::Ultimate,
+            created: None,
+            expires: None,
+            hash: None,
+            attribute: false,
+        }];
+        assert!(k.is_local_certifier());
+        let s = k.status(NOW);
+        assert_eq!(s.tier, Tier::Usable);
+        assert_eq!(s.certify, Availability::ThisDevice);
+
+        // メールアドレスがあるか、サブ鍵があれば、ふつうの鍵
+        let mut with_email = k.clone();
+        with_email.user_ids[0].text = "Alice <alice@example.com>".into();
+        assert!(!with_email.is_local_certifier());
+        let mut with_subkey = k.clone();
+        with_subkey.subkeys = vec![sub("e", SecretState::Available, None)];
+        assert!(!with_subkey.is_local_certifier());
+        // 署名もできる主鍵は違う
+        let mut signing = k;
+        signing.capabilities = caps("sc");
+        assert!(!signing.is_local_certifier());
+        assert_eq!(signing.status(NOW).tier, Tier::Usable);
     }
 
     #[test]

@@ -14,6 +14,7 @@ mod keylist;
 mod model;
 mod ownership;
 pub mod process;
+mod request;
 mod revocation;
 mod signer_fetch;
 mod signers;
@@ -24,7 +25,10 @@ mod staging;
 pub mod status;
 
 pub use card::Card;
-pub use certify::{Certification, SignatureCheck, WithdrawnCertifications, parse_certifications};
+pub use certify::{
+    Certification, ImportedLocalSignatures, LocalSignatures, SignatureCheck,
+    WithdrawnCertifications, parse_certifications,
+};
 pub use edit::{OwnerTrust, RevocationReason};
 pub use error::{Error, Result};
 pub use gpg::{Gpg, Version};
@@ -34,6 +38,7 @@ pub use model::{
     Subkey, UserId, Validity,
 };
 pub use ownership::{Availability, KeyStatus, Tier};
+pub use request::SigningRequest;
 pub use revocation::{
     Revocation, RevocationCause, Revocations, SubkeyRevocation, UserIdRevocation, parse_revocations,
 };

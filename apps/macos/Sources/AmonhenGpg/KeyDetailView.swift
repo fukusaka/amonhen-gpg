@@ -37,8 +37,8 @@ struct KeyDetailView: View {
                         .help(L("Fetch this key again from where it came from, or from the keyserver, to get a new expiry or a revocation. It waits in Keys to Accept until you update it."))
                 }
                 if let certify, key.canCertify {
-                    Button(model.keyring.signers.isEmpty ? L("Sign Key… (needs your primary key)") : L("Sign Key…")) { certify(key) }
-                        .disabled(model.keyring.signers.isEmpty)
+                    Button(model.keyring.cannotCertify ? L("Sign Key… (needs your primary key)") : L("Sign Key…")) { certify(key) }
+                        .disabled(model.keyring.cannotCertify)
                 }
             }
             FingerprintView(fingerprint: key.fingerprint)

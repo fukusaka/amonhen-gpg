@@ -48,6 +48,11 @@ struct ContentView: View {
     /// 使えた鍵（履歴）を開いておくか。
     var showsHistory = false
     @State private var creating = false
+    @State private var creatingLocalCertifier = false
+    /// 署名を頼むシート（主鍵のない Mac で）。
+    @State private var requestingSignatures = false
+    /// 開いた署名の依頼（主鍵のある Mac で）。
+    @State private var openedRequest: OpenedSigningRequest?
     @State private var notice: Notice?
     /// 作ったばかりの鍵（バックアップを勧める）。
     @State private var created: OwnKey?
@@ -166,6 +171,24 @@ struct ContentView: View {
                     }
                     .help(othersFilter == .all ? L("Filter") : othersFilter.title)
                 }
+                if place == .others {
+                    // 主鍵のある Mac でしたローカル署名を、主鍵のない Mac へ運ぶ（ふつうの書き出し・取り込みでは落ちる）
+                    Menu {
+                        Section(L("On a Mac without your primary key")) {
+                            Button(L("Ask Another Mac to Sign…")) { requestingSignatures = true }
+                            Button(L("Import Local Signatures…"), action: importLocalSignatures)
+                            Button(L("Create a Key for This Mac…")) { creatingLocalCertifier = true }
+                                .disabled(!model.keyring.canCreateLocalCertifier)
+                        }
+                        Section(L("On the Mac with your primary key")) {
+                            Button(L("Open Signing Request…"), action: openSigningRequest)
+                            Button(L("Export Local Signatures…"), action: exportLocalSignatures)
+                        }
+                    } label: {
+                        Label(L("Local Signatures"), systemImage: "signature")
+                    }
+                    .help(L("Carry local signatures from the Mac with your primary key to a Mac without it"))
+                }
                 if place == .mine || place == .others {
                     Button(action: importKeys) {
                         Label(L("Import…"), systemImage: "square.and.arrow.down")
@@ -181,6 +204,23 @@ struct ContentView: View {
                     Label(L("Reload"), systemImage: "arrow.clockwise")
                 }
                 .disabled(model.loading)
+            }
+        }
+        .sheet(isPresented: $requestingSignatures) {
+            RequestSignaturesSheet(model: model) { message in
+                notice = Notice(title: L("Saved"), message: message)
+            }
+        }
+        .sheet(item: $openedRequest) { opened in
+            SigningRequestSheet(model: model, opened: opened) { message in
+                notice = Notice(title: L("Signed"), message: message)
+            }
+        }
+        .sheet(isPresented: $creatingLocalCertifier) {
+            LocalCertifierSheet(model: model) { _ in
+                notice = Notice(
+                    title: L("Key created"),
+                    message: L("Sign keys in Others' Keys with it. They become valid on this Mac only."))
             }
         }
         .sheet(isPresented: $creating) {
@@ -335,6 +375,77 @@ struct ContentView: View {
             switch await model.perform({ $0.importFiles(urls) }) {
             case let .success(summary): notice = Notice(summary)
             case let .failure(error): notice = Notice(title: L("Cannot import keys"), message: describe(error))
+            }
+        }
+    }
+
+    /// 自分のローカル署名を、署名した鍵ごと書き出す（主鍵のある Mac で）。
+    private func exportLocalSignatures() {
+        let panel = NSSavePanel()
+        panel.title = L("Export Local Signatures")
+        panel.message = L("Saves the keys you signed locally, with your local signatures. On your Mac without the primary key, choose Import Local Signatures.")
+        panel.nameFieldStringValue = L("Local signatures.asc")
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        Task {
+            switch await model.perform({ try $0.exportLocalSignatures(to: url) }) {
+            case let .success(keys):
+                notice = Notice(title: L("Exported"), message: L("Saved your local signatures on %ld keys to %@.", keys.count, url.path))
+            case let .failure(error):
+                notice = Notice(
+                    title: L("Cannot export local signatures"),
+                    message: isNotFoundError(error) ? L("You have not signed any key locally on this Mac.") : describe(error))
+            }
+        }
+    }
+
+    /// 署名の依頼を開く（主鍵のある Mac で）。自分の鍵からの依頼でなければ開かない。
+    private func openSigningRequest() {
+        let panel = NSOpenPanel()
+        panel.title = L("Open Signing Request")
+        panel.message = L("Choose a request saved with Ask Another Mac to Sign on your Mac without the primary key.")
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        Task {
+            let result = await model.perform { gpg -> OpenedSigningRequest in
+                let data = try Data(contentsOf: url)
+                return OpenedSigningRequest(request: try gpg.openSigningRequest(data: data), data: data)
+            }
+            switch result {
+            case let .success(opened): openedRequest = opened
+            case let .failure(error):
+                let notYours: Bool = if case GpgError.InvalidArgument(name: "request", message: _) = error { true } else { false }
+                notice = Notice(
+                    title: L("Cannot open the signing request"),
+                    message: notYours
+                        ? L("The request is not signed by your own key, or the primary key is not on this Mac. Only requests from your other Mac can be opened here.")
+                        : describe(error))
+            }
+        }
+    }
+
+    /// 書き出したローカル署名を取り込む（主鍵のない Mac で）。鍵束にない鍵は飛ばし、先に受け入れるよう知らせる。
+    private func importLocalSignatures() {
+        let panel = NSOpenPanel()
+        panel.title = L("Import Local Signatures")
+        panel.message = L("Choose a file saved with Export Local Signatures on your Mac with the primary key.")
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        Task {
+            switch await model.perform({ try $0.importLocalSignatures(from: url) }) {
+            case let .success(result):
+                var lines: [String] = []
+                if !result.signed.isEmpty { lines.append(L("Signed and now valid: %ld keys.", result.signed.count)) }
+                if !result.unchanged.isEmpty { lines.append(L("Already signed: %ld keys.", result.unchanged.count)) }
+                if !result.missing.isEmpty {
+                    lines.append(L("Not in your keyring: %ld keys. Import the same file with Import… and accept the keys in Keys to Accept, then import the local signatures again.", result.missing.count))
+                }
+                notice = Notice(
+                    title: result.signed.isEmpty ? L("No signatures were added") : L("Imported local signatures"),
+                    message: lines.joined(separator: "\n"))
+            case let .failure(error):
+                notice = Notice(title: L("Cannot import local signatures"), message: describe(error))
             }
         }
     }
@@ -705,6 +816,18 @@ struct OwnKeyMenuItems: View {
     var body: some View {
         Button(L("Details…")) { actions.showDetails(own) }
         Divider()
+        if own.isLocalCertifier {
+            // ローカル署名用の鍵は人に渡さず、期限も付けない。要らなくなれば、失効させずに消せば済む
+            Button(L("Change Passphrase…")) { actions.changePassphrase(own) }
+                .disabled(!own.canChangePassphrase)
+            Divider()
+            Button(L("Delete Key with Secret Key…"), role: .destructive) { actions.delete(own) }
+        } else {
+            ordinaryItems
+        }
+    }
+
+    @ViewBuilder private var ordinaryItems: some View {
         Button(L("Extend Expiry…")) { actions.extendExpiry(own) }
             .disabled(!own.canExtendExpiry)
         Button(L("Names and Email Addresses…")) { actions.editUserIds(own) }
@@ -760,10 +883,17 @@ struct OwnKeyRow: View {
                     Text(parts?.name ?? own.key.fingerprint).font(.headline)
                     if let email = parts?.email {
                         Text(email).foregroundStyle(.secondary)
+                    } else if own.isLocalCertifier, let mac = parts?.comment {
+                        // ローカル署名用の鍵はメールアドレスの代わりに、どの Mac の鍵かを出す
+                        Text(mac).foregroundStyle(.secondary)
                     }
                 }
                 OtherUserIdLines(key: own.key)
                 switch own.status.tier {
+                case .usable where own.isLocalCertifier:
+                    Text(L("Signs others' keys locally on this Mac only"))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
                 case .usable:
                     HStack(spacing: 14) {
                         UsageLabel(name: L("Sign"), availability: own.status.sign)
@@ -819,6 +949,8 @@ struct OwnKeyRow: View {
     }
     private var symbol: String {
         switch own.status.tier {
+        case .usable where own.isLocalCertifier:
+            return "checkmark.seal"
         case .usable:
             let onCard = [own.status.sign, own.status.decrypt, own.status.authenticate].contains {
                 if case .card = $0 { true } else { false }
@@ -1070,9 +1202,10 @@ struct OthersView: View {
 
     @ViewBuilder private func menuItems(_ key: Key) -> some View {
         Button(L("Details…")) { openWindow(id: "key", value: key.fingerprint) }
-        // 証明には主鍵の秘密鍵が要る（サブ鍵ではできない）。この Mac になければ理由を添えて押せなくする
-        Button(model.keyring.signers.isEmpty ? L("Sign Key… (needs your primary key)") : L("Sign Key…")) { certifying = key }
-            .disabled(!key.canCertify || model.keyring.signers.isEmpty)
+        // 証明には主鍵の秘密鍵が要る（サブ鍵ではできない）。自分の鍵がどれもこの Mac になければ理由を添えて押せなくする
+        // （主鍵だけがないなら、シートが主鍵のある Mac に頼むか、この Mac 用の鍵を作るかを出す）
+        Button(model.keyring.cannotCertify ? L("Sign Key… (needs your primary key)") : L("Sign Key…")) { certifying = key }
+            .disabled(!key.canCertify || model.keyring.cannotCertify)
         // 自分の署名があるのは有効な鍵だけ（ないときはシートがそう言う）
         if key.validity == .full || key.validity == .marginal {
             Button(L("Withdraw Your Signatures…")) { withdrawing = key }
