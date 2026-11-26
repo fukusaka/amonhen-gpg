@@ -965,6 +965,67 @@ fn signing_requests_from_a_keyring_without_the_primary_key() {
     }
 }
 
+/// 主鍵のない鍵束でローカル署名用の鍵を作り、他者の鍵をその鍵束の中だけで有効にする。
+#[test]
+fn local_certifier_signs_only_locally() {
+    let (Some(home), Some(other)) = (Home::new(), Home::new()) else {
+        eprintln!("gpg not found; skipped");
+        return;
+    };
+    let gpg = Gpg::new().with_homedir(home.path());
+    let bob_gpg = Gpg::new().with_homedir(other.path());
+    let bob = bob_gpg
+        .generate_key(&GenerateKey {
+            user_id: "Bob <bob@example.com>".into(),
+            ..alice()
+        })
+        .unwrap();
+    gpg.import(&bob_gpg.export_public_keys(&[&bob], false).unwrap())
+        .unwrap();
+
+    // メールアドレスのある名前では作らない
+    assert!(matches!(
+        gpg.create_local_certifier("Me <me@example.com>"),
+        Err(Error::InvalidArgument {
+            name: "user_id",
+            ..
+        })
+    ));
+    let mine = gpg
+        .create_local_certifier("Local certifications (Test Mac)")
+        .unwrap();
+    let keys = gpg.list_keys().unwrap();
+    let key = keys.iter().find(|k| k.fingerprint == mine).unwrap();
+    assert!(key.is_local_certifier());
+    assert!(key.is_mine());
+    assert_eq!(key.owner_trust, Validity::Ultimate);
+    assert!(key.subkeys.is_empty());
+    assert_eq!(key.expires, None);
+    assert_eq!(
+        key.status(0).tier,
+        amonhen_gpg_core::Tier::Usable,
+        "usable for certifying"
+    );
+
+    // 書き出す署名はしない
+    assert!(matches!(
+        gpg.sign_key(&bob, &[], Some(&mine), false),
+        Err(Error::InvalidArgument { name: "signer", .. })
+    ));
+    gpg.sign_key(&bob, &[], Some(&mine), true).unwrap();
+    let bob_key = gpg
+        .list_keys()
+        .unwrap()
+        .into_iter()
+        .find(|k| k.fingerprint == bob)
+        .unwrap();
+    assert_eq!(bob_key.validity, Validity::Full);
+    assert!(
+        !bob_key.is_local_certifier(),
+        "Bob's key is an ordinary key"
+    );
+}
+
 #[test]
 fn send_keys_to_a_keyserver() {
     let Some(home) = Home::new() else {

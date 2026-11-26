@@ -30,7 +30,12 @@ struct DeleteKeySheet: View {
             Text(name).font(.headline)
             // どの鍵を消す（失効させる）のか取り違えないよう、詳細・確認と同じ大きさで出す
             FingerprintView(fingerprint: own.key.fingerprint)
-            Text(L("This removes the secret and public key from this Mac. It cannot be undone. Without a backup, anything encrypted to this key can never be decrypted again."))
+            if own.isLocalCertifier {
+                Text(L("This removes the key for local signatures from this Mac. It cannot be undone. Keys you signed with it are no longer valid here, unless other signatures make them valid."))
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text(L("This removes the secret and public key from this Mac. It cannot be undone. Without a backup, anything encrypted to this key can never be decrypted again."))
+            }
             VStack(alignment: .leading, spacing: 8) {
                 if own.canBackUp {
                     if let date = own.backedUp {
@@ -44,7 +49,8 @@ struct DeleteKeySheet: View {
                     Label(L("The secret key on the card stays on the card."), systemImage: "creditcard")
                         .foregroundStyle(.secondary)
                 }
-                if own.key.validity != .revoked {
+                // ローカル署名用の鍵は人に渡していないので、失効させなくてよい
+                if own.key.validity != .revoked, !own.isLocalCertifier {
                     Warning(text: L("Not revoked. Others will keep encrypting to it."), action: L("Revoke…")) {
                         dismiss()
                         revoke(own)

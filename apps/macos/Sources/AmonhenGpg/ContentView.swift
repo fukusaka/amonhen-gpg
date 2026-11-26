@@ -48,6 +48,7 @@ struct ContentView: View {
     /// 使えた鍵（履歴）を開いておくか。
     var showsHistory = false
     @State private var creating = false
+    @State private var creatingLocalCertifier = false
     /// 署名を頼むシート（主鍵のない Mac で）。
     @State private var requestingSignatures = false
     /// 開いた署名の依頼（主鍵のある Mac で）。
@@ -176,6 +177,8 @@ struct ContentView: View {
                         Section(L("On a Mac without your primary key")) {
                             Button(L("Ask Another Mac to Sign…")) { requestingSignatures = true }
                             Button(L("Import Local Signatures…"), action: importLocalSignatures)
+                            Button(L("Create a Key for This Mac…")) { creatingLocalCertifier = true }
+                                .disabled(!model.keyring.canCreateLocalCertifier)
                         }
                         Section(L("On the Mac with your primary key")) {
                             Button(L("Open Signing Request…"), action: openSigningRequest)
@@ -211,6 +214,13 @@ struct ContentView: View {
         .sheet(item: $openedRequest) { opened in
             SigningRequestSheet(model: model, opened: opened) { message in
                 notice = Notice(title: L("Signed"), message: message)
+            }
+        }
+        .sheet(isPresented: $creatingLocalCertifier) {
+            LocalCertifierSheet(model: model) { _ in
+                notice = Notice(
+                    title: L("Key created"),
+                    message: L("Sign keys in Others' Keys with it. They become valid on this Mac only."))
             }
         }
         .sheet(isPresented: $creating) {
@@ -806,6 +816,18 @@ struct OwnKeyMenuItems: View {
     var body: some View {
         Button(L("Details…")) { actions.showDetails(own) }
         Divider()
+        if own.isLocalCertifier {
+            // ローカル署名用の鍵は人に渡さず、期限も付けない。要らなくなれば、失効させずに消せば済む
+            Button(L("Change Passphrase…")) { actions.changePassphrase(own) }
+                .disabled(!own.canChangePassphrase)
+            Divider()
+            Button(L("Delete Key with Secret Key…"), role: .destructive) { actions.delete(own) }
+        } else {
+            ordinaryItems
+        }
+    }
+
+    @ViewBuilder private var ordinaryItems: some View {
         Button(L("Extend Expiry…")) { actions.extendExpiry(own) }
             .disabled(!own.canExtendExpiry)
         Button(L("Names and Email Addresses…")) { actions.editUserIds(own) }
@@ -861,10 +883,17 @@ struct OwnKeyRow: View {
                     Text(parts?.name ?? own.key.fingerprint).font(.headline)
                     if let email = parts?.email {
                         Text(email).foregroundStyle(.secondary)
+                    } else if own.isLocalCertifier, let mac = parts?.comment {
+                        // ローカル署名用の鍵はメールアドレスの代わりに、どの Mac の鍵かを出す
+                        Text(mac).foregroundStyle(.secondary)
                     }
                 }
                 OtherUserIdLines(key: own.key)
                 switch own.status.tier {
+                case .usable where own.isLocalCertifier:
+                    Text(L("Signs others' keys locally on this Mac only"))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
                 case .usable:
                     HStack(spacing: 14) {
                         UsageLabel(name: L("Sign"), availability: own.status.sign)
@@ -920,6 +949,8 @@ struct OwnKeyRow: View {
     }
     private var symbol: String {
         switch own.status.tier {
+        case .usable where own.isLocalCertifier:
+            return "checkmark.seal"
         case .usable:
             let onCard = [own.status.sign, own.status.decrypt, own.status.authenticate].contains {
                 if case .card = $0 { true } else { false }
@@ -1171,9 +1202,10 @@ struct OthersView: View {
 
     @ViewBuilder private func menuItems(_ key: Key) -> some View {
         Button(L("Details…")) { openWindow(id: "key", value: key.fingerprint) }
-        // 証明には主鍵の秘密鍵が要る（サブ鍵ではできない）。この Mac になければ理由を添えて押せなくする
-        Button(model.keyring.signers.isEmpty ? L("Sign Key… (needs your primary key)") : L("Sign Key…")) { certifying = key }
-            .disabled(!key.canCertify || model.keyring.signers.isEmpty)
+        // 証明には主鍵の秘密鍵が要る（サブ鍵ではできない）。自分の鍵がどれもこの Mac になければ理由を添えて押せなくする
+        // （主鍵だけがないなら、シートが主鍵のある Mac に頼むか、この Mac 用の鍵を作るかを出す）
+        Button(model.keyring.cannotCertify ? L("Sign Key… (needs your primary key)") : L("Sign Key…")) { certifying = key }
+            .disabled(!key.canCertify || model.keyring.cannotCertify)
         // 自分の署名があるのは有効な鍵だけ（ないときはシートがそう言う）
         if key.validity == .full || key.validity == .marginal {
             Button(L("Withdraw Your Signatures…")) { withdrawing = key }

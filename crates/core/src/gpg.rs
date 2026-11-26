@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use crate::keylist::parse_keylist;
-use crate::model::{Expiry, GenerateKey, ImportResult, ImportedKey, Key};
+use crate::model::{Capabilities, Expiry, GenerateKey, ImportResult, ImportedKey, Key};
 use crate::process::command;
 use crate::status::{self, Failure, Status};
 use crate::{Error, Result};
@@ -169,6 +169,28 @@ impl Gpg {
                 line: 0,
                 message: "gpg did not report the created key".into(),
             })
+    }
+
+    /// ローカル署名用の鍵を作り、主鍵のフィンガープリントを返す。主鍵の秘密鍵がない Mac で、他者の鍵をその Mac の中だけで
+    /// 有効にするのに使う（`Key::is_local_certifier`）。ed25519 の証明だけの主鍵で、サブ鍵も期限も付けない。`user_id` には
+    /// メールアドレスを入れない（人に渡す鍵と見分けるため）。gpg は作った鍵の所有者信頼を絶対的にするので、
+    /// この鍵でローカル署名した鍵は、この鍵束で有効になる。パスフレーズは pinentry が聞く。
+    pub fn create_local_certifier(&self, user_id: &str) -> Result<String> {
+        if user_id.contains('@') || user_id.contains('<') {
+            return Err(Error::InvalidArgument {
+                name: "user_id",
+                message: "a key for local signatures has no email address".into(),
+            });
+        }
+        self.generate_key(&GenerateKey {
+            user_id: user_id.into(),
+            algorithm: Some("ed25519".into()),
+            capabilities: Some(Capabilities {
+                certify: true,
+                ..Capabilities::default()
+            }),
+            expires: Expiry::Never,
+        })
     }
 
     /// 鍵（公開鍵・秘密鍵・失効証明書）を取り込む。秘密鍵は守られたまま入るので、ふつうはパスフレーズを聞かない。

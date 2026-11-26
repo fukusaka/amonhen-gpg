@@ -1,6 +1,18 @@
 import Foundation
 
 extension OwnKey {
+    /// ローカル署名用の鍵か（主鍵のない Mac で、他者の鍵をその Mac の中だけで有効にするための鍵。`Gpg.createLocalCertifier`）。
+    /// 人に渡さず、データの署名にも使わない。
+    public var isLocalCertifier: Bool { keyIsLocalCertifier(key: key) }
+
+    /// ローカル署名用の鍵の UID。メールアドレスを入れず、どの Mac の鍵かを括弧に書く。
+    public static func localCertifierUserId(macName: String) -> String {
+        let name = macName.filter { !"<>()@".contains($0) }.trimmingCharacters(in: .whitespaces)
+        return name.isEmpty ? "Local certifications" : "Local certifications (\(name))"
+    }
+}
+
+extension OwnKey {
     /// 期限を延ばせるか。主鍵の秘密鍵（証明に使う）がこの PC かカードにあり、失効していないこと。
     /// 期限切れの鍵は `status` では何にも使えないので、秘密鍵の場所を直に見る。
     public var canExtendExpiry: Bool {
@@ -21,8 +33,9 @@ extension OwnKey {
 extension OwnKey {
     /// 失効証明書がなく、作れるか。秘密鍵を失ったときに鍵を失効させるのに要る。
     /// 作るには主鍵の秘密鍵で署名するので、期限の延長と同じ条件（失効していない、主鍵の秘密鍵がこの PC かカードにある）。
+    /// ローカル署名用の鍵は人に渡さないので、要らない（この PC から消せば済む）。
     public var needsRevocationCertificate: Bool {
-        !hasRevocationCertificate && canExtendExpiry
+        !hasRevocationCertificate && canExtendExpiry && !isLocalCertifier
     }
 }
 
@@ -63,8 +76,9 @@ extension OwnKey {
 extension OwnKey {
     /// バックアップを促すか。秘密鍵がこの PC にあり、バックアップの記録がないこと。
     /// 使えた鍵（期限切れ・失効）も、昔のものを復号するのに秘密鍵が要るので促す。
+    /// ローカル署名用の鍵は、失っても作り直して署名し直せば済むので促さない。
     public var needsBackup: Bool {
-        canBackUp && backedUp == nil
+        canBackUp && backedUp == nil && !isLocalCertifier
     }
 }
 

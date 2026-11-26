@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::colons::{Record, unescape};
 use crate::gpg::{check_fingerprint, check_user_id};
-use crate::{Gpg, Result};
+use crate::{Error, Gpg, Result};
 
 /// UID に付いた、ほかの鍵による署名（証明）。持ち主自身の署名（自己署名）は含めない。
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -54,7 +54,20 @@ impl Gpg {
         let fingerprint = check_fingerprint(fingerprint)?;
         let mut args = Vec::new();
         if let Some(signer) = signer {
-            args.extend(["--local-user", check_fingerprint(signer)?]);
+            let signer = check_fingerprint(signer)?;
+            // ローカル署名用の鍵は人に渡さないので、その署名を書き出しても誰も確かめられない
+            if !local
+                && self
+                    .list_keys()?
+                    .iter()
+                    .any(|k| k.fingerprint.eq_ignore_ascii_case(signer) && k.is_local_certifier())
+            {
+                return Err(Error::InvalidArgument {
+                    name: "signer",
+                    message: "a key for local signatures signs only locally".into(),
+                });
+            }
+            args.extend(["--local-user", signer]);
         }
         args.push(if local {
             "--quick-lsign-key"

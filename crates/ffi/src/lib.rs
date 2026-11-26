@@ -721,6 +721,12 @@ pub fn key_is_mine(key: &Key) -> bool {
     key.is_mine()
 }
 
+/// ローカル署名用の鍵か（証明だけの主鍵で、サブ鍵がなく、UID にメールアドレスがない）。
+#[uniffi::export]
+pub fn key_is_local_certifier(key: &Key) -> bool {
+    key.is_local_certifier()
+}
+
 /// 自分の鍵の段と、用途ごとにどこで使えるか。`now` は UNIX 時刻（秒）。
 #[uniffi::export]
 pub fn key_status(key: &Key, now: u64) -> KeyStatus {
@@ -802,6 +808,11 @@ impl Gpg {
 
     pub fn generate_key(&self, request: GenerateKey) -> Result<String> {
         Ok(self.inner.generate_key(&request)?)
+    }
+
+    /// ローカル署名用の鍵を作る（証明だけの ed25519、サブ鍵・期限なし、メールアドレスのない UID）。
+    pub fn create_local_certifier(&self, user_id: String) -> Result<String> {
+        Ok(self.inner.create_local_certifier(&user_id)?)
     }
 
     pub fn import(&self, data: Vec<u8>) -> Result<ImportResult> {
