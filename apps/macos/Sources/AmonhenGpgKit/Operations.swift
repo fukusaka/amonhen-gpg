@@ -487,3 +487,23 @@ extension OwnKey {
     /// こうした鍵だけ、他者の鍵に戻せる（秘密鍵のある鍵は、所有者信頼に関わらず自分の鍵）。
     public var isMineByTrustOnly: Bool { key.secret == .none }
 }
+
+/// 書き出すファイルの既定の名前に入れるもの。Mac の間で運ぶファイル（署名の依頼・ローカル署名）は、どの Mac で
+/// いつ書き出したかを名前に入れ、前のものと区別できるようにする。
+public enum ExportFileName {
+    /// 名前に入れる Mac の名前。ファイル名に使えない文字を除き、空なら "Mac"。
+    public static func macName(_ name: String) -> String {
+        let safe = String(name.map { "/:\\".contains($0) ? "-" : $0 }).trimmingCharacters(in: .whitespaces)
+        return safe.isEmpty ? "Mac" : safe
+    }
+
+    /// 名前に入れる日付（その地域の暦によらず `2026-11-27` の形）。
+    public static func day(_ date: Date, timeZone: TimeZone = .current) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = timeZone
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
+}

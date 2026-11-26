@@ -384,7 +384,7 @@ struct ContentView: View {
         let panel = NSSavePanel()
         panel.title = L("Export Local Signatures")
         panel.message = L("Saves the keys you signed locally, with your local signatures. On your Mac without the primary key, choose Import Local Signatures.")
-        panel.nameFieldStringValue = L("Local signatures.asc")
+        panel.nameFieldStringValue = ExportNames.localSignatures
         guard panel.runModal() == .OK, let url = panel.url else { return }
         Task {
             switch await model.perform({ try $0.exportLocalSignatures(to: url) }) {

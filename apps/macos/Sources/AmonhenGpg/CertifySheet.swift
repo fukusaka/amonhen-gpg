@@ -122,7 +122,7 @@ struct CertifySheet: View {
         guard let requester = model.keyring.dataSigners.first?.key.fingerprint else { return }
         let panel = NSSavePanel()
         panel.title = L("Save Signing Request")
-        panel.nameFieldStringValue = L("Signing request.asc")
+        panel.nameFieldStringValue = ExportNames.signingRequest
         guard panel.runModal() == .OK, let url = panel.url else { return }
         let fingerprint = key.fingerprint
         working = true

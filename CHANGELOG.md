@@ -6,6 +6,11 @@ notes.
 
 ## Unreleased
 
+### Changed
+
+- Signing requests and exported local signatures are named after the Mac that saves them and the date, such as
+  `Signing request from <Mac name> 2026-11-27.asc`, instead of the same name every time.
+
 ## [0.6.0] - 2026-11-26
 
 Local signatures now reach a Mac without your primary key: carry them over from the Mac with it, ask that Mac to
