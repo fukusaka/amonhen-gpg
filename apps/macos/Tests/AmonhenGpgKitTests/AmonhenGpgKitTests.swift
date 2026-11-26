@@ -1221,3 +1221,13 @@ func marksAnImportedKeyAsYourOwn() throws {
     let edits = searched.edits(accepting: [], as: "alice@example.com", checked: .account)
     #expect(edits.count == 1)
 }
+
+@Test func namesFilesCarriedBetweenMacs() {
+    #expect(ExportFileName.macName("開発M1Max") == "開発M1Max")
+    #expect(ExportFileName.macName(" Work/Home: Mac ") == "Work-Home- Mac")
+    #expect(ExportFileName.macName("  ") == "Mac")
+    // 2026-11-26T23:30:00Z は東京では 27 日
+    let date = Date(timeIntervalSince1970: 1_795_735_800)
+    #expect(ExportFileName.day(date, timeZone: TimeZone(identifier: "UTC")!) == "2026-11-26")
+    #expect(ExportFileName.day(date, timeZone: TimeZone(identifier: "Asia/Tokyo")!) == "2026-11-27")
+}

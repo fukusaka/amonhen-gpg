@@ -175,7 +175,7 @@
 "Export Local Signatures" = "ローカル署名を書き出す";
 "Import Local Signatures" = "ローカル署名を取り込む";
 "Saves the keys you signed locally, with your local signatures. On your Mac without the primary key, choose Import Local Signatures." = "ローカル署名した鍵を、署名ごと保存します。主鍵のない Mac で「ローカル署名を取り込む」を選んでください。";
-"Local signatures.asc" = "ローカル署名.asc";
+"Local signatures from %@ %@.asc" = "ローカル署名 %@ %@.asc";
 "Saved your local signatures on %ld keys to %@." = "%ld 個の鍵へのローカル署名を %@ に保存しました。";
 "Cannot export local signatures" = "ローカル署名を書き出せません";
 "You have not signed any key locally on this Mac." = "この Mac でローカル署名した鍵はありません。";
@@ -198,7 +198,7 @@
 "Sign the request with" = "依頼に署名する鍵";
 "Save Request…" = "依頼を保存…";
 "Save Signing Request" = "署名の依頼を保存";
-"Signing request.asc" = "署名の依頼.asc";
+"Signing request from %@ %@.asc" = "署名の依頼 %@ %@.asc";
 "Saved a request for %ld keys to %@. Open it on your Mac with the primary key." = "%ld 個の鍵の依頼を %@ に保存しました。主鍵のある Mac で開いてください。";
 "Saved" = "保存しました";
 "Signing Request" = "署名の依頼";

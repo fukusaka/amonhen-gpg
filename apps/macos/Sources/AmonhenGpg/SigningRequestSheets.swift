@@ -83,7 +83,7 @@ struct RequestSignaturesSheet: View {
         guard let signer else { return }
         let panel = NSSavePanel()
         panel.title = L("Save Signing Request")
-        panel.nameFieldStringValue = L("Signing request.asc")
+        panel.nameFieldStringValue = ExportNames.signingRequest
         guard panel.runModal() == .OK, let url = panel.url else { return }
         let fingerprints = model.keyring.others.map(\.fingerprint).filter(selected.contains)
         working = true
@@ -193,7 +193,7 @@ struct SigningRequestSheet: View {
         guard let signer else { return }
         let panel = NSSavePanel()
         panel.title = L("Export Local Signatures")
-        panel.nameFieldStringValue = L("Local signatures.asc")
+        panel.nameFieldStringValue = ExportNames.localSignatures
         guard panel.runModal() == .OK, let url = panel.url else { return }
         let keys = opened.request.keys.filter { selected.contains($0.fingerprint) }
         let data = opened.data
