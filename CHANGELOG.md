@@ -6,6 +6,11 @@ notes.
 
 ## Unreleased
 
+## [0.6.0] - 2026-11-26
+
+Local signatures now reach a Mac without your primary key: carry them over from the Mac with it, ask that Mac to
+sign keys for you, or create a key on this Mac that signs others' keys for this Mac only.
+
 ### Added
 
 - Others' Keys has a Local Signatures menu in the toolbar to carry local signatures from the Mac with your primary key to a Mac without it. Export Local Signatures… saves the keys you signed locally with those signatures; Import Local Signatures… adds them on the other Mac to keys already in its keyring, and says which keys to accept first.
