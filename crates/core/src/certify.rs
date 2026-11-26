@@ -131,6 +131,84 @@ impl Gpg {
         Ok(withdrawn)
     }
 
+    /// 自分の鍵がローカル署名した他者の鍵を、ローカル署名ごと書き出す。主鍵のある Mac で署名し、主鍵のない Mac へ
+    /// 運ぶため（ローカル署名はふつうの書き出しでは落ちる）。署名は主鍵がしたものなので、運ぶ途中で書き換えられれば
+    /// 取り込む側の gpg がはねる。ローカル署名した鍵がなければ `Error::NotFound`。
+    pub fn export_local_signatures(&self, armor: bool) -> Result<LocalSignatures> {
+        let own: Vec<String> = self
+            .list_keys()?
+            .into_iter()
+            .filter(|k| k.secret != crate::SecretState::None)
+            .map(|k| k.fingerprint)
+            .collect();
+        let out = self.run(
+            &["--with-colons", "--fixed-list-mode", "--list-signatures"],
+            None,
+        )?;
+        let keys = locally_signed_keys(&String::from_utf8_lossy(&out.stdout), &own);
+        if keys.is_empty() {
+            return Err(crate::Error::NotFound);
+        }
+        let mut args = vec!["--export-options", "export-local"];
+        if armor {
+            args.push("--armor");
+        }
+        args.extend(["--export", "--"]);
+        args.extend(keys.iter().map(String::as_str));
+        let out = self.run(&args, None)?;
+        Ok(LocalSignatures {
+            data: out.stdout,
+            keys,
+        })
+    }
+
+    /// 書き出したローカル署名（`export_local_signatures`）を取り込む。鍵束にある鍵にだけ署名を加え
+    /// （`merge-only`）、ない鍵は飛ばす（確かめていない鍵が紛れ込まないように。先に受け入れる）。
+    pub fn import_local_signatures(&self, data: &[u8]) -> Result<ImportedLocalSignatures> {
+        let present: Vec<String> = self
+            .list_keys()?
+            .into_iter()
+            .map(|k| k.fingerprint)
+            .collect();
+        let in_file = self.show_keys(data)?;
+        let mut result = ImportedLocalSignatures::default();
+        for key in &in_file {
+            if !present
+                .iter()
+                .any(|f| f.eq_ignore_ascii_case(&key.fingerprint))
+            {
+                result.missing.push(key.fingerprint.clone());
+            }
+        }
+        // 飛ばす鍵しかなければ、gpg は何も読まなかったと言うので、取り込まない
+        if result.missing.len() == in_file.len() {
+            return Ok(result);
+        }
+        let imported = self.run_import(
+            &["--import-options", "import-local,merge-only", "--import"],
+            Some(data),
+        )?;
+        for key in imported.keys {
+            if result
+                .missing
+                .iter()
+                .any(|f| f.eq_ignore_ascii_case(&key.fingerprint))
+            {
+                continue;
+            }
+            if key.new_signatures {
+                result.signed.push(key.fingerprint);
+            } else {
+                result.unchanged.push(key.fingerprint);
+            }
+        }
+        // 有効性は trustdb に覚えてあるので、署名が変わったら計算し直させる
+        if !result.signed.is_empty() {
+            self.run(&["--check-trustdb"], None)?;
+        }
+        Ok(result)
+    }
+
     /// 鍵の UID に付いた、ほかの鍵による署名を、確かめたうえで返す（`--check-signatures`）。
     pub fn certifications(&self, fingerprint: &str) -> Result<Vec<Certification>> {
         let fingerprint = check_fingerprint(fingerprint)?;
@@ -149,6 +227,26 @@ impl Gpg {
             fingerprint,
         ))
     }
+}
+
+/// 書き出したローカル署名（`Gpg::export_local_signatures`）。
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LocalSignatures {
+    /// ローカル署名を含めた公開鍵（`--export-options export-local`）。
+    pub data: Vec<u8>,
+    /// 書き出した鍵のフィンガープリント。
+    pub keys: Vec<String>,
+}
+
+/// ローカル署名を取り込んだ結果（`Gpg::import_local_signatures`）。
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ImportedLocalSignatures {
+    /// 新しい署名が付いた鍵。
+    pub signed: Vec<String>,
+    /// すでに同じ署名が付いていた鍵。
+    pub unchanged: Vec<String>,
+    /// 鍵束にないので飛ばした鍵（先に受け入れる）。
+    pub missing: Vec<String>,
 }
 
 /// 自分の署名を取り消した数。
@@ -199,6 +297,54 @@ fn delsig_answers(output: &str, fingerprint: &str, signer: &str) -> String {
         }
     }
     answers
+}
+
+/// `--list-signatures --with-colons` の出力から、`signers`（自分の鍵）のどれかがローカル署名（`10l`〜`13l`）した
+/// 鍵を並びのまま返す。`signers` 自身の鍵は入れない（自分の鍵どうしの署名は運ばなくてよい）。
+fn locally_signed_keys(output: &str, signers: &[String]) -> Vec<String> {
+    let mut keys: Vec<String> = Vec::new();
+    let mut current: Option<String> = None;
+    let mut want_fpr = false;
+    let mut in_uid = false;
+    let is_signer = |fpr: Option<&str>, key_id: Option<&str>| {
+        signers.iter().any(|s| {
+            fpr.is_some_and(|f| f.eq_ignore_ascii_case(s))
+                || key_id.is_some_and(|k| {
+                    !k.is_empty() && s.to_ascii_uppercase().ends_with(&k.to_ascii_uppercase())
+                })
+        })
+    };
+    for line in output.lines() {
+        let r = Record::parse(line);
+        match r.kind() {
+            "pub" => {
+                current = None;
+                want_fpr = true;
+                in_uid = false;
+            }
+            "fpr" if want_fpr => {
+                want_fpr = false;
+                current = r
+                    .field(10)
+                    .map(str::to_owned)
+                    .filter(|f| !signers.iter().any(|s| s.eq_ignore_ascii_case(f)));
+            }
+            "uid" | "uat" => in_uid = true,
+            "sub" => in_uid = false,
+            "sig" if in_uid => {
+                let Some(key) = &current else { continue };
+                let class = r.field(11).unwrap_or_default();
+                let local = class.len() == 3
+                    && ["10", "11", "12", "13"].contains(&&class[..2])
+                    && class.ends_with('l');
+                if local && is_signer(r.field(13), r.field(5)) && !keys.contains(key) {
+                    keys.push(key.clone());
+                }
+            }
+            _ => {}
+        }
+    }
+    keys
 }
 
 /// `--check-signatures --with-colons` の出力から、`fingerprint` の鍵の UID に付いた、ほかの鍵の署名を取り出す。
@@ -370,5 +516,49 @@ uid:u::::1::AA::X <x@example.com>::::::::::0:
 sig:!::22:2222222222222222:1::::Y:10x::2222222222222222222222222222222222222222:::10:
 ";
         assert!(parse_certifications(out, BOB).is_empty());
+    }
+
+    #[test]
+    fn finds_keys_with_own_local_signatures() {
+        let alice = "1B0DF3FC12DD4880A376042C4B01540BB451A080".to_owned();
+        // Bob: Alice のローカル署名あり。Carol: Alice の書き出す署名だけ。Dave: 他人のローカル署名と、Alice の
+        // サブ鍵への署名だけ。Erin: フィンガープリントのない古い署名（鍵 ID で見る）。Alice 自身は入れない
+        let out = "\
+pub:u:255:22:4B01540BB451A080:1::::::cSC:::::ed25519:::0:
+fpr:::::::::1B0DF3FC12DD4880A376042C4B01540BB451A080:
+uid:u::::1::1::Alice <a@example.com>::::::::::0:
+sig:!::22:4B01540BB451A080:1::::Alice:13x::1B0DF3FC12DD4880A376042C4B01540BB451A080:::10:
+sig:!::22:4B01540BB451A080:1::::Alice:10l::1B0DF3FC12DD4880A376042C4B01540BB451A080:::10:
+pub:f:255:22:13E0390F0F502517:1::::::scSC:::::ed25519:::0:
+fpr:::::::::2BFEB4F107E714F45918402013E0390F0F502517:
+uid:f::::1::2::Bob <b@example.com>::::::::::0:
+sig:!::22:13E0390F0F502517:1::::Bob:13x::2BFEB4F107E714F45918402013E0390F0F502517:::10:
+sig:!::22:4B01540BB451A080:2::::Alice:10l::1B0DF3FC12DD4880A376042C4B01540BB451A080:::10:
+uid:f::::1::3::Bob Work <b@work.example>::::::::::0:
+sig:!::22:4B01540BB451A080:2::::Alice:10l::1B0DF3FC12DD4880A376042C4B01540BB451A080:::10:
+pub:f:255:22:3333333333333333:1::::::scSC:::::ed25519:::0:
+fpr:::::::::3333333333333333333333333333333333333333:
+uid:f::::1::4::Carol <c@example.com>::::::::::0:
+sig:!::22:4B01540BB451A080:2::::Alice:10x::1B0DF3FC12DD4880A376042C4B01540BB451A080:::10:
+pub:-:255:22:4444444444444444:1::::::scSC:::::ed25519:::0:
+fpr:::::::::4444444444444444444444444444444444444444:
+uid:-::::1::5::Dave <d@example.com>::::::::::0:
+sig:!::22:5555555555555555:2::::Eve:10l::5555555555555555555555555555555555555555:::10:
+sub:-:255:18:6666666666666666:1::::::e:::::cv25519::
+fpr:::::::::6666666666666666666666666666666666666666:
+sig:!::22:4B01540BB451A080:2::::Alice:18l::1B0DF3FC12DD4880A376042C4B01540BB451A080:::10:
+pub:f:255:22:7777777777777777:1::::::scSC:::::ed25519:::0:
+fpr:::::::::7777777777777777777777777777777777777777:
+uid:f::::1::6::Erin <e@example.com>::::::::::0:
+sig:!::17:4B01540BB451A080:2::::Alice:12l:::::2:
+";
+        assert_eq!(
+            locally_signed_keys(out, &[alice]),
+            [
+                "2BFEB4F107E714F45918402013E0390F0F502517",
+                "7777777777777777777777777777777777777777"
+            ]
+        );
+        assert!(locally_signed_keys(out, &[]).is_empty());
     }
 }

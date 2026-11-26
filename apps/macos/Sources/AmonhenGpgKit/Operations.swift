@@ -113,6 +113,20 @@ extension Gpg {
         try write(Data((exportSshKey(fingerprint: subkey.fingerprint) + "\n").utf8), to: url, permissions: 0o644)
     }
 
+    /// 自分の鍵がローカル署名した他者の鍵を、署名ごと `url` に書き出し（0644）、書き出した鍵を返す。
+    /// 主鍵のない Mac で `importLocalSignatures` で取り込む。
+    @discardableResult
+    public func exportLocalSignatures(to url: URL) throws -> [String] {
+        let local = try exportLocalSignatures(armor: true)
+        try write(local.data, to: url, permissions: 0o644)
+        return local.keys
+    }
+
+    /// 書き出したローカル署名を取り込む。鍵束にない鍵は飛ばす（`missing`）。
+    public func importLocalSignatures(from url: URL) throws -> ImportedLocalSignatures {
+        try importLocalSignatures(data: try Data(contentsOf: url))
+    }
+
     /// 隣に `permissions` で作ってから置き換える（書きかけや、緩い権限のファイルを残さない）。
     private func write(_ data: Data, to url: URL, permissions: Int) throws {
         let temporary = url.deletingLastPathComponent()

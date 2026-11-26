@@ -166,6 +166,16 @@ struct ContentView: View {
                     }
                     .help(othersFilter == .all ? L("Filter") : othersFilter.title)
                 }
+                if place == .others {
+                    // 主鍵のある Mac でしたローカル署名を、主鍵のない Mac へ運ぶ（ふつうの書き出し・取り込みでは落ちる）
+                    Menu {
+                        Button(L("Export Local Signatures…"), action: exportLocalSignatures)
+                        Button(L("Import Local Signatures…"), action: importLocalSignatures)
+                    } label: {
+                        Label(L("Local Signatures"), systemImage: "signature")
+                    }
+                    .help(L("Carry local signatures from the Mac with your primary key to a Mac without it"))
+                }
                 if place == .mine || place == .others {
                     Button(action: importKeys) {
                         Label(L("Import…"), systemImage: "square.and.arrow.down")
@@ -335,6 +345,51 @@ struct ContentView: View {
             switch await model.perform({ $0.importFiles(urls) }) {
             case let .success(summary): notice = Notice(summary)
             case let .failure(error): notice = Notice(title: L("Cannot import keys"), message: describe(error))
+            }
+        }
+    }
+
+    /// 自分のローカル署名を、署名した鍵ごと書き出す（主鍵のある Mac で）。
+    private func exportLocalSignatures() {
+        let panel = NSSavePanel()
+        panel.title = L("Export Local Signatures")
+        panel.message = L("Saves the keys you signed locally, with your local signatures. On your Mac without the primary key, choose Import Local Signatures.")
+        panel.nameFieldStringValue = L("Local signatures.asc")
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        Task {
+            switch await model.perform({ try $0.exportLocalSignatures(to: url) }) {
+            case let .success(keys):
+                notice = Notice(title: L("Exported"), message: L("Saved your local signatures on %ld keys to %@.", keys.count, url.path))
+            case let .failure(error):
+                notice = Notice(
+                    title: L("Cannot export local signatures"),
+                    message: isNotFoundError(error) ? L("You have not signed any key locally on this Mac.") : describe(error))
+            }
+        }
+    }
+
+    /// 書き出したローカル署名を取り込む（主鍵のない Mac で）。鍵束にない鍵は飛ばし、先に受け入れるよう知らせる。
+    private func importLocalSignatures() {
+        let panel = NSOpenPanel()
+        panel.title = L("Import Local Signatures")
+        panel.message = L("Choose a file saved with Export Local Signatures on your Mac with the primary key.")
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        Task {
+            switch await model.perform({ try $0.importLocalSignatures(from: url) }) {
+            case let .success(result):
+                var lines: [String] = []
+                if !result.signed.isEmpty { lines.append(L("Signed and now valid: %ld keys.", result.signed.count)) }
+                if !result.unchanged.isEmpty { lines.append(L("Already signed: %ld keys.", result.unchanged.count)) }
+                if !result.missing.isEmpty {
+                    lines.append(L("Not in your keyring: %ld keys. Import the same file with Import… and accept the keys in Keys to Accept, then import the local signatures again.", result.missing.count))
+                }
+                notice = Notice(
+                    title: result.signed.isEmpty ? L("No signatures were added") : L("Imported local signatures"),
+                    message: lines.joined(separator: "\n"))
+            case let .failure(error):
+                notice = Notice(title: L("Cannot import local signatures"), message: describe(error))
             }
         }
     }

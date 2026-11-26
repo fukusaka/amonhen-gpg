@@ -89,6 +89,11 @@ func isCanceled(_ error: Error) -> Bool {
     if case GpgError.Canceled = error { true } else { false }
 }
 
+/// 探したものがなかったか（`GpgError.NotFound`）。
+func isNotFoundError(_ error: Error) -> Bool {
+    if case GpgError.NotFound = error { true } else { false }
+}
+
 /// エラーを画面の文にする。
 func describe(_ error: Error) -> String {
     guard let error = error as? GpgError else { return error.localizedDescription }

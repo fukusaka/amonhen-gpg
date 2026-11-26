@@ -6,6 +6,10 @@ notes.
 
 ## Unreleased
 
+### Added
+
+- Others' Keys has a Local Signatures menu in the toolbar to carry local signatures from the Mac with your primary key to a Mac without it. Export Local Signatures… saves the keys you signed locally with those signatures; Import Local Signatures… adds them on the other Mac to keys already in its keyring, and says which keys to accept first.
+
 ## [0.5.1] - 2026-11-25
 
 SSH Signers lists its lists in the sidebar, under SSH Signers, and shows people in a table: open a person to see

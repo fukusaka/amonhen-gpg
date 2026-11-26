@@ -13,12 +13,12 @@ use amonhen_gpg_core::status::Failure;
 use amonhen_gpg_core::{
     Account, AccountProfile, Availability, CandidateSource, Capabilities, Card, Certification,
     Checked, CodeHost, Expiry, FetchedKey, FileState, GenerateKey, ImportResult, ImportedFrom,
-    ImportedKey, Key, KeyOrigin, KeySource, KeyStatus, LoadedSigners, OwnerTrust, ParsedEntry,
-    ParsedSigners, PrincipalCandidate, RecordSignature, Revocation, RevocationCause,
-    RevocationReason, Revocations, SecretState, SignatureCheck, Signer, SignerChanges, SignerKey,
-    SignerList, SignerRecord, SignersFile, SkipReason, SkippedLine, SshControl, SshKey, SshSupport,
-    Subkey, SubkeyRevocation, Tier, UserId, UserIdRevocation, Validity, Version,
-    WithdrawnCertifications,
+    ImportedKey, ImportedLocalSignatures, Key, KeyOrigin, KeySource, KeyStatus, LoadedSigners,
+    LocalSignatures, OwnerTrust, ParsedEntry, ParsedSigners, PrincipalCandidate, RecordSignature,
+    Revocation, RevocationCause, RevocationReason, Revocations, SecretState, SignatureCheck,
+    Signer, SignerChanges, SignerKey, SignerList, SignerRecord, SignersFile, SkipReason,
+    SkippedLine, SshControl, SshKey, SshSupport, Subkey, SubkeyRevocation, Tier, UserId,
+    UserIdRevocation, Validity, Version, WithdrawnCertifications,
 };
 
 uniffi::setup_scaffolding!();
@@ -422,6 +422,19 @@ pub struct Certification {
 pub struct WithdrawnCertifications {
     pub deleted: u32,
     pub revoked: u32,
+}
+
+#[uniffi::remote(Record)]
+pub struct LocalSignatures {
+    pub data: Vec<u8>,
+    pub keys: Vec<String>,
+}
+
+#[uniffi::remote(Record)]
+pub struct ImportedLocalSignatures {
+    pub signed: Vec<String>,
+    pub unchanged: Vec<String>,
+    pub missing: Vec<String>,
 }
 
 #[uniffi::remote(Enum)]
@@ -980,6 +993,14 @@ impl Gpg {
         signer: String,
     ) -> Result<WithdrawnCertifications> {
         Ok(self.inner.withdraw_certifications(&fingerprint, &signer)?)
+    }
+
+    pub fn export_local_signatures(&self, armor: bool) -> Result<LocalSignatures> {
+        Ok(self.inner.export_local_signatures(armor)?)
+    }
+
+    pub fn import_local_signatures(&self, data: Vec<u8>) -> Result<ImportedLocalSignatures> {
+        Ok(self.inner.import_local_signatures(&data)?)
     }
 
     pub fn revocations(&self, fingerprint: String) -> Result<Revocations> {

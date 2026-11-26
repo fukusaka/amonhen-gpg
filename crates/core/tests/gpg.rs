@@ -777,6 +777,102 @@ fn sign_others_key() {
     ));
 }
 
+/// 主鍵のある鍵束でローカル署名し、書き出して、主鍵のない鍵束（サブ鍵と同じ自分の鍵）に取り込む。
+#[test]
+fn carries_local_signatures_to_a_keyring_without_the_primary_key() {
+    let (Some(home), Some(away), Some(other)) = (Home::new(), Home::new(), Home::new()) else {
+        eprintln!("gpg not found; skipped");
+        return;
+    };
+    let gpg = Gpg::new().with_homedir(home.path());
+    let me = gpg.generate_key(&alice()).unwrap();
+    let bob_gpg = Gpg::new().with_homedir(other.path());
+    let person = |name: &str| GenerateKey {
+        user_id: format!("{name} <{}@example.com>", name.to_lowercase()),
+        ..alice()
+    };
+    let bob = bob_gpg.generate_key(&person("Bob")).unwrap();
+    let carol = bob_gpg.generate_key(&person("Carol")).unwrap();
+    let public = bob_gpg.export_public_keys(&[&bob, &carol], false).unwrap();
+
+    // ローカル署名した鍵がなければ、書き出すものはない
+    gpg.import(&public).unwrap();
+    assert!(matches!(
+        gpg.export_local_signatures(false),
+        Err(Error::NotFound)
+    ));
+    // Bob にはローカル署名、Carol には書き出す署名。書き出すのは Bob だけ
+    gpg.sign_key(&bob, &[], Some(&me), true).unwrap();
+    gpg.sign_key(&carol, &[], Some(&me), false).unwrap();
+    let local = gpg.export_local_signatures(true).unwrap();
+    assert_eq!(local.keys, [bob.as_str()]);
+    assert!(
+        local
+            .data
+            .starts_with(b"-----BEGIN PGP PUBLIC KEY BLOCK-----")
+    );
+
+    // 主鍵のない鍵束: 自分の鍵はサブ鍵の秘密鍵だけ。主鍵の秘密鍵がないので、自分では署名できない
+    let away_gpg = Gpg::new().with_homedir(away.path());
+    let subkeys = home.path().join("subkeys.pgp");
+    home.gpg(&[
+        "--output",
+        subkeys.to_str().unwrap(),
+        "--export-secret-subkeys",
+        &me,
+    ]);
+    away.gpg(&["--import", subkeys.to_str().unwrap()]);
+    away_gpg
+        .set_owner_trust(&me, amonhen_gpg_core::OwnerTrust::Ultimate)
+        .unwrap();
+    let validity = |fingerprint: &str| {
+        away_gpg
+            .list_keys()
+            .unwrap()
+            .into_iter()
+            .find(|k| k.fingerprint == fingerprint)
+            .unwrap()
+            .validity
+    };
+
+    // Bob がまだない鍵束では、飛ばして何も加えない
+    let skipped = away_gpg.import_local_signatures(&local.data).unwrap();
+    assert_eq!(skipped.missing, [bob.as_str()]);
+    assert!(skipped.signed.is_empty());
+    assert!(
+        away_gpg
+            .list_keys()
+            .unwrap()
+            .iter()
+            .all(|k| k.fingerprint != bob)
+    );
+
+    // Bob を受け入れてから取り込むと、ローカル署名で有効になる。ふつうの書き出しでは署名が落ちる
+    away_gpg
+        .import(&gpg.export_public_keys(&[&bob], false).unwrap())
+        .unwrap();
+    assert_ne!(validity(&bob), Validity::Full);
+    let imported = away_gpg.import_local_signatures(&local.data).unwrap();
+    assert_eq!(imported.signed, [bob.as_str()]);
+    assert!(imported.missing.is_empty());
+    assert_eq!(validity(&bob), Validity::Full);
+    let certs = away_gpg.certifications(&bob).unwrap();
+    assert!(
+        certs
+            .iter()
+            .all(|c| !c.exportable && c.signer_fingerprint.as_deref() == Some(me.as_str()))
+    );
+    // もう一度取り込んでも変わらない
+    let again = away_gpg.import_local_signatures(&local.data).unwrap();
+    assert_eq!(
+        (again.signed.len(), again.unchanged),
+        (0, vec![bob.clone()])
+    );
+
+    // 鍵のデータでないものは取り込めない
+    assert!(away_gpg.import_local_signatures(b"not a key").is_err());
+}
+
 #[test]
 fn send_keys_to_a_keyserver() {
     let Some(home) = Home::new() else {
