@@ -16,9 +16,9 @@ use amonhen_gpg_core::{
     ImportedKey, ImportedLocalSignatures, Key, KeyOrigin, KeySource, KeyStatus, LoadedSigners,
     LocalSignatures, OwnerTrust, ParsedEntry, ParsedSigners, PrincipalCandidate, RecordSignature,
     Revocation, RevocationCause, RevocationReason, Revocations, SecretState, SignatureCheck,
-    Signer, SignerChanges, SignerKey, SignerList, SignerRecord, SignersFile, SkipReason,
-    SkippedLine, SshControl, SshKey, SshSupport, Subkey, SubkeyRevocation, Tier, UserId,
-    UserIdRevocation, Validity, Version, WithdrawnCertifications,
+    Signer, SignerChanges, SignerKey, SignerList, SignerRecord, SignersFile, SigningRequest,
+    SkipReason, SkippedLine, SshControl, SshKey, SshSupport, Subkey, SubkeyRevocation, Tier,
+    UserId, UserIdRevocation, Validity, Version, WithdrawnCertifications,
 };
 
 uniffi::setup_scaffolding!();
@@ -428,6 +428,12 @@ pub struct WithdrawnCertifications {
 pub struct LocalSignatures {
     pub data: Vec<u8>,
     pub keys: Vec<String>,
+}
+
+#[uniffi::remote(Record)]
+pub struct SigningRequest {
+    pub requester: String,
+    pub keys: Vec<Key>,
 }
 
 #[uniffi::remote(Record)]
@@ -995,12 +1001,34 @@ impl Gpg {
         Ok(self.inner.withdraw_certifications(&fingerprint, &signer)?)
     }
 
-    pub fn export_local_signatures(&self, armor: bool) -> Result<LocalSignatures> {
-        Ok(self.inner.export_local_signatures(armor)?)
+    pub fn export_local_signatures(
+        &self,
+        only: Vec<String>,
+        armor: bool,
+    ) -> Result<LocalSignatures> {
+        let only: Vec<&str> = only.iter().map(String::as_str).collect();
+        Ok(self.inner.export_local_signatures(&only, armor)?)
     }
 
     pub fn import_local_signatures(&self, data: Vec<u8>) -> Result<ImportedLocalSignatures> {
         Ok(self.inner.import_local_signatures(&data)?)
+    }
+
+    pub fn create_signing_request(
+        &self,
+        fingerprints: Vec<String>,
+        signer: String,
+    ) -> Result<Vec<u8>> {
+        let fingerprints: Vec<&str> = fingerprints.iter().map(String::as_str).collect();
+        Ok(self.inner.create_signing_request(&fingerprints, &signer)?)
+    }
+
+    pub fn open_signing_request(&self, data: Vec<u8>) -> Result<SigningRequest> {
+        Ok(self.inner.open_signing_request(&data)?)
+    }
+
+    pub fn import_signing_request(&self, data: Vec<u8>) -> Result<ImportResult> {
+        Ok(self.inner.import_signing_request(&data)?)
     }
 
     pub fn revocations(&self, fingerprint: String) -> Result<Revocations> {

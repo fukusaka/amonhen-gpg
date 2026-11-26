@@ -14,6 +14,7 @@ mod keylist;
 mod model;
 mod ownership;
 pub mod process;
+mod request;
 mod revocation;
 mod signer_fetch;
 mod signers;
@@ -37,6 +38,7 @@ pub use model::{
     Subkey, UserId, Validity,
 };
 pub use ownership::{Availability, KeyStatus, Tier};
+pub use request::SigningRequest;
 pub use revocation::{
     Revocation, RevocationCause, Revocations, SubkeyRevocation, UserIdRevocation, parse_revocations,
 };

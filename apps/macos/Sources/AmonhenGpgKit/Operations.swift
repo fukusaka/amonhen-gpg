@@ -113,13 +113,18 @@ extension Gpg {
         try write(Data((exportSshKey(fingerprint: subkey.fingerprint) + "\n").utf8), to: url, permissions: 0o644)
     }
 
-    /// 自分の鍵がローカル署名した他者の鍵を、署名ごと `url` に書き出し（0644）、書き出した鍵を返す。
-    /// 主鍵のない Mac で `importLocalSignatures` で取り込む。
+    /// 自分の鍵がローカル署名した他者の鍵を、署名ごと `url` に書き出し（0644）、書き出した鍵を返す。`only` が空でなければ
+    /// そのうちの鍵だけ。主鍵のない Mac で `importLocalSignatures` で取り込む。
     @discardableResult
-    public func exportLocalSignatures(to url: URL) throws -> [String] {
-        let local = try exportLocalSignatures(armor: true)
+    public func exportLocalSignatures(only: [String] = [], to url: URL) throws -> [String] {
+        let local = try exportLocalSignatures(only: only, armor: true)
         try write(local.data, to: url, permissions: 0o644)
         return local.keys
+    }
+
+    /// 署名の依頼（`fingerprints` の公開鍵を、自分の鍵 `signer` で署名したもの）を `url` に書き出す（0644）。
+    public func createSigningRequest(_ fingerprints: [String], signer: String, to url: URL) throws {
+        try write(createSigningRequest(fingerprints: fingerprints, signer: signer), to: url, permissions: 0o644)
     }
 
     /// 書き出したローカル署名を取り込む。鍵束にない鍵は飛ばす（`missing`）。

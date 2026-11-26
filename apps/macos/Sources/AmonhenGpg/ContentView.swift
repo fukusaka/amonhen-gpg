@@ -48,6 +48,10 @@ struct ContentView: View {
     /// 使えた鍵（履歴）を開いておくか。
     var showsHistory = false
     @State private var creating = false
+    /// 署名を頼むシート（主鍵のない Mac で）。
+    @State private var requestingSignatures = false
+    /// 開いた署名の依頼（主鍵のある Mac で）。
+    @State private var openedRequest: OpenedSigningRequest?
     @State private var notice: Notice?
     /// 作ったばかりの鍵（バックアップを勧める）。
     @State private var created: OwnKey?
@@ -169,8 +173,14 @@ struct ContentView: View {
                 if place == .others {
                     // 主鍵のある Mac でしたローカル署名を、主鍵のない Mac へ運ぶ（ふつうの書き出し・取り込みでは落ちる）
                     Menu {
-                        Button(L("Export Local Signatures…"), action: exportLocalSignatures)
-                        Button(L("Import Local Signatures…"), action: importLocalSignatures)
+                        Section(L("On a Mac without your primary key")) {
+                            Button(L("Ask Another Mac to Sign…")) { requestingSignatures = true }
+                            Button(L("Import Local Signatures…"), action: importLocalSignatures)
+                        }
+                        Section(L("On the Mac with your primary key")) {
+                            Button(L("Open Signing Request…"), action: openSigningRequest)
+                            Button(L("Export Local Signatures…"), action: exportLocalSignatures)
+                        }
                     } label: {
                         Label(L("Local Signatures"), systemImage: "signature")
                     }
@@ -191,6 +201,16 @@ struct ContentView: View {
                     Label(L("Reload"), systemImage: "arrow.clockwise")
                 }
                 .disabled(model.loading)
+            }
+        }
+        .sheet(isPresented: $requestingSignatures) {
+            RequestSignaturesSheet(model: model) { message in
+                notice = Notice(title: L("Saved"), message: message)
+            }
+        }
+        .sheet(item: $openedRequest) { opened in
+            SigningRequestSheet(model: model, opened: opened) { message in
+                notice = Notice(title: L("Signed"), message: message)
             }
         }
         .sheet(isPresented: $creating) {
@@ -364,6 +384,32 @@ struct ContentView: View {
                 notice = Notice(
                     title: L("Cannot export local signatures"),
                     message: isNotFoundError(error) ? L("You have not signed any key locally on this Mac.") : describe(error))
+            }
+        }
+    }
+
+    /// 署名の依頼を開く（主鍵のある Mac で）。自分の鍵からの依頼でなければ開かない。
+    private func openSigningRequest() {
+        let panel = NSOpenPanel()
+        panel.title = L("Open Signing Request")
+        panel.message = L("Choose a request saved with Ask Another Mac to Sign on your Mac without the primary key.")
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        Task {
+            let result = await model.perform { gpg -> OpenedSigningRequest in
+                let data = try Data(contentsOf: url)
+                return OpenedSigningRequest(request: try gpg.openSigningRequest(data: data), data: data)
+            }
+            switch result {
+            case let .success(opened): openedRequest = opened
+            case let .failure(error):
+                let notYours: Bool = if case GpgError.InvalidArgument(name: "request", message: _) = error { true } else { false }
+                notice = Notice(
+                    title: L("Cannot open the signing request"),
+                    message: notYours
+                        ? L("The request is not signed by your own key, or the primary key is not on this Mac. Only requests from your other Mac can be opened here.")
+                        : describe(error))
             }
         }
     }

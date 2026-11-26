@@ -9,6 +9,7 @@ notes.
 ### Added
 
 - Others' Keys has a Local Signatures menu in the toolbar to carry local signatures from the Mac with your primary key to a Mac without it. Export Local Signatures… saves the keys you signed locally with those signatures; Import Local Signatures… adds them on the other Mac to keys already in its keyring, and says which keys to accept first.
+- The Local Signatures menu can ask the Mac with your primary key for those signatures. Ask Another Mac to Sign… saves the keys you choose as a request signed with your key; Open Signing Request… on the other Mac opens only requests from your own key, signs the chosen keys locally and saves their signatures to bring back.
 
 ## [0.5.1] - 2026-11-25
 

@@ -133,8 +133,12 @@ impl Gpg {
 
     /// 自分の鍵がローカル署名した他者の鍵を、ローカル署名ごと書き出す。主鍵のある Mac で署名し、主鍵のない Mac へ
     /// 運ぶため（ローカル署名はふつうの書き出しでは落ちる）。署名は主鍵がしたものなので、運ぶ途中で書き換えられれば
-    /// 取り込む側の gpg がはねる。ローカル署名した鍵がなければ `Error::NotFound`。
-    pub fn export_local_signatures(&self, armor: bool) -> Result<LocalSignatures> {
+    /// 取り込む側の gpg がはねる。`only` が空でなければ、そのうちの鍵だけ（署名の依頼への返事）。ローカル署名した鍵が
+    /// なければ `Error::NotFound`。
+    pub fn export_local_signatures(&self, only: &[&str], armor: bool) -> Result<LocalSignatures> {
+        for f in only {
+            check_fingerprint(f)?;
+        }
         let own: Vec<String> = self
             .list_keys()?
             .into_iter()
@@ -145,7 +149,10 @@ impl Gpg {
             &["--with-colons", "--fixed-list-mode", "--list-signatures"],
             None,
         )?;
-        let keys = locally_signed_keys(&String::from_utf8_lossy(&out.stdout), &own);
+        let mut keys = locally_signed_keys(&String::from_utf8_lossy(&out.stdout), &own);
+        if !only.is_empty() {
+            keys.retain(|k| only.iter().any(|f| f.eq_ignore_ascii_case(k)));
+        }
         if keys.is_empty() {
             return Err(crate::Error::NotFound);
         }

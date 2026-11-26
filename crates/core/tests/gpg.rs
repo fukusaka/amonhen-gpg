@@ -798,13 +798,13 @@ fn carries_local_signatures_to_a_keyring_without_the_primary_key() {
     // ローカル署名した鍵がなければ、書き出すものはない
     gpg.import(&public).unwrap();
     assert!(matches!(
-        gpg.export_local_signatures(false),
+        gpg.export_local_signatures(&[], false),
         Err(Error::NotFound)
     ));
     // Bob にはローカル署名、Carol には書き出す署名。書き出すのは Bob だけ
     gpg.sign_key(&bob, &[], Some(&me), true).unwrap();
     gpg.sign_key(&carol, &[], Some(&me), false).unwrap();
-    let local = gpg.export_local_signatures(true).unwrap();
+    let local = gpg.export_local_signatures(&[], true).unwrap();
     assert_eq!(local.keys, [bob.as_str()]);
     assert!(
         local
@@ -871,6 +871,98 @@ fn carries_local_signatures_to_a_keyring_without_the_primary_key() {
 
     // 鍵のデータでないものは取り込めない
     assert!(away_gpg.import_local_signatures(b"not a key").is_err());
+}
+
+/// 主鍵のない鍵束で署名の依頼を作り、主鍵のある鍵束で開いてローカル署名し、返事を取り込む。
+#[test]
+fn signing_requests_from_a_keyring_without_the_primary_key() {
+    let (Some(home), Some(away), Some(other)) = (Home::new(), Home::new(), Home::new()) else {
+        eprintln!("gpg not found; skipped");
+        return;
+    };
+    let gpg = Gpg::new().with_homedir(home.path());
+    let me = gpg.generate_key(&alice()).unwrap();
+    home.gpg(&["--quick-add-key", &me, "ed25519", "sign", "never"]);
+    let bob_gpg = Gpg::new().with_homedir(other.path());
+    let bob = bob_gpg
+        .generate_key(&GenerateKey {
+            user_id: "Bob <bob@example.com>".into(),
+            ..alice()
+        })
+        .unwrap();
+
+    // 主鍵のない鍵束: 自分の鍵はサブ鍵の秘密鍵だけ。Bob の鍵を受け取ってある
+    let away_gpg = Gpg::new().with_homedir(away.path());
+    let subkeys = home.path().join("subkeys.pgp");
+    home.gpg(&[
+        "--output",
+        subkeys.to_str().unwrap(),
+        "--export-secret-subkeys",
+        &me,
+    ]);
+    away.gpg(&["--import", subkeys.to_str().unwrap()]);
+    away_gpg
+        .set_owner_trust(&me, amonhen_gpg_core::OwnerTrust::Ultimate)
+        .unwrap();
+    away_gpg
+        .import(&bob_gpg.export_public_keys(&[&bob], false).unwrap())
+        .unwrap();
+    let request = away_gpg.create_signing_request(&[&bob], &me).unwrap();
+    assert!(request.starts_with(b"-----BEGIN PGP MESSAGE-----"));
+    // 主鍵の秘密鍵がない鍵束では、自分の依頼でも開けない（署名できないので）
+    assert!(matches!(
+        away_gpg.open_signing_request(&request),
+        Err(Error::InvalidArgument {
+            name: "request",
+            ..
+        })
+    ));
+
+    // 主鍵のある鍵束で開く。開くだけでは取り込まない
+    let opened = gpg.open_signing_request(&request).unwrap();
+    assert_eq!(opened.requester, me);
+    assert_eq!(opened.keys.len(), 1);
+    assert_eq!(opened.keys[0].fingerprint, bob);
+    assert!(
+        gpg.list_keys()
+            .unwrap()
+            .iter()
+            .all(|k| k.fingerprint != bob)
+    );
+    gpg.import_signing_request(&request).unwrap();
+    gpg.sign_key(&bob, &[], Some(&me), true).unwrap();
+    let reply = gpg.export_local_signatures(&[&bob], true).unwrap();
+    assert_eq!(reply.keys, [bob.as_str()]);
+    // 依頼にない鍵に絞れば、書き出すものはない
+    assert!(matches!(
+        gpg.export_local_signatures(&[&me], true),
+        Err(Error::NotFound)
+    ));
+
+    // 返事を取り込むと、主鍵のない鍵束でも有効になる
+    let imported = away_gpg.import_local_signatures(&reply.data).unwrap();
+    assert_eq!(imported.signed, [bob.as_str()]);
+    let validity = away_gpg
+        .list_keys()
+        .unwrap()
+        .into_iter()
+        .find(|k| k.fingerprint == bob)
+        .unwrap()
+        .validity;
+    assert_eq!(validity, Validity::Full);
+
+    // 他人が署名した依頼や、署名のないデータは開けない
+    let forged = bob_gpg.create_signing_request(&[&bob], &bob).unwrap();
+    for data in [forged, bob_gpg.export_public_keys(&[&bob], true).unwrap()] {
+        assert!(matches!(
+            gpg.open_signing_request(&data),
+            Err(Error::InvalidArgument {
+                name: "request",
+                ..
+            })
+        ));
+        assert!(gpg.import_signing_request(&data).is_err());
+    }
 }
 
 #[test]
