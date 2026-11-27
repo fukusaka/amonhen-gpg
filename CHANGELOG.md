@@ -6,6 +6,11 @@ notes.
 
 ## Unreleased
 
+## [0.6.1] - 2026-11-27
+
+Files carried between your Macs are easier to tell apart: signing requests and local signatures are named after
+the Mac that saves them and the date.
+
 ### Changed
 
 - Signing requests and exported local signatures are named after the Mac that saves them and the date, such as
