@@ -45,7 +45,7 @@ jobs:
         run: |
           rustup toolchain install stable --profile minimal && rustup default stable
           scripts/build-core.sh
-      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+      - uses: github/codeql-action/init@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4.39.4
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
@@ -53,6 +53,6 @@ jobs:
       # Rust のコアとリンクできない。CodeQL が見るのはこのビルドなので、arm64 向けと決めて組む。
       - if: matrix.language == 'swift'
         run: scripts/swift-build.sh --arch arm64 --product AmonhenGpg
-      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+      - uses: github/codeql-action/analyze@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4.39.4
         with:
           category: /language:${{ matrix.language }}
